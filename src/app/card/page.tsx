@@ -40,21 +40,26 @@ export default async function CardPage({ searchParams }: { searchParams: Promise
     );
   }
 
-  // Two ways in, side by side on wider screens (stacked on phones).
+  // Two ways in, side by side with an "Or" between them (stacked on phones).
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <PageTitle title="Add yourself" sub="Pick one. Takes a few seconds, no sign-up." />
       {notices}
-      <div className="grid items-start gap-4 md:grid-cols-2">
+      <div className="grid items-start gap-4 md:grid-cols-[1fr_auto_1fr]">
+        <Card className="p-5 sm:p-6">
+          <h2 className="mb-1 text-lg font-bold">Add your X post</h2>
+          <p className="mb-5 text-sm text-muted">Already posted about Moonshot on X? Paste the link and people can find you from it.</p>
+          <XPostForm />
+        </Card>
+        <div className="flex items-center justify-center gap-3 md:h-full md:flex-col" aria-hidden>
+          <span className="h-px flex-1 bg-line md:h-auto md:w-px" />
+          <span className="text-sm font-bold uppercase tracking-wide text-muted">Or</span>
+          <span className="h-px flex-1 bg-line md:h-auto md:w-px" />
+        </div>
         <Card className="p-5 sm:p-6">
           <h2 className="mb-1 text-lg font-bold">Make a card</h2>
           <p className="mb-5 text-sm text-muted">Say who you are and how to reach you.</p>
           <CardForm person={null} />
-        </Card>
-        <Card className="p-5 sm:p-6 md:sticky md:top-24">
-          <h2 className="mb-1 text-lg font-bold">Add your X post</h2>
-          <p className="mb-5 text-sm text-muted">Already posted about Moonshot on X? Paste the link and people can find you from it.</p>
-          <XPostForm />
         </Card>
       </div>
     </div>

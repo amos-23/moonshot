@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Check, Copy, Flag, Loader2 } from "lucide-react";
 import type { Result } from "@/lib/actions";
 import { reportAction } from "@/lib/actions";
-import type { Option } from "@/lib/constants";
 import { Button, cx } from "./ui";
 
 type FormAction = (prev: Result | null, form: FormData) => Promise<Result>;
@@ -41,45 +40,6 @@ export function Submit({ pending, children, ...rest }: { pending: boolean; child
       {pending && <Loader2 size={16} className="animate-spin" aria-hidden />}
       {children}
     </Button>
-  );
-}
-
-export function Chips({ name, legend, options, initial = [], max, hint }: { name: string; legend: string; options: Option[]; initial?: string[]; max: number; hint?: string }) {
-  const [sel, setSel] = useState(initial);
-  return (
-    <fieldset className="space-y-2">
-      <legend className="text-sm font-semibold">
-        {legend} <span className="font-normal text-muted">· up to {max}</span>
-      </legend>
-      {hint && <p className="text-xs text-muted">{hint}</p>}
-      <div className="flex flex-wrap gap-2">
-        {options.map((o) => {
-          const on = sel.includes(o.value);
-          const full = !on && sel.length >= max;
-          return (
-            <label
-              key={o.value}
-              className={cx(
-                "cursor-pointer select-none rounded-full border px-3.5 py-2 text-sm transition-colors has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-flame/20",
-                on ? "border-ink bg-ink text-white" : "border-line bg-white hover:border-ink/40",
-                full && "opacity-40",
-              )}
-            >
-              <input
-                type="checkbox"
-                name={name}
-                value={o.value}
-                checked={on}
-                disabled={full}
-                onChange={() => setSel((c) => (on ? c.filter((x) => x !== o.value) : [...c, o.value]))}
-                className="sr-only"
-              />
-              {o.label}
-            </label>
-          );
-        })}
-      </div>
-    </fieldset>
   );
 }
 

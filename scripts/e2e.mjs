@@ -25,7 +25,6 @@ async function visitor(opts = mobile) {
   return { ctx, page };
 }
 const shot = (page, name) => SHOTS && page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: true });
-const chip = (page, label) => page.locator("fieldset label").getByText(label, { exact: true }).click();
 const step = (s) => console.log(`• ${s}`);
 const card = (page, text) => page.locator("li", { hasText: text }).first();
 
@@ -33,10 +32,10 @@ async function addCard(page, { name, headline, wants = [], offers = [], contact 
   await page.goto(`${BASE}/card`);
   await page.getByLabel("Name", { exact: true }).fill(name);
   await page.getByLabel("What you do").fill(headline);
-  for (const w of wants) await chip(page, w);
-  if (offers.length) {
+  if (wants[0]) await page.getByLabel("Looking to meet").selectOption({ label: wants[0] });
+  if (offers[0]) {
     await page.getByText("More (optional)").click();
-    for (const o of offers) await chip(page, o);
+    await page.getByLabel("I can help with").selectOption({ label: offers[0] });
   }
   await page.getByLabel("Best way to reach you").fill(contact);
   await page.getByRole("button", { name: "Add me" }).click();
@@ -61,7 +60,7 @@ try {
   await shot(ada.page, "02-add-yourself");
 
   step("Ada adds herself with a WhatsApp number");
-  await addCard(ada.page, { name: `Ada ${run}`, headline: "Founder, payments startup", wants: ["Business partners", "Investors"], contact: "+234 803 000 0000" });
+  await addCard(ada.page, { name: `Ada ${run}`, headline: "Founder, payments startup", wants: ["Business partners"], contact: "+234 803 000 0000" });
   await ada.page.getByText(/you're on the list/i).waitFor();
 
   step("Bola adds herself with an @handle and sees why to meet Ada");

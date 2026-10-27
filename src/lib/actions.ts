@@ -29,8 +29,8 @@ export async function saveCardAction(_: Result | null, form: FormData): Promise<
   const parsed = cardSchema.safeParse({
     name: form.get("name") ?? "",
     headline: form.get("headline") ?? "",
-    wants: form.getAll("wants"),
-    offers: form.getAll("offers"),
+    wants: form.getAll("wants").filter(Boolean),
+    offers: form.getAll("offers").filter(Boolean),
     company: form.get("company") ?? "",
     contact: form.get("contact") ?? "",
   });
