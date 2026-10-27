@@ -99,6 +99,13 @@ npm run db:generate                              # after editing schema.ts
 3. Run `npm run db:migrate` once against the production database, or set `AUTO_MIGRATE=true`.
 4. Deploy, then check `/api/health`. It reports the auth mode and database type.
 
+## Deploy (Railway or any Node host)
+
+1. Build command: `npm run build`. Start command: `npm start` (Next.js picks up `PORT` automatically).
+2. Set `DATABASE_URL`. With Supabase, use the **connection pooler** URI (`…pooler.supabase.com:6543`); the direct `db.<ref>.supabase.co` host is IPv6-only and often unreachable.
+3. Set `AUTO_MIGRATE=true`, or run `npm run db:migrate` once.
+4. Open `/api/health`. If something is wrong, it names the problem (missing `DATABASE_URL`, unreachable host, wrong password, missing tables).
+
 ## Tests and checks
 
 ```bash
