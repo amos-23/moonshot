@@ -57,9 +57,9 @@ export async function listHangouts(db: DB, meId: string | null) {
     .select({
       hangout: s.hangouts,
       host: { id: s.people.id, name: s.people.name },
-      going: sql<number>`(select count(*)::int from hangout_members m where m.hangout_id = ${s.hangouts.id})`,
+      going: sql<number>`(select count(*)::int from ${s.hangoutMembers} m where m.hangout_id = ${s.hangouts.id})`,
       joined: meId
-        ? sql<boolean>`exists(select 1 from hangout_members m where m.hangout_id = ${s.hangouts.id} and m.person_id = ${meId})`
+        ? sql<boolean>`exists(select 1 from ${s.hangoutMembers} m where m.hangout_id = ${s.hangouts.id} and m.person_id = ${meId})`
         : sql<boolean>`false`,
     })
     .from(s.hangouts)
@@ -81,7 +81,7 @@ export class UserError extends Error {}
 
 export async function joinHangout(db: DB, personId: string, hangoutId: string) {
   await db.transaction(async (tx) => {
-    await tx.execute(sql`select id from hangouts where id = ${hangoutId} for update`);
+    await tx.execute(sql`select id from ${s.hangouts} where id = ${hangoutId} for update`);
     const h = await tx.query.hangouts.findFirst({ where: eq(s.hangouts.id, hangoutId) });
     if (!h || h.cancelled) throw new UserError("This hangout isn't available.");
     const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(s.hangoutMembers).where(eq(s.hangoutMembers.hangoutId, hangoutId));

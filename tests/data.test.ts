@@ -10,7 +10,7 @@ import { importPosts, joinHangout, listHangouts, listPeople, listPosts } from "@
 let db: DB;
 beforeAll(async () => {
   const d = drizzle(new PGlite(), { schema });
-  await migrate(d, { migrationsFolder: path.join(__dirname, "..", "drizzle") });
+  await migrate(d, { migrationsFolder: path.join(__dirname, "..", "drizzle"), migrationsSchema: schema.DB_SCHEMA });
   db = d as unknown as DB;
 });
 

@@ -16,7 +16,7 @@ async function connect(): Promise<DB> {
     const { migrate } = await import("drizzle-orm/postgres-js/migrator");
     const client = postgres(url, { prepare: false, max: Number(process.env.DATABASE_POOL_SIZE ?? 5) });
     const db = drizzle(client, { schema });
-    await migrate(db, { migrationsFolder: MIGRATIONS });
+    await migrate(db, { migrationsFolder: MIGRATIONS, migrationsSchema: schema.DB_SCHEMA });
     return db as unknown as DB;
   }
   if (process.env.NODE_ENV === "production" && process.env.ALLOW_EMBEDDED_DB !== "true") {
@@ -28,7 +28,7 @@ async function connect(): Promise<DB> {
   const { migrate } = await import("drizzle-orm/pglite/migrator");
   const client = new PGlite(process.env.PGLITE_DIR ?? path.join(process.cwd(), ".data", "pglite"));
   const db = drizzle(client, { schema });
-  await migrate(db, { migrationsFolder: MIGRATIONS });
+  await migrate(db, { migrationsFolder: MIGRATIONS, migrationsSchema: schema.DB_SCHEMA });
   return db as unknown as DB;
 }
 

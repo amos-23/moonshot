@@ -1,12 +1,12 @@
 {
-  "id": "610a897b-b7dd-4eb5-a499-c9542b1d7fff",
+  "id": "c8c6b090-cefe-40e7-91e4-d77010d0990d",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.hangout_members": {
+    "connect.hangout_members": {
       "name": "hangout_members",
-      "schema": "",
+      "schema": "connect",
       "columns": {
         "hangout_id": {
           "name": "hangout_id",
@@ -34,6 +34,7 @@
           "name": "hangout_members_hangout_id_hangouts_id_fk",
           "tableFrom": "hangout_members",
           "tableTo": "hangouts",
+          "schemaTo": "connect",
           "columnsFrom": [
             "hangout_id"
           ],
@@ -47,6 +48,7 @@
           "name": "hangout_members_person_id_people_id_fk",
           "tableFrom": "hangout_members",
           "tableTo": "people",
+          "schemaTo": "connect",
           "columnsFrom": [
             "person_id"
           ],
@@ -71,9 +73,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.hangouts": {
+    "connect.hangouts": {
       "name": "hangouts",
-      "schema": "",
+      "schema": "connect",
       "columns": {
         "id": {
           "name": "id",
@@ -157,6 +159,7 @@
           "name": "hangouts_host_id_people_id_fk",
           "tableFrom": "hangouts",
           "tableTo": "people",
+          "schemaTo": "connect",
           "columnsFrom": [
             "host_id"
           ],
@@ -173,14 +176,14 @@
       "checkConstraints": {
         "hangouts_capacity_check": {
           "name": "hangouts_capacity_check",
-          "value": "\"hangouts\".\"capacity\" between 2 and 200"
+          "value": "\"connect\".\"hangouts\".\"capacity\" between 2 and 200"
         }
       },
       "isRLSEnabled": false
     },
-    "public.people": {
+    "connect.people": {
       "name": "people",
-      "schema": "",
+      "schema": "connect",
       "columns": {
         "id": {
           "name": "id",
@@ -351,18 +354,18 @@
       "checkConstraints": {
         "people_attendance_check": {
           "name": "people_attendance_check",
-          "value": "\"people\".\"attendance\" in ('in_person','remote')"
+          "value": "\"connect\".\"people\".\"attendance\" in ('in_person','remote')"
         },
         "people_name_len": {
           "name": "people_name_len",
-          "value": "char_length(\"people\".\"name\") between 1 and 60"
+          "value": "char_length(\"connect\".\"people\".\"name\") between 1 and 60"
         }
       },
       "isRLSEnabled": false
     },
-    "public.rate_events": {
+    "connect.rate_events": {
       "name": "rate_events",
-      "schema": "",
+      "schema": "connect",
       "columns": {
         "id": {
           "name": "id",
@@ -415,9 +418,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.reports": {
+    "connect.reports": {
       "name": "reports",
-      "schema": "",
+      "schema": "connect",
       "columns": {
         "id": {
           "name": "id",
@@ -473,9 +476,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.settings": {
+    "connect.settings": {
       "name": "settings",
-      "schema": "",
+      "schema": "connect",
       "columns": {
         "key": {
           "name": "key",
@@ -498,9 +501,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.social_posts": {
+    "connect.social_posts": {
       "name": "social_posts",
-      "schema": "",
+      "schema": "connect",
       "columns": {
         "id": {
           "name": "id",

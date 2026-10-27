@@ -1,10 +1,14 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, pgSchema, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+
+// Everything lives in its own Postgres schema so it never collides with other tables in the same database.
+export const DB_SCHEMA = "connect";
+const mc = pgSchema(DB_SCHEMA);
 
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
 // A networking card. There are no accounts: whoever holds the edit token owns the card.
-export const people = pgTable(
+export const people = mc.table(
   "people",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -38,7 +42,7 @@ export const people = pgTable(
   ],
 );
 
-export const hangouts = pgTable(
+export const hangouts = mc.table(
   "hangouts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -56,7 +60,7 @@ export const hangouts = pgTable(
   (t) => [index("hangouts_starts_idx").on(t.startsAt), check("hangouts_capacity_check", sql`${t.capacity} between 2 and 200`)],
 );
 
-export const hangoutMembers = pgTable(
+export const hangoutMembers = mc.table(
   "hangout_members",
   {
     hangoutId: uuid("hangout_id")
@@ -70,7 +74,7 @@ export const hangoutMembers = pgTable(
   (t) => [primaryKey({ columns: [t.hangoutId, t.personId] })],
 );
 
-export const socialPosts = pgTable(
+export const socialPosts = mc.table(
   "social_posts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -88,7 +92,7 @@ export const socialPosts = pgTable(
   (t) => [uniqueIndex("social_posts_external_key").on(t.externalId), index("social_posts_posted_idx").on(t.postedAt)],
 );
 
-export const reports = pgTable("reports", {
+export const reports = mc.table("reports", {
   id: uuid("id").primaryKey().defaultRandom(),
   targetType: text("target_type").notNull(), // person | hangout | post
   targetId: uuid("target_id").notNull(),
@@ -99,7 +103,7 @@ export const reports = pgTable("reports", {
 });
 
 // Simple per-IP rate limiting for anonymous writes.
-export const rateEvents = pgTable(
+export const rateEvents = mc.table(
   "rate_events",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -109,7 +113,7 @@ export const rateEvents = pgTable(
   (t) => [index("rate_events_key_idx").on(t.key, t.createdAt)],
 );
 
-export const settings = pgTable("settings", {
+export const settings = mc.table("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
