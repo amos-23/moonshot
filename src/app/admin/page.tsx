@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { isAdmin } from "@/lib/me";
@@ -51,11 +52,16 @@ export default async function AdminPage() {
         title="Admin"
         sub={`${people.length} cards · ${posts.length} X posts · ${comments.length} comments`}
         action={
+          <div className="flex items-center gap-2">
+          <Link href="/admin/stats" className="inline-flex h-9 items-center rounded-full bg-flame-700 px-4 text-sm font-semibold text-white">
+            Stats
+          </Link>
           <form action={adminLogoutAction}>
             <Button type="submit" variant="ghost" size="sm">
               Log out
             </Button>
           </form>
+          </div>
         }
       />
       <section>

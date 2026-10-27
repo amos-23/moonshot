@@ -52,7 +52,7 @@ export function CardForm({ person }: { person: Person | null }) {
         </div>
       </details>
       <div className="flex items-center gap-3">
-        <Submit pending={pending} size="lg" className="shrink-0">
+        <Submit pending={pending} size="lg" className="shrink-0" data-track={p ? "save_card" : "add_me"}>
           {p ? "Save" : "Add me"}
         </Submit>
         <div className="min-w-0 text-sm">
@@ -72,7 +72,7 @@ export function XPostForm() {
       </label>
       <div className="flex gap-2">
         <input id="url" name="url" inputMode="url" placeholder="x.com/you/status/…" className={inputClass} />
-        <Submit pending={pending} variant="dark">
+        <Submit pending={pending} variant="dark" data-track="add_x_post">
           Add
         </Submit>
       </div>
@@ -148,7 +148,7 @@ export function CommentForm({ postId, myName }: { postId: string; myName: string
           Comment
         </label>
         <input id={`cb-${postId}`} name="body" maxLength={280} placeholder={myName ? `Comment as ${myName}` : "Say hi or ask to meet"} className={cx(inputClass, "py-2")} />
-        <Submit pending={pending} variant="dark" size="sm" className="h-auto">
+        <Submit pending={pending} variant="dark" size="sm" className="h-auto" data-track="comment" data-track-id={postId}>
           Post
         </Submit>
       </div>

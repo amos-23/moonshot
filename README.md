@@ -12,6 +12,12 @@ This is an independent, community-made tool. It isn't run or endorsed by TechCab
 
 When you add yourself, your browser keeps a private edit token in a cookie. **My card** gives you a private edit link so you can edit from another device.
 
+## Stats
+
+`/admin/stats` shows visits, unique visitors, button clicks (WhatsApp, X, LinkedIn, View post, comments, Add me…), the most-clicked people and posts, the top pages and the referring sites, for the last 24 hours, 7 days or 30 days.
+
+Tracking is built in and cookie-free. Each visitor is counted with an anonymous hash that changes daily. Bots and admin pages are not counted.
+
 ## Getting X posts in
 
 - **Manual (free):** anyone can paste a post link on **Add yourself**, and admins can paste many links at once in `/admin`. Post text comes from X's public embed endpoint.

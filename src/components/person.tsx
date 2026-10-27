@@ -3,18 +3,18 @@ import type { Comment, Person, SocialPost } from "@/lib/db/schema";
 import { OFFERS, WANTS, labelFor } from "@/lib/constants";
 import { detectMentions } from "@/lib/social/x-url";
 import { timeAgo } from "@/lib/time";
-import { ReportLink } from "./client";
+import { Disclosure, ReportLink } from "./client";
 import { CommentForm } from "./forms";
 import { Avatar, Card, Tag } from "./ui";
 
 const HELLO = "Hi! Found you on Moonshot Connect — would love to meet at Moonshot.";
 
 function contact(p: Person) {
-  if (p.whatsapp) return { label: "WhatsApp", href: `https://wa.me/${p.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(HELLO)}`, icon: MessageCircle };
-  if (p.xHandle) return { label: `@${p.xHandle}`, href: `https://x.com/${p.xHandle}`, icon: AtSign };
-  if (p.linkedinUrl) return { label: "LinkedIn", href: p.linkedinUrl, icon: UserRound };
-  if (p.email) return { label: "Email", href: `mailto:${p.email}?subject=${encodeURIComponent("Meeting at Moonshot")}&body=${encodeURIComponent(HELLO)}`, icon: Mail };
-  if (p.websiteUrl) return { label: "Website", href: p.websiteUrl, icon: Globe };
+  if (p.whatsapp) return { kind: "whatsapp", label: "WhatsApp", href: `https://wa.me/${p.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(HELLO)}`, icon: MessageCircle };
+  if (p.xHandle) return { kind: "x_profile", label: `@${p.xHandle}`, href: `https://x.com/${p.xHandle}`, icon: AtSign };
+  if (p.linkedinUrl) return { kind: "linkedin", label: "LinkedIn", href: p.linkedinUrl, icon: UserRound };
+  if (p.email) return { kind: "email", label: "Email", href: `mailto:${p.email}?subject=${encodeURIComponent("Meeting at Moonshot")}&body=${encodeURIComponent(HELLO)}`, icon: Mail };
+  if (p.websiteUrl) return { kind: "website", label: "Website", href: p.websiteUrl, icon: Globe };
   return null;
 }
 
@@ -47,7 +47,7 @@ export function PersonCard({ person: p, reasons = [] }: { person: Person; reason
       action={
         <>
           {c && (
-            <a href={c.href} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-flame-700 px-4 text-sm font-semibold text-white hover:bg-flame">
+            <a href={c.href} data-track={c.kind} data-track-id={p.id} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-flame-700 px-4 text-sm font-semibold text-white hover:bg-flame">
               <c.icon size={15} aria-hidden /> {c.label}
             </a>
           )}
@@ -78,7 +78,7 @@ export function XCard({ post, comments = [], myName = null }: { post: SocialPost
       badge={<Tag tone="sun">From X</Tag>}
       action={
         <>
-          <a href={post.url} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-ink px-4 text-sm font-semibold text-white hover:bg-black">
+          <a href={post.url} data-track="view_post" data-track-id={post.id} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-ink px-4 text-sm font-semibold text-white hover:bg-black">
             View post <ExternalLink size={13} aria-hidden />
           </a>
           <ReportLink type="post" id={post.id} />
@@ -93,10 +93,16 @@ export function XCard({ post, comments = [], myName = null }: { post: SocialPost
           ))}
         </div>
       )}
-      <details className="group rounded-2xl bg-canvas px-3 py-2" open={comments.length > 0 && comments.length <= 3}>
-        <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-semibold text-muted">
-          <MessagesSquare size={14} aria-hidden /> {comments.length ? `${comments.length} comment${comments.length === 1 ? "" : "s"}` : "Comment"}
-        </summary>
+      <Disclosure
+        className="rounded-2xl bg-canvas px-3 py-2"
+        summaryClassName="flex cursor-pointer list-none items-center gap-1.5 text-sm font-semibold text-muted"
+        initialOpen={comments.length > 0 && comments.length <= 3}
+        summary={
+          <>
+            <MessagesSquare size={14} aria-hidden /> {comments.length ? `${comments.length} comment${comments.length === 1 ? "" : "s"}` : "Comment"}
+          </>
+        }
+      >
         <div className="mt-2 space-y-2">
           {comments.length > 0 && (
             <ul className="space-y-1.5">
@@ -111,7 +117,7 @@ export function XCard({ post, comments = [], myName = null }: { post: SocialPost
           )}
           <CommentForm postId={post.id} myName={myName} />
         </div>
-      </details>
+      </Disclosure>
     </Shell>
   );
 }

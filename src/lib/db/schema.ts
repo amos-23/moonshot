@@ -140,3 +140,19 @@ export const comments = mc.table(
 );
 
 export type Comment = typeof comments.$inferSelect;
+
+// First-party, cookie-free analytics. `visitor` is a daily-rotating hash (not reversible to a person).
+export const events = mc.table(
+  "events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    type: text("type").notNull(), // view | click
+    path: text("path").notNull(),
+    target: text("target"), // what was clicked, e.g. "whatsapp", "view_post"
+    targetId: uuid("target_id"), // the card or post it belongs to
+    referrer: text("referrer"), // referring site's host
+    visitor: text("visitor").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("events_type_created_idx").on(t.type, t.createdAt), check("events_type_check", sql`${t.type} in ('view','click')`)],
+);

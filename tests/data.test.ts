@@ -6,6 +6,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/lib/db/schema";
 import type { DB } from "@/lib/db";
 import { commentsFor, importPosts, listPeople, listXCards } from "@/lib/data";
+import { siteStats } from "@/lib/stats";
 
 let db: DB;
 beforeAll(async () => {
@@ -69,5 +70,25 @@ describe("comments", () => {
     const map = await commentsFor(db, [postId]);
     expect(map.get(postId)?.map((c) => c.body)).toEqual(["first", "second"]);
     await expect(db.insert(schema.comments).values({ postId, name: "D", body: "" })).rejects.toThrow();
+  });
+});
+
+describe("stats", () => {
+  it("counts visits, unique visitors, clicks and the most-clicked cards", async () => {
+    const p = await person({ name: "Clicky" });
+    await db.insert(schema.events).values([
+      { type: "view", path: "/", visitor: "a", referrer: "x.com" },
+      { type: "view", path: "/", visitor: "a" },
+      { type: "view", path: "/card", visitor: "b" },
+      { type: "click", path: "/", visitor: "a", target: "whatsapp", targetId: p.id },
+      { type: "view", path: "/", visitor: "old", createdAt: new Date(Date.now() - 40 * 86_400_000) },
+    ]);
+    const st = await siteStats(db, 7);
+    expect(st.totals).toEqual({ views: 3, visitors: 2, clicks: 1 });
+    expect(st.pages[0]).toEqual({ key: "/", n: 2 });
+    expect(st.referrers).toEqual([{ key: "x.com", n: 1 }]);
+    expect(st.topTargets[0]).toMatchObject({ name: "Clicky", n: 1 });
+    expect(st.series).toHaveLength(7);
+    expect(st.series.at(-1)!.views).toBe(3);
   });
 });

@@ -18,8 +18,10 @@ if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
 const browser = await chromium.launch();
 const mobile = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
 const errors = [];
+// A normal browser user agent: the tracker ignores "HeadlessChrome" as a bot.
+const UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36";
 async function visitor(opts = mobile) {
-  const ctx = await browser.newContext(opts);
+  const ctx = await browser.newContext({ userAgent: UA, ...opts });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => errors.push(e.message));
   return { ctx, page };
@@ -99,7 +101,7 @@ try {
   await anon.page.goto(BASE);
   const xcard = card(anon.page, `@${handle}`);
   if (await xcard.count()) {
-    await xcard.locator("summary", { hasText: /comment/i }).click();
+    if (!(await xcard.getByPlaceholder("Say hi or ask to meet").isVisible())) await xcard.locator("summary", { hasText: /comment/i }).click();
     await xcard.getByPlaceholder("Say hi or ask to meet").fill(`Hi from anon ${run}`);
     await xcard.getByRole("button", { name: "Post" }).click();
     await xcard.getByText(/add your name/i).waitFor();
@@ -144,6 +146,16 @@ try {
   await card(admin.page, `Bola ${run}`).getByRole("button", { name: "Unhide" }).waitFor();
   await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`Bola ${run}`)}`);
   await anon.page.getByText(/no one matches/i).waitFor();
+
+  step("admin Stats shows visits and clicks");
+  await admin.page.goto(`${BASE}/admin/stats?days=1`);
+  const tile = async (label) => Number((await admin.page.getByText(label, { exact: true }).locator("xpath=preceding-sibling::p[1]").innerText()).replace(/,/g, ""));
+  assert.ok((await tile("Visits")) > 0, "visits recorded");
+  await admin.page.getByText("Clicks by button").waitFor();
+  assert.ok(await admin.page.getByText("Add me (card)").isVisible(), "click on 'Add me' recorded");
+  await admin.page.goto(`${BASE}/admin/stats?days=7`);
+  await admin.page.getByText("Visits per day").waitFor();
+  await shot(admin.page, "06-stats");
 
   step("Ada deletes her card");
   ada.page.once("dialog", (d) => d.accept());

@@ -27,7 +27,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
           <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-black uppercase leading-[0.95] tracking-tight sm:text-6xl">Who&apos;s at Moonshot</h1>
           <p className="mx-auto mt-3 max-w-md font-medium">Find people worth meeting and reach them directly. No sign-up.</p>
           {!me && (
-            <LinkButton href="/card" variant="dark" size="lg" className="mt-6">
+            <LinkButton href="/card" variant="dark" size="lg" className="mt-6" data-track="add_yourself_hero">
               Add yourself
             </LinkButton>
           )}

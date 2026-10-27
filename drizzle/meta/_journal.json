@@ -15,6 +15,13 @@
       "when": 1793092396212,
       "tag": "0001_comments",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793093578584,
+      "tag": "0002_events",
+      "breakpoints": true
     }
   ]
 }

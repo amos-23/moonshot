@@ -131,3 +131,14 @@ export function ReportLink({ type, id }: { type: "person" | "post" | "comment"; 
   );
 }
 
+
+/** A <details> whose open state belongs to the user, so refreshing data never collapses it. */
+export function Disclosure({ initialOpen, summary, children, className, summaryClassName }: { initialOpen: boolean; summary: ReactNode; children: ReactNode; className?: string; summaryClassName?: string }) {
+  const [open, setOpen] = useState(initialOpen);
+  return (
+    <details className={className} open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary className={summaryClassName}>{summary}</summary>
+      {children}
+    </details>
+  );
+}

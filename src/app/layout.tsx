@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import "./globals.css";
 import { getMe } from "@/lib/me";
+import { Tracker } from "@/components/tracker";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <Link href="/" aria-label="Moonshot Connect home">
               <Wordmark />
             </Link>
-            <Link href="/card" className="inline-flex h-10 items-center rounded-full bg-ink px-5 text-sm font-semibold text-white hover:bg-black">
+            <Link href="/card" data-track="add_yourself_header" className="inline-flex h-10 items-center rounded-full bg-ink px-5 text-sm font-semibold text-white hover:bg-black">
               {me ? "My card" : "Add yourself"}
             </Link>
           </div>
@@ -56,6 +57,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             .
           </p>
         </footer>
+        <Tracker />
       </body>
     </html>
   );
