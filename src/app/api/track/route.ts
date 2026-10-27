@@ -1,15 +1,14 @@
-import crypto from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { getDb, schema } from "@/lib/db";
+import { BOT_UA, clientIp, visitorHash } from "@/lib/track";
 
-const BOT = /bot|crawl|spider|slurp|preview|facebookexternalhit|headless|lighthouse/i;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Records a page view or click. No cookies: visitors are counted with a hash of IP + browser
 // that changes every day, so nobody can be followed across days.
 export async function POST(req: NextRequest) {
   const ua = req.headers.get("user-agent") ?? "";
-  if (BOT.test(ua)) return new NextResponse(null, { status: 204 });
+  if (BOT_UA.test(ua)) return new NextResponse(null, { status: 204 });
   let body: Record<string, unknown>;
   try {
     body = JSON.parse(await req.text());
@@ -29,9 +28,7 @@ export async function POST(req: NextRequest) {
       if (host && host !== req.nextUrl.hostname && host !== (req.headers.get("x-forwarded-host") ?? "")) referrer = host.slice(0, 100);
     } catch {}
   }
-  const ip = (req.headers.get("x-forwarded-for")?.split(",")[0] ?? req.headers.get("x-real-ip") ?? "").trim();
-  const day = new Date().toISOString().slice(0, 10);
-  const visitor = crypto.createHash("sha256").update(`${process.env.ADMIN_KEY ?? "mc"}|${day}|${ip}|${ua}`).digest("hex").slice(0, 32);
+  const visitor = visitorHash(clientIp(req.headers), ua);
 
   try {
     await (await getDb()).insert(schema.events).values({ type, path, target, targetId, referrer, visitor });

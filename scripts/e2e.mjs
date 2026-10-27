@@ -34,10 +34,16 @@ async function addCard(page, { name, headline, wants = [], offers = [], contact 
   await page.goto(`${BASE}/card`);
   await page.getByLabel("Name", { exact: true }).fill(name);
   await page.getByLabel("What you do").fill(headline);
-  if (wants[0]) await page.getByLabel("Looking to meet").selectOption({ label: wants[0] });
-  if (offers[0]) {
+  if (wants.length) {
+    await page.locator("#wants").click();
+    for (const w of wants) await page.getByRole("checkbox", { name: w, exact: true }).check();
+    await page.keyboard.press("Escape");
+  }
+  if (offers.length) {
     await page.getByText("More (optional)").click();
-    await page.getByLabel("I can help with").selectOption({ label: offers[0] });
+    await page.locator("#offers").click();
+    for (const o of offers) await page.getByRole("checkbox", { name: o, exact: true }).check();
+    await page.keyboard.press("Escape");
   }
   await page.getByLabel("Best way to reach you").fill(contact);
   await page.getByRole("button", { name: "Add me" }).click();
@@ -62,8 +68,10 @@ try {
   await shot(ada.page, "02-add-yourself");
 
   step("Ada adds herself with a WhatsApp number");
-  await addCard(ada.page, { name: `Ada ${run}`, headline: "Founder, payments startup", wants: ["Business partners"], contact: "+234 803 000 0000" });
+  await addCard(ada.page, { name: `Ada ${run}`, headline: "Founder, payments startup", wants: ["Business partners", "Investors"], contact: "+234 803 000 0000" });
   await ada.page.getByText(/you're on the list/i).waitFor();
+  await ada.page.goto(`${BASE}/card`);
+  assert.equal(await ada.page.locator("#wants").innerText(), "Business partners, Investors", "multi-select keeps both choices");
 
   step("Bola adds herself with an @handle and sees why to meet Ada");
   const bola = await visitor();
@@ -147,12 +155,19 @@ try {
   await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`Bola ${run}`)}`);
   await anon.page.getByText(/no one matches/i).waitFor();
 
-  step("admin Stats shows visits and clicks");
+  const nothing = `zzz-nobody-${run}`;
+  await anon.page.goto(`${BASE}/?q=${nothing}`);
+  await anon.page.getByText(/no one matches/i).waitFor();
+
+  step("admin Stats shows visits, clicks and searches");
   await admin.page.goto(`${BASE}/admin/stats?days=1`);
   const tile = async (label) => Number((await admin.page.getByText(label, { exact: true }).locator("xpath=preceding-sibling::p[1]").innerText()).replace(/,/g, ""));
   assert.ok((await tile("Visits")) > 0, "visits recorded");
   await admin.page.getByText("Clicks by button").waitFor();
   assert.ok(await admin.page.getByText("Add me (card)").isVisible(), "click on 'Add me' recorded");
+  assert.ok((await tile("Searches")) > 0, "searches recorded");
+  const empty = admin.page.locator("div", { has: admin.page.getByRole("heading", { name: "Searches that found nothing" }) }).last();
+  await empty.getByText(`“${nothing}”`).waitFor();
   await admin.page.goto(`${BASE}/admin/stats?days=7`);
   await admin.page.getByText("Visits per day").waitFor();
   await shot(admin.page, "06-stats");

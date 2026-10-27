@@ -3,25 +3,12 @@
 import { useEffect, useRef } from "react";
 import { addCommentAction, addXPostAction, adminLoginAction, importPostsAction, saveCardAction } from "@/lib/actions";
 import type { Person } from "@/lib/db/schema";
-import { OFFERS, WANTS, type Option } from "@/lib/constants";
+import { OFFERS, WANTS } from "@/lib/constants";
 import type { ImportResult } from "@/lib/data";
-import { Status, Submit, useForm } from "./client";
+import { MultiSelect, Status, Submit, useForm } from "./client";
 import { Field, Tag, cx, inputClass } from "./ui";
 
 const contactOf = (p: Person | null) => (p ? (p.xHandle ? `@${p.xHandle}` : p.whatsapp ?? p.email ?? p.linkedinUrl ?? p.websiteUrl ?? "") : "");
-
-function Select({ id, name, options, value, placeholder }: { id: string; name: string; options: Option[]; value?: string; placeholder: string }) {
-  return (
-    <select id={id} name={name} defaultValue={value ?? ""} className={cx(inputClass, "appearance-auto")}>
-      <option value="">{placeholder}</option>
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
-  );
-}
 
 export function CardForm({ person }: { person: Person | null }) {
   const { state, pending, onSubmit, err } = useForm(saveCardAction, { refresh: true });
@@ -35,7 +22,7 @@ export function CardForm({ person }: { person: Person | null }) {
         <input id="headline" name="headline" defaultValue={p?.headline} maxLength={80} placeholder="Founder at a payments startup" className={inputClass} aria-invalid={!!err("headline")} />
       </Field>
       <Field label="Looking to meet" htmlFor="wants">
-        <Select id="wants" name="wants" options={WANTS} value={p?.wants[0]} placeholder="Choose one" />
+        <MultiSelect id="wants" name="wants" options={WANTS} initial={p?.wants} max={3} placeholder="Choose up to 3" />
       </Field>
       <Field label="Best way to reach you" htmlFor="contact" error={err("contact")} hint="@handle, WhatsApp number, email or LinkedIn link. Shown publicly.">
         <input id="contact" name="contact" defaultValue={contactOf(p)} placeholder="@yourhandle or +234…" className={inputClass} aria-invalid={!!err("contact")} />
@@ -44,7 +31,7 @@ export function CardForm({ person }: { person: Person | null }) {
         <summary className="cursor-pointer text-sm font-semibold text-muted">More (optional)</summary>
         <div className="mt-4 space-y-5">
           <Field label="I can help with" htmlFor="offers">
-            <Select id="offers" name="offers" options={OFFERS} value={p?.offers[0]} placeholder="Choose one" />
+            <MultiSelect id="offers" name="offers" options={OFFERS} initial={p?.offers} max={3} placeholder="Choose up to 3" />
           </Field>
           <Field label="Company" htmlFor="company">
             <input id="company" name="company" defaultValue={p?.company ?? ""} maxLength={80} className={inputClass} />

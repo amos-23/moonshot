@@ -1,8 +1,8 @@
 "use client";
 
-import { startTransition, useActionState, useEffect, useState, useTransition, type FormEvent, type ReactNode } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, Flag, Loader2 } from "lucide-react";
+import { Check, ChevronDown, Copy, Flag, Loader2 } from "lucide-react";
 import type { Result } from "@/lib/actions";
 import { reportAction } from "@/lib/actions";
 import { Button, cx } from "./ui";
@@ -140,5 +140,64 @@ export function Disclosure({ initialOpen, summary, children, className, summaryC
       <summary className={summaryClassName}>{summary}</summary>
       {children}
     </details>
+  );
+}
+
+/**
+ * Compact multi-select: one line that opens a tick-list. Real checkboxes, so it submits with
+ * the form and works with the keyboard.
+ */
+export function MultiSelect({ id, name, options, initial = [], max, placeholder }: { id: string; name: string; options: { value: string; label: string }[]; initial?: string[]; max: number; placeholder: string }) {
+  const [sel, setSel] = useState<string[]>(initial);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [open]);
+  const labels = options.filter((o) => sel.includes(o.value)).map((o) => o.label);
+  return (
+    <div ref={ref} className="relative">
+      <button
+        id={id}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-2 rounded-2xl border border-line bg-white px-4 py-3 text-left text-base sm:text-sm"
+      >
+        <span className={cx("truncate", !labels.length && "text-muted/70")}>{labels.length ? labels.join(", ") : placeholder}</span>
+        <ChevronDown size={16} className={cx("shrink-0 transition-transform", open && "rotate-180")} aria-hidden />
+      </button>
+      <div hidden={!open} className="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-2xl border border-line bg-white p-1 shadow-lg">
+        <p className="px-3 py-1.5 text-xs text-muted">Choose up to {max}</p>
+        {options.map((o) => {
+          const on = sel.includes(o.value);
+          const full = !on && sel.length >= max;
+          return (
+            <label key={o.value} className={cx("flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-sm hover:bg-canvas", full && "cursor-not-allowed opacity-40")}>
+              <input
+                type="checkbox"
+                name={name}
+                value={o.value}
+                checked={on}
+                disabled={full}
+                onChange={() => setSel((c) => (on ? c.filter((x) => x !== o.value) : [...c, o.value]))}
+                className="h-4 w-4 accent-[var(--color-flame-700)]"
+              />
+              {o.label}
+            </label>
+          );
+        })}
+      </div>
+    </div>
   );
 }

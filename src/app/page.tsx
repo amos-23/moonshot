@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db";
 import { getMe } from "@/lib/me";
 import { commentsFor, listPeople, listXCards } from "@/lib/data";
 import { refreshLive } from "@/lib/social/live";
+import { recordSearch } from "@/lib/track";
 import { EVENT } from "@/lib/constants";
 import { PersonCard, XCard } from "@/components/person";
 import { Button, Empty, LinkButton, Notice, Sunburst, inputClass } from "@/components/ui";
@@ -15,6 +16,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
   const [people, xCards] = await Promise.all([listPeople(db, me, q), listXCards(db, q)]);
   const comments = await commentsFor(db, xCards.map((p) => p.id));
   const total = people.length + xCards.length;
+  if (q?.trim()) await recordSearch(q, total);
 
   return (
     <div>

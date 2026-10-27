@@ -146,13 +146,15 @@ export const events = mc.table(
   "events",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    type: text("type").notNull(), // view | click
+    type: text("type").notNull(), // view | click | search
     path: text("path").notNull(),
     target: text("target"), // what was clicked, e.g. "whatsapp", "view_post"
     targetId: uuid("target_id"), // the card or post it belongs to
     referrer: text("referrer"), // referring site's host
+    query: text("query"), // search words (lowercased)
+    results: integer("results"), // how many cards the search returned
     visitor: text("visitor").notNull(),
     createdAt: createdAt(),
   },
-  (t) => [index("events_type_created_idx").on(t.type, t.createdAt), check("events_type_check", sql`${t.type} in ('view','click')`)],
+  (t) => [index("events_type_created_idx").on(t.type, t.createdAt), check("events_type_check", sql`${t.type} in ('view','click','search')`)],
 );

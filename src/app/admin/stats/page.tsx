@@ -98,10 +98,11 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
         ))}
       </nav>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Tile label="Visits" value={st.totals.views} sub="page views" />
         <Tile label="Visitors" value={st.totals.visitors} sub={days > 1 ? "unique per day, added up" : "unique"} />
         <Tile label="Clicks" value={st.totals.clicks} sub="buttons people pressed" />
+        <Tile label="Searches" value={st.totals.searches} sub={`${st.emptySearches.reduce((a, r) => a + r.n, 0)} found nothing`} />
         <Tile label="New cards" value={st.added.cards} sub={`${st.added.posts} X post${st.added.posts === 1 ? "" : "s"} · ${st.added.comments} comment${st.added.comments === 1 ? "" : "s"}`} />
       </div>
 
@@ -149,6 +150,8 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
       <div className="grid gap-4 md:grid-cols-2">
         <Ranked title="Clicks by button" rows={st.clicks.map((c) => ({ label: CLICK_LABELS[c.key ?? ""] ?? c.key ?? "", n: c.n }))} empty="No clicks yet." />
         <Ranked title="Most-clicked people & posts" rows={st.topTargets.map((t) => ({ label: t.name ?? "(removed)", n: t.n }))} empty="No clicks on cards yet." />
+        <Ranked title="Top searches" rows={st.searches.map((r) => ({ label: `“${r.key}”${r.results === 0 ? " · no results" : ""}`, n: r.n }))} empty="No searches yet." />
+        <Ranked title="Searches that found nothing" rows={st.emptySearches.map((r) => ({ label: `“${r.key}”`, n: r.n }))} empty="Every search found someone." />
         <Ranked title="Top pages" rows={st.pages.map((p) => ({ label: p.key ?? "", n: p.n }))} empty="No visits yet." />
         <Ranked title="Where visitors came from" rows={st.referrers.map((r) => ({ label: r.key ?? "", n: r.n }))} empty="No referring sites yet (direct visits aren't listed)." />
       </div>

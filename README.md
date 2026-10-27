@@ -14,7 +14,7 @@ When you add yourself, your browser keeps a private edit token in a cookie. **My
 
 ## Stats
 
-`/admin/stats` shows visits, unique visitors, button clicks (WhatsApp, X, LinkedIn, View post, comments, Add me…), the most-clicked people and posts, the top pages and the referring sites, for the last 24 hours, 7 days or 30 days.
+`/admin/stats` shows visits, unique visitors, button clicks (WhatsApp, X, LinkedIn, View post, comments, Add me…), the most-clicked people and posts, top searches (and searches that found nothing), the top pages and the referring sites, for the last 24 hours, 7 days or 30 days.
 
 Tracking is built in and cookie-free. Each visitor is counted with an anonymous hash that changes daily. Bots and admin pages are not counted.
 

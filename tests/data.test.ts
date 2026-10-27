@@ -82,9 +82,14 @@ describe("stats", () => {
       { type: "view", path: "/card", visitor: "b" },
       { type: "click", path: "/", visitor: "a", target: "whatsapp", targetId: p.id },
       { type: "view", path: "/", visitor: "old", createdAt: new Date(Date.now() - 40 * 86_400_000) },
+      { type: "search", path: "/", visitor: "a", query: "fintech", results: 3 },
+      { type: "search", path: "/", visitor: "b", query: "fintech", results: 3 },
+      { type: "search", path: "/", visitor: "b", query: "drones", results: 0 },
     ]);
     const st = await siteStats(db, 7);
-    expect(st.totals).toEqual({ views: 3, visitors: 2, clicks: 1 });
+    expect(st.totals).toEqual({ views: 3, visitors: 2, clicks: 1, searches: 3 });
+    expect(st.searches[0]).toEqual({ key: "fintech", n: 2, results: 3 });
+    expect(st.emptySearches).toEqual([{ key: "drones", n: 1, results: 0 }]);
     expect(st.pages[0]).toEqual({ key: "/", n: 2 });
     expect(st.referrers).toEqual([{ key: "x.com", n: 1 }]);
     expect(st.topTargets[0]).toMatchObject({ name: "Clicky", n: 1 });

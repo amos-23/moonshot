@@ -14,6 +14,7 @@ export async function siteStats(db: DB, days: number) {
       views: sql<number>`count(*) filter (where ${s.events.type} = 'view')::int`,
       visitors: sql<number>`count(distinct ${s.events.visitor}) filter (where ${s.events.type} = 'view')::int`,
       clicks: sql<number>`count(*) filter (where ${s.events.type} = 'click')::int`,
+      searches: sql<number>`count(*) filter (where ${s.events.type} = 'search')::int`,
     })
     .from(s.events)
     .where(inRange);
@@ -35,7 +36,16 @@ export async function siteStats(db: DB, days: number) {
       .orderBy(desc(sql`count(*)`))
       .limit(10);
 
-  const [pages, referrers, clicks, topTargets] = await Promise.all([
+  const searchRows = (onlyEmpty: boolean) =>
+    db
+      .select({ key: s.events.query, n: sql<number>`count(*)::int`, results: sql<number>`max(${s.events.results})::int` })
+      .from(s.events)
+      .where(and(inRange, eq(s.events.type, "search"), onlyEmpty ? eq(s.events.results, 0) : undefined))
+      .groupBy(s.events.query)
+      .orderBy(desc(sql`count(*)`))
+      .limit(10);
+
+  const [pages, referrers, clicks, topTargets, searches, emptySearches] = await Promise.all([
     top(s.events.path, "view"),
     top(s.events.referrer, "view"),
     top(s.events.target, "click"),
@@ -51,6 +61,8 @@ export async function siteStats(db: DB, days: number) {
       .groupBy(s.events.targetId)
       .orderBy(desc(sql`count(*)`))
       .limit(10),
+    searchRows(false),
+    searchRows(true),
   ]);
 
   const count = async (table: typeof s.people | typeof s.socialPosts | typeof s.comments, col: typeof s.people.createdAt | typeof s.socialPosts.importedAt | typeof s.comments.createdAt) => {
@@ -71,5 +83,5 @@ export async function siteStats(db: DB, days: number) {
     return { day: key, views: byDay.get(key)?.views ?? 0, visitors: byDay.get(key)?.visitors ?? 0 };
   });
 
-  return { totals, series, pages, referrers, clicks, topTargets, added: { cards, posts, comments } };
+  return { totals, series, pages, referrers, clicks, topTargets, searches, emptySearches, added: { cards, posts, comments } };
 }
