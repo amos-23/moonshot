@@ -1,8 +1,8 @@
 "use client";
 
-import { startTransition, useActionState, useEffect, useState, useSyncExternalStore, useTransition, type FormEvent, type ReactNode } from "react";
+import { startTransition, useActionState, useEffect, useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Bookmark, BookmarkCheck, Check, Copy, Flag, Loader2 } from "lucide-react";
+import { Check, Copy, Flag, Loader2 } from "lucide-react";
 import type { Result } from "@/lib/actions";
 import { reportAction } from "@/lib/actions";
 import type { Option } from "@/lib/constants";
@@ -148,58 +148,7 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
   );
 }
 
-// Saved people live in this browser only — no account needed.
-const SAVED_KEY = "mc_saved";
-const listeners = new Set<() => void>();
-function readSaved(): string {
-  try {
-    return localStorage.getItem(SAVED_KEY) ?? "[]";
-  } catch {
-    return "[]";
-  }
-}
-function subscribe(cb: () => void) {
-  listeners.add(cb);
-  window.addEventListener("storage", cb);
-  return () => {
-    listeners.delete(cb);
-    window.removeEventListener("storage", cb);
-  };
-}
-export function useSaved(): string[] {
-  const raw = useSyncExternalStore(subscribe, readSaved, () => "[]");
-  try {
-    return JSON.parse(raw) as string[];
-  } catch {
-    return [];
-  }
-}
-function writeSaved(ids: string[]) {
-  try {
-    localStorage.setItem(SAVED_KEY, JSON.stringify(ids));
-  } catch {}
-  listeners.forEach((l) => l());
-}
-
-export function SaveButton({ id, name, compact }: { id: string; name: string; compact?: boolean }) {
-  const saved = useSaved();
-  const on = saved.includes(id);
-  return (
-    <Button
-      type="button"
-      variant="secondary"
-      size="sm"
-      aria-pressed={on}
-      aria-label={on ? `Remove ${name} from saved` : `Save ${name}`}
-      onClick={() => writeSaved(on ? saved.filter((x) => x !== id) : [id, ...saved])}
-    >
-      {on ? <BookmarkCheck size={16} className="text-flame-700" aria-hidden /> : <Bookmark size={16} aria-hidden />}
-      {!compact && (on ? "Saved" : "Save")}
-    </Button>
-  );
-}
-
-export function ReportLink({ type, id }: { type: "person" | "hangout" | "post"; id: string }) {
+export function ReportLink({ type, id }: { type: "person" | "post"; id: string }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [pending, start] = useTransition();
   if (msg) return <span className="text-xs text-muted">{msg}</span>;
@@ -222,16 +171,3 @@ export function ReportLink({ type, id }: { type: "person" | "hangout" | "post"; 
   );
 }
 
-/** Shows only the items this browser has saved. */
-export function SavedOnly({ items, empty }: { items: { id: string; node: ReactNode }[]; empty: ReactNode }) {
-  const saved = useSaved();
-  const shown = items.filter((i) => saved.includes(i.id));
-  if (!shown.length) return <>{empty}</>;
-  return (
-    <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {shown.map((i) => (
-        <li key={i.id}>{i.node}</li>
-      ))}
-    </ul>
-  );
-}

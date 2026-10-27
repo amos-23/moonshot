@@ -1,57 +1,35 @@
 # Moonshot Connect
 
-Fast networking for **Moonshot by TechCabal** (National Theatre, Lagos, 28–29 October 2026).
+A minimal, no-sign-up list of who's at **Moonshot by TechCabal** (National Theatre, Lagos, 28–29 October 2026), so people can find each other and reach out directly.
 
-- **No sign-up.** Make a card in about 30 seconds: your name, what you do, what you're looking for, what you can help with, and how to reach you.
-- **See who to meet.** Cards are ranked by fit, and each one says why in plain English, e.g. "You want investors — Val offers investment".
-- **Reach out directly** with one tap on WhatsApp, X, LinkedIn or email. Each person picks which contact options to show.
-- **"Find me at…"** Share where you are at the venue. The note shows for 3 hours.
-- **Hangouts.** Start or join a small meetup ("Fintech founders coffee, by the main stage, 10am").
-- **On X.** Public posts about Moonshot, each linked to the original, with a one-tap "invite to connect" reply.
+- **Add yourself** in a few seconds with your name, what you do, who you want to meet, and one way to reach you (@handle, WhatsApp number, email or LinkedIn).
+- **Or add your X post.** Paste a link to a public post about Moonshot and it shows up as a "From X" card. The card uses only what the post says publicly, links back to the original, and lists who the author says they want to meet.
+- **Best fits first,** with a one-line reason, e.g. "You want investors — Val offers investment".
 
-Independent, community-made tool. It isn't run or endorsed by TechCabal. The colours and type (orange and gold, Outfit) follow the 2026 theme, but no TechCabal logos or artwork are used.
+This is an independent, community-made tool. It isn't run or endorsed by TechCabal, and it uses no TechCabal logos.
 
 ## How "no sign-up" works
 
-When you create a card, the server makes a random edit token. Your browser keeps it in a cookie, and the database stores only a hash of it. **My card** shows a private edit link so you can edit your card from another device. Saved people are stored in your browser only.
+When you add yourself, your browser keeps a private edit token in a cookie. **My card** gives you a private edit link so you can edit from another device.
 
-## Run locally
+## Getting X posts in
 
-```bash
-npm install
-npm run dev        # http://localhost:3000, with a built-in database (no setup)
-```
+- **Manual (free):** anyone can paste a post link on **Add yourself**, and admins can paste many links at once in `/admin`. Post text comes from X's public embed endpoint.
+- **Automatic:** set `X_BEARER_TOKEN` (the official X API, on a plan that includes recent search). The site then searches for Moonshot posts at most every 15 minutes and adds them as cards.
+
+Nothing is scraped and nothing is invented.
 
 ## Deploy on Railway
 
-1. In your Railway project, click **+ New → Database → PostgreSQL**.
-2. In your app service, open **Variables** and add:
-   - `DATABASE_URL` = `${{Postgres.DATABASE_URL}}`
-   - `ADMIN_KEY` = any long password, used for `/admin`
-3. Deploy. Tables are created automatically.
-4. Open `/api/health`. It should say `"ok":true`.
+1. **+ New → Database → PostgreSQL**
+2. In your app's Variables, set `DATABASE_URL` = `${{Postgres.DATABASE_URL}}` and `ADMIN_KEY` = a long password
+3. Deploy. Tables set themselves up in their own `connect` schema.
+4. Check `/api/health`. It should show `"ok":true`.
 
-Optional variables are listed in [`.env.example`](.env.example).
-
-## Admin
-
-Go to `/admin` and enter your `ADMIN_KEY`. From there you can:
-
-- review reports
-- hide cards or posts
-- cancel hangouts
-- add X posts by pasting public post links (or JSON)
-- with `X_BEARER_TOKEN` set, fetch posts through the official X API
-
-## Checks
+## Local and checks
 
 ```bash
+npm install && npm run dev           # built-in database, no setup
 npm run lint && npm run typecheck && npm test && npm run build
-BASE_URL=http://localhost:3000 ADMIN_KEY=... npm run test:e2e   # browser test (needs Playwright + Chromium)
+BASE_URL=http://localhost:3000 ADMIN_KEY=... npm run test:e2e
 ```
-
-## Honesty rules
-
-- No posts, people or exhibitors are invented, and nothing is scraped from X.
-- Profiles are never created from posts. Authors are invited to make their own card.
-- Contact details appear only if the person adds them to their own card.

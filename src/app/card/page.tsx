@@ -1,12 +1,10 @@
-import Link from "next/link";
 import { getMe, myToken } from "@/lib/me";
-import { isHereNow } from "@/lib/data";
-import { deleteCardAction, forgetDeviceAction } from "@/lib/actions";
-import { CardForm, WhereForm } from "@/components/forms";
+import { deleteCardAction } from "@/lib/actions";
+import { CardForm, XPostForm } from "@/components/forms";
 import { ActionButton, CopyButton } from "@/components/client";
-import { Card, LinkButton, Notice, PageTitle } from "@/components/ui";
+import { Card, Notice, PageTitle } from "@/components/ui";
 
-export const metadata = { title: "My card" };
+export const metadata = { title: "Add yourself" };
 
 export default async function CardPage({ searchParams }: { searchParams: Promise<{ claimed?: string; bad?: string }> }) {
   const { claimed, bad } = await searchParams;
@@ -14,48 +12,34 @@ export default async function CardPage({ searchParams }: { searchParams: Promise
   const token = me ? await myToken() : null;
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
-      <PageTitle
-        title={me ? "My card" : "Make your card"}
-        sub={me ? "This is what people see. Changes are live instantly." : "30 seconds. No sign-up — this device remembers your card."}
-        action={me && <LinkButton href={`/p/${me.id}`} variant="secondary" size="sm">View my card</LinkButton>}
-      />
+    <div className="mx-auto max-w-xl px-4 py-8">
+      <PageTitle title={me ? "My card" : "Add yourself"} sub={me ? undefined : "Takes a few seconds. No sign-up."} />
       {claimed && <div className="mb-4"><Notice tone="success">Card unlocked on this device.</Notice></div>}
       {bad && <div className="mb-4"><Notice tone="danger">That edit link isn&apos;t valid.</Notice></div>}
 
-      {me && token && (
-        <div className="mb-6 grid gap-4 md:grid-cols-2">
-          <Card className="p-5">
-            <WhereForm current={me.whereNote} fresh={isHereNow(me)} />
-          </Card>
-          <Card className="space-y-3 p-5">
-            <p className="text-sm font-semibold">Your private edit link</p>
-            <p className="text-xs text-muted">There&apos;s no password. Keep this link to edit your card on another phone or laptop. Don&apos;t share it.</p>
+      <Card className="p-5 sm:p-6">
+        <CardForm person={me} />
+      </Card>
+
+      {me && token ? (
+        <div className="mt-6 space-y-4">
+          <Card className="space-y-2 p-5">
+            <p className="text-sm font-semibold">Edit from another device</p>
+            <p className="text-xs text-muted">There&apos;s no password. Keep this private link to edit your card elsewhere.</p>
             <CopyButton text={`/card/claim/${token}`} label="Copy edit link" />
           </Card>
-        </div>
-      )}
-
-      <CardForm person={me} />
-
-      {me && (
-        <div className="mt-10 flex flex-wrap gap-3 border-t border-line pt-6">
-          <ActionButton action={forgetDeviceAction} variant="ghost" confirm="Forget your card on this device? You'll need your edit link to get it back.">
-            Forget on this device
-          </ActionButton>
-          <ActionButton action={deleteCardAction} variant="danger" confirm="Delete your card permanently?">
+          <ActionButton action={deleteCardAction} variant="ghost" confirm="Delete your card?">
             Delete my card
           </ActionButton>
         </div>
-      )}
-      {!me && (
-        <p className="mt-6 text-center text-sm text-muted">
-          Already made one on another device? Open your private edit link there, or{" "}
-          <Link href="/people" className="underline">
-            just browse
-          </Link>
-          .
-        </p>
+      ) : (
+        <>
+          <p className="my-6 text-center text-sm font-semibold text-muted">— or —</p>
+          <Card className="p-5 sm:p-6">
+            <p className="mb-3 text-sm text-muted">Already posted about Moonshot on X? Add the post and people can find you from it.</p>
+            <XPostForm />
+          </Card>
+        </>
       )}
     </div>
   );

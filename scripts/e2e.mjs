@@ -1,6 +1,6 @@
-// End-to-end check of the main flows in a real browser (Playwright + Chromium).
-// Needs a running server with ADMIN_KEY=test-admin-key-123:
-//   BASE_URL=http://localhost:3000 SCREENSHOTS=./test-results npm run test:e2e
+// End-to-end check in a real browser (Playwright + Chromium).
+// Needs a running server with ADMIN_KEY set:
+//   BASE_URL=http://localhost:3000 ADMIN_KEY=... SCREENSHOTS=./test-results npm run test:e2e
 import { createRequire } from "node:module";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -11,13 +11,13 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 const BASE = process.env.BASE_URL ?? "http://localhost:3000";
 const SHOTS = process.env.SCREENSHOTS;
 const ADMIN_KEY = process.env.ADMIN_KEY ?? "test-admin-key-123";
+const SAMPLE_POST = process.env.SAMPLE_POST ?? "https://x.com/Thedanieloreofe/status/2114706863631572995";
 const run = Date.now().toString(36);
 if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
 
 const browser = await chromium.launch();
 const mobile = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
 const errors = [];
-
 async function visitor(opts = mobile) {
   const ctx = await browser.newContext(opts);
   const page = await ctx.newPage();
@@ -27,153 +27,112 @@ async function visitor(opts = mobile) {
 const shot = (page, name) => SHOTS && page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: true });
 const chip = (page, label) => page.locator("fieldset label").getByText(label, { exact: true }).click();
 const step = (s) => console.log(`• ${s}`);
+const card = (page, text) => page.locator("li", { hasText: text }).first();
 
-async function makeCard(page, { name, headline, wants = [], offers = [], interests = [], whatsapp, x }) {
+async function addCard(page, { name, headline, wants = [], offers = [], contact }) {
   await page.goto(`${BASE}/card`);
-  await page.getByLabel("Your name").fill(name);
+  await page.getByLabel("Name", { exact: true }).fill(name);
   await page.getByLabel("What you do").fill(headline);
   for (const w of wants) await chip(page, w);
-  for (const o of offers) await chip(page, o);
-  for (const i of interests) await chip(page, i);
-  if (whatsapp) await page.getByLabel("WhatsApp").fill(whatsapp);
-  if (x) await page.getByLabel("X handle").fill(x);
-  await page.getByRole("button", { name: "Create my card" }).click();
-  await page.waitForURL(/\/people\?welcome=1/);
+  if (offers.length) {
+    await page.getByText("More (optional)").click();
+    for (const o of offers) await chip(page, o);
+  }
+  await page.getByLabel("Best way to reach you").fill(contact);
+  await page.getByRole("button", { name: "Add me" }).click();
+  await page.waitForURL(/\?added=card/);
 }
 
 try {
-  step("home page shows the pitch and the independence note");
+  step("home shows the list and the independence note");
   const anon = await visitor();
   await anon.page.goto(BASE);
-  await anon.page.getByRole("heading", { name: /meet the right people at moonshot/i }).waitFor();
+  await anon.page.getByRole("heading", { name: /who.s at moonshot/i }).waitFor();
   assert.ok(await anon.page.getByText(/isn.t run or endorsed by TechCabal/i).isVisible());
-  await shot(anon.page, "01-home");
 
-  step("validation keeps what you typed and asks for a contact");
+  step("card form keeps input on error");
   const ada = await visitor();
   await ada.page.goto(`${BASE}/card`);
-  await ada.page.getByLabel("Your name").fill(`Ada ${run}`);
+  await ada.page.getByLabel("Name", { exact: true }).fill(`Ada ${run}`);
   await ada.page.getByLabel("What you do").fill("Founder, payments startup");
-  await ada.page.getByRole("button", { name: "Create my card" }).click();
-  await ada.page.getByText("Add at least one way for people to reach you").waitFor();
-  assert.equal(await ada.page.getByLabel("Your name").inputValue(), `Ada ${run}`);
-  await shot(ada.page, "02-card-form");
+  await ada.page.getByRole("button", { name: "Add me" }).click();
+  await ada.page.getByText("Add one way for people to reach you").waitFor();
+  assert.equal(await ada.page.getByLabel("Name", { exact: true }).inputValue(), `Ada ${run}`);
+  await shot(ada.page, "02-add-yourself");
 
-  step("Ada creates her card (no sign-in)");
-  await makeCard(ada.page, { name: `Ada ${run}`, headline: "Founder, payments startup", wants: ["Business partners", "Investors"], interests: ["Fintech"], whatsapp: "+2348030000000" });
-  await ada.page.getByText(/your card is live/i).waitFor();
+  step("Ada adds herself with a WhatsApp number");
+  await addCard(ada.page, { name: `Ada ${run}`, headline: "Founder, payments startup", wants: ["Business partners", "Investors"], contact: "+234 803 000 0000" });
+  await ada.page.getByText(/you're on the list/i).waitFor();
 
-  step("Bola creates a complementary card and sees Ada ranked with a reason");
+  step("Bola adds herself with an @handle and sees why to meet Ada");
   const bola = await visitor();
-  await makeCard(bola.page, { name: `Bola ${run}`, headline: "Growth lead", wants: ["Founders"], offers: ["Distribution & partnerships", "Marketing & growth"], interests: ["Fintech"], x: "@bola_grows" });
-  const adaCard = bola.page.locator("li", { hasText: `Ada ${run}` }).first();
-  await adaCard.waitFor();
-  assert.match(await adaCard.innerText(), /Ada wants business partners — you offer distribution/i);
-  await shot(bola.page, "03-people");
+  await addCard(bola.page, { name: `Bola ${run}`, headline: "Growth lead", wants: ["Founders"], offers: ["Distribution & partnerships"], contact: "@bola_grows" });
+  const adaCard = card(bola.page, `Ada ${run}`);
+  assert.match(await adaCard.innerText(), /You want founders — Ada offers founder experience/);
+  assert.match(await adaCard.getByRole("link", { name: "WhatsApp" }).getAttribute("href"), /^https:\/\/wa\.me\/2348030000000\?text=/);
 
-  step("Ada sees Bola with WhatsApp/X contact buttons and a match reason");
-  await ada.page.goto(`${BASE}/people?q=${encodeURIComponent(`Bola ${run}`)}`);
-  const bolaCard = ada.page.locator("li", { hasText: `Bola ${run}` });
-  await bolaCard.getByRole("link", { name: "@bola_grows" }).waitFor();
-  assert.equal(await bolaCard.getByRole("link", { name: "@bola_grows" }).getAttribute("href"), "https://x.com/bola_grows");
-  await bolaCard.getByRole("link", { name: `Bola ${run}` }).click();
-  await ada.page.getByText(/why you should meet/i).waitFor();
-  await ada.page.getByRole("button", { name: `Save Bola ${run}` }).click();
-  await ada.page.goto(`${BASE}/people?view=saved`);
-  await ada.page.locator("li", { hasText: `Bola ${run}` }).waitFor();
-  await shot(ada.page, "04-saved");
-
-  step("filters work");
-  await anon.page.goto(`${BASE}/people?offer=distribution`);
-  await anon.page.locator("li", { hasText: `Bola ${run}` }).waitFor();
+  step("search works");
+  await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`Bola ${run}`)}`);
+  assert.equal(await card(anon.page, `Bola ${run}`).getByRole("link", { name: "@bola_grows" }).getAttribute("href"), "https://x.com/bola_grows");
   assert.equal(await anon.page.locator("li", { hasText: `Ada ${run}` }).count(), 0);
 
-  step("Ada shares where to find her; she appears under 'Findable now'");
-  await ada.page.goto(`${BASE}/card`);
-  await ada.page.getByLabel(/find me at/i).fill("Coffee stand by Hall A");
-  await ada.page.getByRole("button", { name: "Update" }).click();
-  await ada.page.getByText(/people can find you/i).waitFor();
-  await anon.page.goto(`${BASE}/people?here=1`);
-  await anon.page.getByText("Coffee stand by Hall A").first().waitFor();
+  step("anyone can add a public X post; it shows as a 'From X' card");
+  const x = await visitor();
+  await x.page.goto(`${BASE}/card`);
+  await x.page.getByLabel(/link to your post/i).fill("https://example.com/not-a-post");
+  await x.page.getByRole("button", { name: "Add", exact: true }).click();
+  await x.page.getByText(/paste a link to a post/i).waitFor();
+  await x.page.getByLabel(/link to your post/i).fill(SAMPLE_POST);
+  await x.page.getByRole("button", { name: "Add", exact: true }).click();
+  const handle = SAMPLE_POST.split("/")[3];
+  const outcome = await Promise.race([
+    x.page.waitForURL(/\?added=x/).then(() => "added"),
+    x.page.getByText(/already here|couldn.t load/i).waitFor().then(() => "skipped"),
+  ]);
+  if (outcome === "added") {
+    const xc = card(x.page, `@${handle}`);
+    await xc.getByText("From X").waitFor();
+    assert.equal(await xc.getByRole("link", { name: /view post/i }).getAttribute("href"), SAMPLE_POST);
+    await shot(x.page, "01-home");
+  } else console.log("  (post already added, or X embed unreachable)");
 
-  step("edit link restores the card on another device");
-  await ada.page.goto(`${BASE}/card`);
+  step("edit link restores the card on another device; bad links are refused");
   await ada.ctx.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await ada.page.goto(`${BASE}/card`);
   await ada.page.getByRole("button", { name: "Copy edit link" }).click();
   const editLink = await ada.page.evaluate(() => navigator.clipboard.readText());
-  assert.match(editLink, /\/card\/claim\//);
   const laptop = await visitor({ viewport: { width: 1280, height: 900 } });
   await laptop.page.goto(editLink);
-  await laptop.page.getByText(/card unlocked on this device/i).waitFor();
-  assert.equal(await laptop.page.getByLabel("Your name").inputValue(), `Ada ${run}`);
+  await laptop.page.getByText(/card unlocked/i).waitFor();
+  assert.equal(await laptop.page.getByLabel("Name", { exact: true }).inputValue(), `Ada ${run}`);
   await laptop.page.goto(`${BASE}/card/claim/not-a-real-token`);
   await laptop.page.getByText(/isn.t valid/i).waitFor();
+  await shot(ada.page, "03-my-card");
 
-  step("Ada starts a hangout; Bola joins; capacity is enforced");
-  await ada.page.goto(`${BASE}/hangouts`);
-  await ada.page.getByText("+ Start a hangout").click();
-  await ada.page.getByLabel(/what.s it about/i).fill(`Fintech coffee ${run}`);
-  await ada.page.getByLabel("Where", { exact: true }).fill("Main stage");
-  await ada.page.getByLabel("Max people").fill("2");
-  await ada.page.getByRole("button", { name: "Start hangout" }).click();
-  await ada.page.waitForURL(/created=1/);
-  const hang = (p) => p.locator("li", { hasText: `Fintech coffee ${run}` });
-  await bola.page.goto(`${BASE}/hangouts`);
-  await hang(bola.page).getByRole("button", { name: "I'm in" }).click();
-  await hang(bola.page).getByRole("button", { name: "Leave" }).waitFor();
-  const third = await visitor();
-  await makeCard(third.page, { name: `Chidi ${run}`, headline: "Engineer", whatsapp: "+2348030000001" });
-  await third.page.goto(`${BASE}/hangouts`);
-  await hang(third.page).getByRole("button", { name: "Full" }).click();
-  await hang(third.page).getByText("This hangout is full.").waitFor();
-  await shot(bola.page, "05-hangouts");
-
-  step("anonymous visitors are asked to make a card before joining");
-  await anon.page.goto(`${BASE}/hangouts`);
-  await hang(anon.page).getByRole("button", { name: /I'm in|Full/ }).click();
-  await hang(anon.page).getByText(/make your card first/i).waitFor();
-
-  step("admin: wrong key refused, right key works; import posts; hide a card");
+  step("admin: wrong key refused; right key hides a card");
   const admin = await visitor({ viewport: { width: 1280, height: 900 } });
   await admin.page.goto(`${BASE}/admin`);
-  await admin.page.getByPlaceholder("Admin key").fill("wrong-key-wrong");
+  await admin.page.getByPlaceholder("Admin key").fill("definitely-wrong-key");
   await admin.page.getByRole("button", { name: "Enter" }).click();
   await admin.page.getByText("That key isn't right.").waitFor();
   await admin.page.getByPlaceholder("Admin key").fill(ADMIN_KEY);
   await admin.page.getByRole("button", { name: "Enter" }).click();
   await admin.page.getByText(/cards ·/).waitFor();
-  const id = "1849" + String(Date.now()).slice(-15);
-  await admin.page.getByLabel("Public X post links").fill(JSON.stringify([{ url: `https://x.com/e2e_${run.slice(0, 6)}/status/${id}`, content: `E2E ${run} who is going to Moonshot? Looking to meet investors`, authorName: "E2E Tester" }]));
-  await admin.page.getByRole("button", { name: "Add posts" }).click();
-  await admin.page.getByText(/1 added/).waitFor();
-  await shot(admin.page, "06-admin");
-
-  await anon.page.goto(`${BASE}/conversation?theme=investors`);
-  const post = anon.page.locator("li", { hasText: `E2E ${run}` });
-  await post.waitFor();
-  assert.match(await post.getByRole("link", { name: /invite to connect/i }).getAttribute("href"), /^https:\/\/x\.com\/intent\/post\?/);
-  await shot(anon.page, "07-on-x");
-
-  step("admin hides a card and it disappears from the directory");
-  await admin.page.goto(`${BASE}/admin`);
-  await admin.page.locator("li", { hasText: `Chidi ${run}` }).getByRole("button", { name: "Hide" }).click();
-  await admin.page.locator("li", { hasText: `Chidi ${run}` }).getByRole("button", { name: "Unhide" }).waitFor();
-  await anon.page.goto(`${BASE}/people?q=${encodeURIComponent(`Chidi ${run}`)}`);
+  await card(admin.page, `Bola ${run}`).getByRole("button", { name: "Hide" }).click();
+  await card(admin.page, `Bola ${run}`).getByRole("button", { name: "Unhide" }).waitFor();
+  await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`Bola ${run}`)}`);
   await anon.page.getByText(/no one matches/i).waitFor();
 
   step("Ada deletes her card");
-  await ada.page.goto(`${BASE}/card`);
   ada.page.once("dialog", (d) => d.accept());
   await ada.page.getByRole("button", { name: "Delete my card" }).click();
-  await ada.page.waitForURL(/deleted=1/);
-  await anon.page.goto(`${BASE}/people?q=${encodeURIComponent(`Ada ${run}`)}`);
+  await ada.page.waitForURL((u) => new URL(u).pathname === "/");
+  await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`Ada ${run}`)}`);
   await anon.page.getByText(/no one matches/i).waitFor();
 
   if (SHOTS) {
-    await bola.page.goto(`${BASE}/card`);
-    await shot(bola.page, "08-my-card");
-    await bola.page.goto(BASE);
-    await shot(bola.page, "09-home-with-card");
+    await laptop.page.goto(BASE);
+    await shot(laptop.page, "04-home-desktop");
   }
   assert.deepEqual(errors, [], "no uncaught page errors");
   console.log("\nAll end-to-end checks passed.");

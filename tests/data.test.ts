@@ -5,7 +5,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/lib/db/schema";
 import type { DB } from "@/lib/db";
-import { importPosts, joinHangout, listHangouts, listPeople, listPosts } from "@/lib/data";
+import { importPosts, listPeople, listXCards } from "@/lib/data";
 
 let db: DB;
 beforeAll(async () => {
@@ -21,10 +21,10 @@ async function person(over: Partial<typeof schema.people.$inferInsert> = {}) {
   return p;
 }
 
-describe("people directory", () => {
+describe("people", () => {
   it("ranks the best fit first, hides hidden cards and excludes yourself", async () => {
-    const me = await person({ name: "Me", wants: ["investors"], interests: ["fintech"] });
-    const vc = await person({ name: "Val VC", offers: ["investment"], interests: ["fintech"] });
+    const me = await person({ name: "Me", wants: ["investors"] });
+    const vc = await person({ name: "Val VC", offers: ["investment"] });
     await person({ name: "Random" });
     const hidden = await person({ name: "Hidden", offers: ["investment"], hidden: true });
     const list = await listPeople(db, me);
@@ -32,40 +32,26 @@ describe("people directory", () => {
     expect(list[0].reasons[0]).toMatch(/Val offers investment/);
     expect(list.map((r) => r.person.id)).not.toContain(me.id);
     expect(list.map((r) => r.person.id)).not.toContain(hidden.id);
-    expect((await listPeople(db, null, { offer: "investment" })).map((r) => r.person.id)).toEqual([vc.id]);
-    expect((await listPeople(db, null, { q: "val" })).length).toBe(1);
-  });
-
-  it("shows 'findable now' only for fresh location notes", async () => {
-    const fresh = await person({ whereNote: "Coffee stand", whereUpdatedAt: new Date() });
-    await person({ whereNote: "Old spot", whereUpdatedAt: new Date(Date.now() - 5 * 3600_000) });
-    expect((await listPeople(db, null, { here: true })).map((r) => r.person.id)).toEqual([fresh.id]);
+    expect((await listPeople(db, null, "val")).length).toBe(1);
   });
 });
 
-describe("hangouts", () => {
-  it("enforces capacity and counts members", async () => {
-    const host = await person();
-    const [h] = await db.insert(schema.hangouts).values({ hostId: host.id, title: "AI lunch", startsAt: new Date(Date.now() + 3600_000), place: "Lobby", capacity: 2 }).returning();
-    await joinHangout(db, host.id, h.id);
-    await joinHangout(db, (await person()).id, h.id);
-    await expect(joinHangout(db, (await person()).id, h.id)).rejects.toThrow(/full/);
-    const [row] = (await listHangouts(db, host.id)).filter((r) => r.hangout.id === h.id);
-    expect(row.going).toBe(2);
-    expect(row.joined).toBe(true);
-  });
-});
-
-describe("post import", () => {
-  it("validates, dedupes and auto-tags themes", async () => {
+describe("X cards", () => {
+  it("imports, dedupes, keeps one card per author, and drops authors who made their own card", async () => {
     const res = await importPosts(db, [
-      { url: "https://x.com/a/status/1849000000000000000", content: "Who's going to Moonshot? Looking to meet investors" },
-      { url: "https://x.com/a/status/1849000000000000000" },
+      { url: "https://x.com/oreofe/status/1849000000000000000", content: "Looking to meet founders and engineers" },
+      { url: "https://x.com/oreofe/status/1850000000000000000", content: "Newer post: see you at Moonshot" },
+      { url: "https://x.com/oreofe/status/1849000000000000000" },
       { url: "https://example.com/nope" },
+      { url: "https://x.com/kemi/status/1849000000000000002", content: "Who is going to Moonshot?" },
     ]);
-    expect(res.map((r) => r.status)).toEqual(["added", "duplicate", "invalid"]);
-    const [post] = await listPosts(db, { theme: "investors" });
-    expect(post.themes).toEqual(expect.arrayContaining(["attendance", "investors"]));
-    expect(post.postedAt?.getUTCFullYear()).toBe(2024);
+    expect(res.map((r) => r.status)).toEqual(["added", "added", "duplicate", "invalid", "added"]);
+    let cards = await listXCards(db);
+    expect(cards.map((c) => c.authorHandle).sort()).toEqual(["kemi", "oreofe"]);
+    expect(cards.find((c) => c.authorHandle === "oreofe")?.content).toMatch(/Newer post/);
+    expect((await listXCards(db, "founders")).map((c) => c.authorHandle)).toEqual(["oreofe"]);
+    await person({ name: "Kemi", xHandle: "Kemi" });
+    cards = await listXCards(db);
+    expect(cards.map((c) => c.authorHandle)).toEqual(["oreofe"]);
   });
 });

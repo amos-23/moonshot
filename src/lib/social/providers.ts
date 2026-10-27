@@ -90,7 +90,7 @@ export async function fetchOEmbed(url: string): Promise<OEmbed | null> {
   if (process.env.X_OEMBED_ENABLED === "false") return null;
   try {
     const res = await fetch(
-      `https://publish.twitter.com/oembed?${new URLSearchParams({ url, omit_script: "1", dnt: "true" })}`,
+      `https://publish.x.com/oembed?${new URLSearchParams({ url, omit_script: "1", dnt: "true" })}`,
       { cache: "no-store", signal: AbortSignal.timeout(6000) },
     );
     if (!res.ok) return null;

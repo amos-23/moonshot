@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { scoreMatch, type MatchCard } from "@/lib/matching";
 import { cardSchema } from "@/lib/validation";
-import { parseXPostUrl, snowflakeToDate } from "@/lib/social/x-url";
+import { detectMentions, parseXPostUrl, snowflakeToDate } from "@/lib/social/x-url";
 import { parseImport } from "@/lib/data";
 
 const base: MatchCard = { id: "a", name: "Ada Obi", headline: "Builder", wants: [], offers: [], interests: [], attendance: "in_person" };
@@ -22,18 +22,18 @@ describe("matching", () => {
 });
 
 describe("card validation", () => {
-  const ok = { name: "Ada", headline: "Founder", wants: [], offers: [], interests: [], attendance: "in_person", whatsapp: "+234 803 000 0000" };
-  it("normalises contact details", () => {
-    const c = cardSchema.parse({ ...ok, xHandle: "https://x.com/ada_builds?s=1", linkedinUrl: "linkedin.com/in/ada", websiteUrl: "ada.dev" });
-    expect(c.xHandle).toBe("ada_builds");
-    expect(c.whatsapp).toBe("+2348030000000");
-    expect(c.linkedinUrl).toBe("https://linkedin.com/in/ada");
-    expect(c.websiteUrl).toBe("https://ada.dev/");
+  const ok = { name: "Ada", headline: "Founder", wants: [], offers: [], contact: "+234 803 000 0000" };
+  it("works out the contact type from one box", () => {
+    expect(cardSchema.parse(ok).whatsapp).toBe("+2348030000000");
+    expect(cardSchema.parse({ ...ok, contact: "@ada_builds" }).xHandle).toBe("ada_builds");
+    expect(cardSchema.parse({ ...ok, contact: "https://x.com/ada_builds" }).xHandle).toBe("ada_builds");
+    expect(cardSchema.parse({ ...ok, contact: "Ada@Example.com" }).email).toBe("ada@example.com");
+    expect(cardSchema.parse({ ...ok, contact: "linkedin.com/in/ada" }).linkedinUrl).toBe("https://linkedin.com/in/ada");
+    expect(cardSchema.parse({ ...ok, contact: "ada.dev" }).websiteUrl).toBe("https://ada.dev/");
   });
-  it("requires a way to be reached and rejects bad links", () => {
-    expect(cardSchema.safeParse({ ...ok, whatsapp: "" }).success).toBe(false);
-    expect(cardSchema.safeParse({ ...ok, linkedinUrl: "evil.com/in/x" }).success).toBe(false);
-    expect(cardSchema.safeParse({ ...ok, websiteUrl: "javascript:alert(1)" }).success).toBe(false);
+  it("requires a usable contact and limits choices", () => {
+    expect(cardSchema.safeParse({ ...ok, contact: "" }).success).toBe(false);
+    expect(cardSchema.safeParse({ ...ok, contact: "javascript:alert(1)" }).success).toBe(false);
     expect(cardSchema.safeParse({ ...ok, wants: ["investors", "partners", "customers", "job"] }).success).toBe(false);
   });
 });
@@ -49,5 +49,8 @@ describe("X posts", () => {
     const j = parseImport('[{"url":"https://x.com/a/status/1849000000000000000","text":"hi"},{"x":1}]');
     expect(j.records[0].content).toBe("hi");
     expect(j.errors).toHaveLength(1);
+  });
+  it("picks out who an author wants to meet from their own words", () => {
+    expect(detectMentions("Founders building difficult things. Operators who understand distribution. Engineers working on problems")).toEqual(["Founders", "Engineers", "Operators", "Distribution"]);
   });
 });

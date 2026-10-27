@@ -63,3 +63,24 @@ export function replyIntentUrl(postId: string | null, text: string): string {
   if (postId) params.set("in_reply_to", postId);
   return `https://x.com/intent/post?${params.toString()}`;
 }
+
+// Who the author says they want to meet, from words they actually used in the post.
+const MENTIONS: [string, RegExp][] = [
+  ["Founders", /\bfounders?\b/i],
+  ["Investors", /\b(investors?|vcs?|angels?)\b/i],
+  ["Engineers", /\b(engineers?|developers?|devs?)\b/i],
+  ["Designers", /\bdesigners?\b/i],
+  ["Operators", /\boperators?\b/i],
+  ["Marketers", /\b(marketers?|growth)\b/i],
+  ["Distribution", /\bdistribution\b/i],
+  ["AI builders", /\b(ai|agents?|llms?)\b/i],
+  ["Fintech", /\bfintech|payments?\b/i],
+  ["Hiring", /\b(hiring|we're hiring|open roles?)\b/i],
+  ["Partners", /\bpartners?(hips?)?\b/i],
+  ["Customers", /\bcustomers?\b/i],
+];
+
+export function detectMentions(text: string | null | undefined): string[] {
+  if (!text) return [];
+  return MENTIONS.filter(([, re]) => re.test(text)).map(([label]) => label);
+}

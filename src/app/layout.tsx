@@ -1,13 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import "./globals.css";
-import { BottomNav, TopNav } from "@/components/nav";
+import { getMe } from "@/lib/me";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: { default: "Moonshot Connect — meet the right people at Moonshot 2026", template: "%s · Moonshot Connect" },
-  description: "Make a 30-second card, see who's at Moonshot by TechCabal (Lagos, 28–29 Oct 2026), and reach the people worth meeting. No sign-up.",
+  description: "See who's going to Moonshot by TechCabal (Lagos, 28–29 Oct 2026) and reach the people worth meeting. No sign-up.",
 };
 
 export const viewport: Viewport = { themeColor: "#e8502a", width: "device-width", initialScale: 1 };
@@ -26,7 +26,8 @@ function Wordmark() {
   );
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const me = await getMe().catch(() => null);
   return (
     <html lang="en">
       <body className="min-h-dvh antialiased">
@@ -38,13 +39,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/" aria-label="Moonshot Connect home">
               <Wordmark />
             </Link>
-            <TopNav />
+            <Link href="/card" className="inline-flex h-10 items-center rounded-full bg-ink px-5 text-sm font-semibold text-white hover:bg-black">
+              {me ? "My card" : "Add yourself"}
+            </Link>
           </div>
         </header>
-        <main id="main" className="pb-24 md:pb-12">
+        <main id="main" className="pb-12">
           {children}
         </main>
-        <footer className="mx-auto max-w-6xl px-4 pb-28 text-xs text-muted md:pb-10">
+        <footer className="mx-auto max-w-6xl px-4 pb-10 text-xs text-muted">
           <p className="border-t border-line pt-6">
             Moonshot Connect is an independent, community-made tool. It isn&apos;t run or endorsed by TechCabal. For tickets, schedule and official info visit{" "}
             <a className="underline" href="https://moonshot.techcabal.com" target="_blank" rel="noopener noreferrer">
@@ -53,7 +56,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             .
           </p>
         </footer>
-        <BottomNav />
       </body>
     </html>
   );
