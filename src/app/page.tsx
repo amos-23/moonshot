@@ -1,7 +1,7 @@
 import { Search } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { getMe } from "@/lib/me";
-import { listPeople, listXCards } from "@/lib/data";
+import { commentsFor, listPeople, listXCards } from "@/lib/data";
 import { refreshLive } from "@/lib/social/live";
 import { EVENT } from "@/lib/constants";
 import { PersonCard, XCard } from "@/components/person";
@@ -13,6 +13,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
   const me = await getMe();
   await refreshLive(db).catch(() => null); // no-op unless X_BEARER_TOKEN is set
   const [people, xCards] = await Promise.all([listPeople(db, me, q), listXCards(db, q)]);
+  const comments = await commentsFor(db, xCards.map((p) => p.id));
   const total = people.length + xCards.length;
 
   return (
@@ -63,7 +64,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
             ))}
             {xCards.map((p) => (
               <li key={p.id}>
-                <XCard post={p} />
+                <XCard post={p} comments={comments.get(p.id)} myName={me?.name ?? null} />
               </li>
             ))}
           </ul>

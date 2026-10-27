@@ -95,6 +95,29 @@ try {
     await shot(x.page, "01-home");
   } else console.log("  (post already added, or X embed unreachable)");
 
+  step("comments on an X card: name needed without a card, automatic with one");
+  await anon.page.goto(BASE);
+  const xcard = card(anon.page, `@${handle}`);
+  if (await xcard.count()) {
+    await xcard.locator("summary", { hasText: /comment/i }).click();
+    await xcard.getByPlaceholder("Say hi or ask to meet").fill(`Hi from anon ${run}`);
+    await xcard.getByRole("button", { name: "Post" }).click();
+    await xcard.getByText(/add your name/i).waitFor();
+    await xcard.getByPlaceholder("Your name").fill(`Kemi ${run}`);
+    await xcard.getByRole("button", { name: "Post" }).click();
+    await xcard.getByText(`Hi from anon ${run}`).waitFor();
+    assert.equal(await xcard.getByPlaceholder("Say hi or ask to meet").inputValue(), "", "input clears after posting");
+
+    await bola.page.goto(BASE);
+    const bcard = card(bola.page, `@${handle}`);
+    if (!(await bcard.getByPlaceholder(/comment as/i).isVisible())) await bcard.locator("summary", { hasText: /comment/i }).click();
+    await bcard.getByPlaceholder(`Comment as Bola ${run}`).fill(`Let's meet! ${run}`);
+    await bcard.getByRole("button", { name: "Post" }).click();
+    await bcard.getByText(`Let's meet! ${run}`).waitFor();
+    assert.match(await bcard.innerText(), new RegExp(`Bola ${run}`));
+    await shot(bola.page, "05-comments");
+  } else console.log("  (no X card to comment on)");
+
   step("edit link restores the card on another device; bad links are refused");
   await ada.ctx.grantPermissions(["clipboard-read", "clipboard-write"]);
   await ada.page.goto(`${BASE}/card`);

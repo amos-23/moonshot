@@ -1,9 +1,10 @@
-import { AtSign, ExternalLink, Globe, Mail, MessageCircle, UserRound } from "lucide-react";
-import type { Person, SocialPost } from "@/lib/db/schema";
+import { AtSign, ExternalLink, Globe, Mail, MessageCircle, MessagesSquare, UserRound } from "lucide-react";
+import type { Comment, Person, SocialPost } from "@/lib/db/schema";
 import { OFFERS, WANTS, labelFor } from "@/lib/constants";
 import { detectMentions } from "@/lib/social/x-url";
 import { timeAgo } from "@/lib/time";
 import { ReportLink } from "./client";
+import { CommentForm } from "./forms";
 import { Avatar, Card, Tag } from "./ui";
 
 const HELLO = "Hi! Found you on Moonshot Connect — would love to meet at Moonshot.";
@@ -66,7 +67,7 @@ export function PersonCard({ person: p, reasons = [] }: { person: Person; reason
   );
 }
 
-export function XCard({ post }: { post: SocialPost }) {
+export function XCard({ post, comments = [], myName = null }: { post: SocialPost; comments?: Comment[]; myName?: string | null }) {
   const mentions = detectMentions(post.content);
   const name = post.authorName ?? `@${post.authorHandle}`;
   return (
@@ -92,6 +93,25 @@ export function XCard({ post }: { post: SocialPost }) {
           ))}
         </div>
       )}
+      <details className="group rounded-2xl bg-canvas px-3 py-2" open={comments.length > 0 && comments.length <= 3}>
+        <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-semibold text-muted">
+          <MessagesSquare size={14} aria-hidden /> {comments.length ? `${comments.length} comment${comments.length === 1 ? "" : "s"}` : "Comment"}
+        </summary>
+        <div className="mt-2 space-y-2">
+          {comments.length > 0 && (
+            <ul className="space-y-1.5">
+              {comments.map((c) => (
+                <li key={c.id} className="text-sm">
+                  <span className="font-semibold">{c.name}</span> <span className="text-xs text-muted">· {timeAgo(c.createdAt)}</span>{" "}
+                  <ReportLink type="comment" id={c.id} />
+                  <p className="whitespace-pre-line break-words">{c.body}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          <CommentForm postId={post.id} myName={myName} />
+        </div>
+      </details>
     </Shell>
   );
 }

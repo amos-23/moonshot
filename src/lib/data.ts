@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import type { DB } from "@/lib/db";
 import * as s from "@/lib/db/schema";
 import type { Person } from "@/lib/db/schema";
@@ -44,6 +44,19 @@ export async function listXCards(db: DB, q?: string) {
     )
     .orderBy(sql`lower(${s.socialPosts.authorHandle})`, desc(sql`coalesce(${s.socialPosts.postedAt}, ${s.socialPosts.importedAt})`));
   return rows.sort((a, b) => (b.postedAt ?? b.importedAt).getTime() - (a.postedAt ?? a.importedAt).getTime());
+}
+
+/** Visible comments for the given posts, oldest first, grouped by post. */
+export async function commentsFor(db: DB, postIds: string[]) {
+  const map = new Map<string, s.Comment[]>();
+  if (!postIds.length) return map;
+  const rows = await db
+    .select()
+    .from(s.comments)
+    .where(and(inArray(s.comments.postId, postIds), eq(s.comments.hidden, false)))
+    .orderBy(asc(s.comments.createdAt));
+  for (const c of rows) map.set(c.postId, [...(map.get(c.postId) ?? []), c]);
+  return map;
 }
 
 export class UserError extends Error {}

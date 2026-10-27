@@ -5,7 +5,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/lib/db/schema";
 import type { DB } from "@/lib/db";
-import { importPosts, listPeople, listXCards } from "@/lib/data";
+import { commentsFor, importPosts, listPeople, listXCards } from "@/lib/data";
 
 let db: DB;
 beforeAll(async () => {
@@ -53,5 +53,21 @@ describe("X cards", () => {
     await person({ name: "Kemi", xHandle: "Kemi" });
     cards = await listXCards(db);
     expect(cards.map((c) => c.authorHandle)).toEqual(["oreofe"]);
+  });
+});
+
+describe("comments", () => {
+  it("groups visible comments by post, oldest first", async () => {
+    const [r] = await importPosts(db, [{ url: "https://x.com/tola/status/1851000000000000000", content: "Moonshot!" }]);
+    const postId = r.id!;
+    await db.insert(schema.comments).values([
+      { postId, name: "A", body: "first" },
+      { postId, name: "B", body: "hidden one", hidden: true },
+    ]);
+    await new Promise((res) => setTimeout(res, 5));
+    await db.insert(schema.comments).values({ postId, name: "C", body: "second" });
+    const map = await commentsFor(db, [postId]);
+    expect(map.get(postId)?.map((c) => c.body)).toEqual(["first", "second"]);
+    await expect(db.insert(schema.comments).values({ postId, name: "D", body: "" })).rejects.toThrow();
   });
 });

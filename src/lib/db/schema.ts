@@ -121,3 +121,22 @@ export const settings = mc.table("settings", {
 export type Person = typeof people.$inferSelect;
 export type Hangout = typeof hangouts.$inferSelect;
 export type SocialPost = typeof socialPosts.$inferSelect;
+
+// Comments left on Moonshot Connect under a "From X" card (not replies on X itself).
+export const comments = mc.table(
+  "comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    postId: uuid("post_id")
+      .notNull()
+      .references(() => socialPosts.id, { onDelete: "cascade" }),
+    personId: uuid("person_id").references(() => people.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    body: text("body").notNull(),
+    hidden: boolean("hidden").notNull().default(false),
+    createdAt: createdAt(),
+  },
+  (t) => [index("comments_post_idx").on(t.postId, t.createdAt), check("comments_body_len", sql`char_length(${t.body}) between 1 and 280`)],
+);
+
+export type Comment = typeof comments.$inferSelect;

@@ -19,14 +19,19 @@ export default async function AdminPage() {
     );
   }
   const db = await getDb();
-  const [reports, people, posts] = await Promise.all([
+  const [reports, people, posts, comments] = await Promise.all([
     db.select().from(schema.reports).where(eq(schema.reports.resolved, false)).orderBy(desc(schema.reports.createdAt)).limit(100),
     db.select().from(schema.people).orderBy(desc(schema.people.createdAt)).limit(500),
     db.select().from(schema.socialPosts).orderBy(desc(schema.socialPosts.importedAt)).limit(500),
+    db.select().from(schema.comments).orderBy(desc(schema.comments.createdAt)).limit(300),
   ]);
-  const label = new Map<string, string>([...people.map((p) => [p.id, p.name] as const), ...posts.map((p) => [p.id, `@${p.authorHandle}`] as const)]);
+  const label = new Map<string, string>([
+    ...people.map((p) => [p.id, p.name] as const),
+    ...posts.map((p) => [p.id, `@${p.authorHandle}`] as const),
+    ...comments.map((c) => [c.id, `Comment by ${c.name}: “${c.body.slice(0, 60)}”`] as const),
+  ]);
 
-  const Row = ({ kind, id, title, sub, hidden }: { kind: "person" | "post"; id: string; title: string; sub: string; hidden: boolean }) => (
+  const Row = ({ kind, id, title, sub, hidden }: { kind: "person" | "post" | "comment"; id: string; title: string; sub: string; hidden: boolean }) => (
     <li>
       <Card className="flex flex-wrap items-center gap-3 p-3 text-sm">
         <span className="min-w-0 flex-1">
@@ -44,7 +49,7 @@ export default async function AdminPage() {
     <div className="mx-auto max-w-4xl space-y-8 px-4 py-8">
       <PageTitle
         title="Admin"
-        sub={`${people.length} cards · ${posts.length} X posts`}
+        sub={`${people.length} cards · ${posts.length} X posts · ${comments.length} comments`}
         action={
           <form action={adminLogoutAction}>
             <Button type="submit" variant="ghost" size="sm">
@@ -65,7 +70,7 @@ export default async function AdminPage() {
                   <span className="flex-1">
                     <strong>{label.get(r.targetId) ?? r.targetType}</strong> — “{r.reason}” · {timeAgo(r.createdAt)}
                   </span>
-                  <ActionButton action={setHiddenAction.bind(null, r.targetType === "post" ? "post" : "person", r.targetId, true)} variant="danger">
+                  <ActionButton action={setHiddenAction.bind(null, r.targetType === "post" ? "post" : r.targetType === "comment" ? "comment" : "person", r.targetId, true)} variant="danger">
                     Hide
                   </ActionButton>
                   <ActionButton action={resolveReportAction.bind(null, r.id)} variant="ghost">
@@ -86,6 +91,14 @@ export default async function AdminPage() {
         <ul className="space-y-2">
           {people.map((p) => (
             <Row key={p.id} kind="person" id={p.id} title={p.name} sub={`${p.headline} · ${timeAgo(p.createdAt)}`} hidden={p.hidden} />
+          ))}
+        </ul>
+      </section>
+      <section>
+        <h2 className="mb-3 font-bold">Comments</h2>
+        <ul className="space-y-2">
+          {comments.map((c) => (
+            <Row key={c.id} kind="comment" id={c.id} title={c.name} sub={`on ${label.get(c.postId) ?? "a post"}: ${c.body.slice(0, 100)}`} hidden={c.hidden} />
           ))}
         </ul>
       </section>

@@ -76,6 +76,26 @@ export async function addXPostAction(_: Result | null, form: FormData): Promise<
   return result;
 }
 
+export async function addCommentAction(_: Result | null, form: FormData): Promise<Result> {
+  const postId = String(form.get("postId") ?? "");
+  const body = String(form.get("body") ?? "").trim();
+  if (!/^[0-9a-f-]{36}$/i.test(postId)) return { ok: false, error: "Post not found." };
+  if (!body) return { ok: false, error: "Write something first." };
+  if (body.length > 280) return { ok: false, error: "Keep it under 280 characters." };
+  return guard(async () => {
+    const me = await getMe();
+    const name = me?.name ?? String(form.get("name") ?? "").trim().slice(0, 40);
+    if (!name) return { ok: false, error: "Add your name so they know who's commenting." };
+    if (!(await rateLimit("comment", 60, 60))) return { ok: false, error: "Too many comments from this network — try again shortly." };
+    const db = await getDb();
+    const post = await db.query.socialPosts.findFirst({ where: eq(schema.socialPosts.id, postId) });
+    if (!post || post.hidden) return { ok: false, error: "Post not found." };
+    await db.insert(schema.comments).values({ postId, personId: me?.id ?? null, name, body });
+    refresh();
+    return { ok: true, message: "Posted." };
+  });
+}
+
 export async function deleteCardAction(): Promise<Result> {
   const result = await guard(async () => {
     const me = await getMe();
@@ -90,7 +110,7 @@ export async function deleteCardAction(): Promise<Result> {
   return result;
 }
 
-export async function reportAction(targetType: "person" | "post", targetId: string, reason: string): Promise<Result> {
+export async function reportAction(targetType: "person" | "post" | "comment", targetId: string, reason: string): Promise<Result> {
   return guard(async () => {
     if (!(await rateLimit("report", 60, 60))) return { ok: false, error: "Too many reports — try again later." };
     const me = await getMe();
@@ -131,10 +151,11 @@ export async function importPostsAction(_: Result | null, form: FormData): Promi
   });
 }
 
-export async function setHiddenAction(kind: "person" | "post", id: string, hidden: boolean): Promise<Result> {
+export async function setHiddenAction(kind: "person" | "post" | "comment", id: string, hidden: boolean): Promise<Result> {
   return guard(async () => {
     const db = await requireAdmin();
     if (kind === "person") await db.update(schema.people).set({ hidden }).where(eq(schema.people.id, id));
+    else if (kind === "comment") await db.update(schema.comments).set({ hidden }).where(eq(schema.comments.id, id));
     else await db.update(schema.socialPosts).set({ hidden }).where(eq(schema.socialPosts.id, id));
     refresh();
   });

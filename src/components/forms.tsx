@@ -1,6 +1,7 @@
 "use client";
 
-import { addXPostAction, adminLoginAction, importPostsAction, saveCardAction } from "@/lib/actions";
+import { useEffect, useRef } from "react";
+import { addCommentAction, addXPostAction, adminLoginAction, importPostsAction, saveCardAction } from "@/lib/actions";
 import type { Person } from "@/lib/db/schema";
 import { OFFERS, WANTS, type Option } from "@/lib/constants";
 import type { ImportResult } from "@/lib/data";
@@ -121,6 +122,37 @@ export function ImportForm() {
           ))}
         </ul>
       )}
+    </form>
+  );
+}
+
+export function CommentForm({ postId, myName }: { postId: string; myName: string | null }) {
+  const { state, pending, onSubmit } = useForm(addCommentAction, { refresh: true });
+  const ref = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (state?.ok) ref.current?.querySelector<HTMLInputElement>("input[name=body]")?.form?.reset();
+  }, [state]);
+  return (
+    <form ref={ref} onSubmit={onSubmit} className="space-y-2">
+      <input type="hidden" name="postId" value={postId} />
+      {!myName && (
+        <>
+          <label htmlFor={`cn-${postId}`} className="sr-only">
+            Your name
+          </label>
+          <input id={`cn-${postId}`} name="name" maxLength={40} placeholder="Your name" className={cx(inputClass, "py-2")} />
+        </>
+      )}
+      <div className="flex gap-2">
+        <label htmlFor={`cb-${postId}`} className="sr-only">
+          Comment
+        </label>
+        <input id={`cb-${postId}`} name="body" maxLength={280} placeholder={myName ? `Comment as ${myName}` : "Say hi or ask to meet"} className={cx(inputClass, "py-2")} />
+        <Submit pending={pending} variant="dark" size="sm" className="h-auto">
+          Post
+        </Submit>
+      </div>
+      {state && !state.ok && <Status state={state} />}
     </form>
   );
 }
