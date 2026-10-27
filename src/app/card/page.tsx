@@ -11,17 +11,21 @@ export default async function CardPage({ searchParams }: { searchParams: Promise
   const me = await getMe();
   const token = me ? await myToken() : null;
 
-  return (
-    <div className="mx-auto max-w-xl px-4 py-8">
-      <PageTitle title={me ? "My card" : "Add yourself"} sub={me ? undefined : "Takes a few seconds. No sign-up."} />
+  const notices = (
+    <>
       {claimed && <div className="mb-4"><Notice tone="success">Card unlocked on this device.</Notice></div>}
       {bad && <div className="mb-4"><Notice tone="danger">That edit link isn&apos;t valid.</Notice></div>}
+    </>
+  );
 
-      <Card className="p-5 sm:p-6">
-        <CardForm person={me} />
-      </Card>
-
-      {me && token ? (
+  if (me && token) {
+    return (
+      <div className="mx-auto max-w-xl px-4 py-8">
+        <PageTitle title="My card" />
+        {notices}
+        <Card className="p-5 sm:p-6">
+          <CardForm person={me} />
+        </Card>
         <div className="mt-6 space-y-4">
           <Card className="space-y-2 p-5">
             <p className="text-sm font-semibold">Edit from another device</p>
@@ -32,15 +36,27 @@ export default async function CardPage({ searchParams }: { searchParams: Promise
             Delete my card
           </ActionButton>
         </div>
-      ) : (
-        <>
-          <p className="my-6 text-center text-sm font-semibold text-muted">— or —</p>
-          <Card className="p-5 sm:p-6">
-            <p className="mb-3 text-sm text-muted">Already posted about Moonshot on X? Add the post and people can find you from it.</p>
-            <XPostForm />
-          </Card>
-        </>
-      )}
+      </div>
+    );
+  }
+
+  // Two ways in, side by side on wider screens (stacked on phones).
+  return (
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      <PageTitle title="Add yourself" sub="Pick one. Takes a few seconds, no sign-up." />
+      {notices}
+      <div className="grid items-start gap-4 md:grid-cols-2">
+        <Card className="p-5 sm:p-6">
+          <h2 className="mb-1 text-lg font-bold">Make a card</h2>
+          <p className="mb-5 text-sm text-muted">Say who you are and how to reach you.</p>
+          <CardForm person={null} />
+        </Card>
+        <Card className="p-5 sm:p-6 md:sticky md:top-24">
+          <h2 className="mb-1 text-lg font-bold">Add your X post</h2>
+          <p className="mb-5 text-sm text-muted">Already posted about Moonshot on X? Paste the link and people can find you from it.</p>
+          <XPostForm />
+        </Card>
+      </div>
     </div>
   );
 }
