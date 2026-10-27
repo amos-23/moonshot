@@ -1,20 +1,18 @@
 @import "tailwindcss";
+@import "@fontsource-variable/outfit";
 
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --color-ink: #0f1222;
-  --color-muted: #5b6075;
-  --color-line: #e6e7ee;
+  --font-sans: "Outfit Variable", ui-sans-serif, system-ui, sans-serif;
+  --color-ink: #1e1f26;
+  --color-muted: #5f6170;
+  --color-line: #eadfd3;
+  --color-canvas: #fff8f1;
   --color-surface: #ffffff;
-  --color-canvas: #f7f7fa;
-  --color-accent: #4b3fe0;
-  --color-accent-600: #3d32c4;
-  --color-accent-50: #f0efff;
-  --color-accent-100: #e2e0ff;
-}
-
-html {
-  -webkit-tap-highlight-color: transparent;
+  --color-flame: #e8502a; /* Moonshot 2026 orange */
+  --color-flame-700: #c23f1c; /* AA-contrast variant for text & buttons */
+  --color-sun: #f6a821; /* Moonshot 2026 gold */
+  --color-sun-100: #fff0d3;
+  --color-flame-50: #fff0ea;
 }
 
 body {
@@ -24,7 +22,7 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-flame-700);
   outline-offset: 2px;
 }
 

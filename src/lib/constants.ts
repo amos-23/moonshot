@@ -1,165 +1,99 @@
-// Controlled vocabularies. Stored as slugs in the database; labels are for display only.
+// Short, fixed lists keep the card fast to fill in and make matching predictable.
 
 export type Option = { value: string; label: string };
 
-export const INTERESTS: Option[] = [
-  { value: "ai", label: "AI & machine learning" },
-  { value: "ai_agents", label: "AI agents" },
-  { value: "fintech", label: "Fintech" },
-  { value: "payments", label: "Payments" },
-  { value: "crypto", label: "Crypto & web3" },
-  { value: "healthtech", label: "Healthtech" },
-  { value: "edtech", label: "Edtech" },
-  { value: "agritech", label: "Agritech" },
-  { value: "climate", label: "Climate & energy" },
-  { value: "mobility", label: "Mobility & logistics" },
-  { value: "ecommerce", label: "E-commerce & retail" },
-  { value: "saas", label: "B2B SaaS" },
-  { value: "devtools", label: "Developer tools" },
-  { value: "infrastructure", label: "Cloud & infrastructure" },
-  { value: "cybersecurity", label: "Cybersecurity" },
-  { value: "product", label: "Product management" },
-  { value: "design", label: "Design" },
-  { value: "product_marketing", label: "Product marketing" },
-  { value: "growth", label: "Growth & customer acquisition" },
-  { value: "fundraising", label: "Startup fundraising" },
-  { value: "venture", label: "Venture capital" },
-  { value: "creator_economy", label: "Creator businesses" },
-  { value: "media", label: "Media & storytelling" },
-  { value: "careers", label: "Technology careers" },
-  { value: "policy", label: "Policy & regulation" },
-  { value: "african_markets", label: "Building for African markets" },
-];
-
-export const GOALS: Option[] = [
-  { value: "find_customers", label: "Find customers" },
-  { value: "find_partners", label: "Find business partners" },
-  { value: "meet_investors", label: "Meet investors" },
-  { value: "meet_founders", label: "Meet founders" },
-  { value: "explore_jobs", label: "Explore jobs and career opportunities" },
-  { value: "discover_startups", label: "Discover startups and products" },
-  { value: "meet_ai_builders", label: "Meet AI builders" },
-  { value: "find_collaborators", label: "Find collaborators" },
-  { value: "join_conversations", label: "Join conversations around shared interests" },
-  { value: "meet_interesting_people", label: "Meet interesting people" },
+export const WANTS: Option[] = [
+  { value: "customers", label: "Customers" },
+  { value: "partners", label: "Business partners" },
+  { value: "investors", label: "Investors" },
+  { value: "founders", label: "Founders" },
+  { value: "job", label: "A new job" },
+  { value: "talent", label: "People to hire" },
+  { value: "cofounder", label: "A co-founder" },
+  { value: "ai_builders", label: "AI builders" },
+  { value: "mentors", label: "Mentors" },
+  { value: "friends", label: "Interesting people" },
 ];
 
 export const OFFERS: Option[] = [
-  { value: "investment", label: "Investment or funding" },
-  { value: "customer_intros", label: "Customer introductions" },
+  { value: "investment", label: "Investment" },
+  { value: "intros", label: "Customer intros" },
   { value: "distribution", label: "Distribution & partnerships" },
-  { value: "marketing", label: "Marketing & growth expertise" },
-  { value: "engineering", label: "Engineering expertise" },
-  { value: "ai_expertise", label: "AI / ML expertise" },
-  { value: "product_feedback", label: "Product & design feedback" },
-  { value: "hiring", label: "Jobs / hiring" },
-  { value: "mentorship", label: "Mentorship & advice" },
-  { value: "legal_regulatory", label: "Legal & regulatory know-how" },
-  { value: "media_coverage", label: "Media & press" },
-  { value: "community", label: "Community access" },
-  { value: "buying", label: "Buying products & services" },
+  { value: "growth", label: "Marketing & growth" },
+  { value: "engineering", label: "Engineering" },
+  { value: "ai", label: "AI / ML know-how" },
+  { value: "product", label: "Product & design feedback" },
+  { value: "hiring", label: "Jobs — I'm hiring" },
+  { value: "mentorship", label: "Mentorship" },
+  { value: "buying", label: "I buy tools & services" },
+  { value: "media", label: "Media & storytelling" },
 ];
 
-export const ROLES: Option[] = [
-  { value: "founder", label: "Founder / co-founder" },
-  { value: "investor", label: "Investor" },
-  { value: "engineer", label: "Engineer / developer" },
-  { value: "ai_builder", label: "AI / ML builder" },
-  { value: "product", label: "Product" },
-  { value: "design", label: "Design" },
-  { value: "marketing", label: "Marketing & growth" },
-  { value: "sales", label: "Sales & partnerships" },
-  { value: "operator", label: "Operations / executive" },
-  { value: "creator", label: "Creator" },
-  { value: "media", label: "Media / journalist" },
-  { value: "student", label: "Student / early career" },
-  { value: "policy", label: "Policy / government" },
-  { value: "other", label: "Other" },
-];
-
-export const INDUSTRIES: Option[] = [
+export const INTERESTS: Option[] = [
+  { value: "ai", label: "AI" },
   { value: "fintech", label: "Fintech" },
-  { value: "healthtech", label: "Healthtech" },
+  { value: "payments", label: "Payments" },
+  { value: "crypto", label: "Crypto" },
+  { value: "health", label: "Health" },
   { value: "edtech", label: "Edtech" },
   { value: "agritech", label: "Agritech" },
   { value: "climate", label: "Climate & energy" },
-  { value: "logistics", label: "Mobility & logistics" },
-  { value: "commerce", label: "Commerce & retail" },
-  { value: "software", label: "Software & SaaS" },
-  { value: "ai", label: "AI" },
-  { value: "media", label: "Media & entertainment" },
-  { value: "telecom", label: "Telecoms" },
-  { value: "investment", label: "Investment" },
-  { value: "public_sector", label: "Public sector & NGOs" },
-  { value: "other", label: "Other" },
+  { value: "logistics", label: "Logistics & mobility" },
+  { value: "commerce", label: "Commerce" },
+  { value: "saas", label: "B2B SaaS" },
+  { value: "devtools", label: "Developer tools" },
+  { value: "creator", label: "Creator economy" },
+  { value: "media", label: "Media" },
+  { value: "fundraising", label: "Fundraising" },
+  { value: "careers", label: "Careers" },
+  { value: "policy", label: "Policy" },
 ];
+
+// "If you want X, people who offer Y are a good fit."
+export const WANT_MATCHES: Record<string, string[]> = {
+  customers: ["intros", "buying", "distribution", "growth"],
+  partners: ["distribution", "intros", "growth"],
+  investors: ["investment"],
+  job: ["hiring"],
+  talent: ["engineering", "ai", "product", "growth"],
+  cofounder: ["engineering", "product", "growth", "ai"],
+  ai_builders: ["ai"],
+  mentors: ["mentorship"],
+};
 
 export const ATTENDANCE: Option[] = [
-  { value: "in_person", label: "Attending in person" },
-  { value: "remote", label: "Following remotely" },
-  { value: "undecided", label: "Undecided" },
-];
-
-export const NETWORKING_STYLES: Option[] = [
-  { value: "one_to_one", label: "One-to-one meetings" },
-  { value: "group", label: "Group conversations" },
-  { value: "both", label: "Both" },
-];
-
-export const VISIBILITY: Option[] = [
-  { value: "public", label: "Public — anyone can see my profile" },
-  { value: "members", label: "Members — only signed-in Moonshot Connect users" },
-  { value: "hidden", label: "Hidden — not shown in discovery" },
-];
-
-export const CONTACT_PREFS: Option[] = [
-  { value: "everyone", label: "Anyone signed in can send me a request" },
-  { value: "shared_interests", label: "Only people who share an interest with me" },
-  { value: "nobody", label: "Nobody — I'll reach out myself" },
+  { value: "in_person", label: "At Moonshot in person" },
+  { value: "remote", label: "Following online" },
 ];
 
 export const POST_THEMES: Option[] = [
-  { value: "attendance", label: "Attendance" },
+  { value: "attendance", label: "Who's going" },
   { value: "networking", label: "Networking" },
   { value: "startups", label: "Startups" },
   { value: "ai", label: "AI" },
   { value: "investors", label: "Investors" },
-  { value: "exhibitors", label: "Exhibitors" },
+  { value: "exhibitors", label: "Booths & exhibitors" },
 ];
 
-export const MEETUP_TOPICS: Option[] = [
-  { value: "ai_agents", label: "AI and AI agents" },
-  { value: "fintech", label: "Fintech" },
-  { value: "product_marketing", label: "Product marketing" },
-  { value: "customer_acquisition", label: "Customer acquisition" },
-  { value: "fundraising", label: "Startup fundraising" },
-  { value: "creator_businesses", label: "Creator businesses" },
-  { value: "careers", label: "Technology careers" },
-  { value: "african_markets", label: "Building for African markets" },
-  { value: "other", label: "Other" },
+export const SEARCH_PHRASES = [
+  "Moonshot by TechCabal",
+  "Moonshot 2026",
+  "Going to Moonshot",
+  "Attending Moonshot",
+  "Who is going to Moonshot?",
+  "Looking to meet founders",
+  "Moonshot networking",
 ];
 
-export const EXHIBITOR_CATEGORIES: Option[] = [
-  { value: "startup", label: "Startup" },
-  { value: "enterprise", label: "Enterprise" },
-  { value: "investor", label: "Investor / VC" },
-  { value: "community", label: "Community / non-profit" },
-  { value: "government", label: "Government" },
-  { value: "media", label: "Media" },
-  { value: "other", label: "Other" },
-];
-
-export const SUGGESTED_SEARCHES = [
-  '"Moonshot by TechCabal"',
-  '"Moonshot 2026"',
-  '"Going to Moonshot"',
-  '"Attending Moonshot"',
-  '"Who is going to Moonshot?"',
-  '"Looking to meet founders"',
-  '"Moonshot networking"',
-];
-
-export const EVENT_HASHTAGS = ["#Moonshot2026", "#MoonshotByTechCabal", "#TCMoonshot"];
+// From the official site (moonshot.techcabal.com).
+export const EVENT = {
+  name: "Moonshot by TechCabal",
+  theme: "Courage & Conviction",
+  tagline: "Building for a new world.",
+  dates: "28–29 October 2026",
+  venue: "National Theatre, Lagos",
+  url: "https://moonshot.techcabal.com",
+};
 
 export function labelFor(options: Option[], value: string | null | undefined): string {
   if (!value) return "";

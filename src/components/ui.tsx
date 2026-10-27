@@ -4,163 +4,123 @@ import type { ComponentProps, ReactNode } from "react";
 
 export const cx = clsx;
 
-type Variant = "primary" | "secondary" | "ghost" | "danger";
+type Variant = "primary" | "dark" | "secondary" | "ghost" | "danger";
 const variants: Record<Variant, string> = {
-  primary: "bg-accent text-white hover:bg-accent-600 shadow-sm",
-  secondary: "bg-white text-ink border border-line hover:bg-canvas",
+  primary: "bg-flame-700 text-white hover:bg-flame shadow-sm",
+  dark: "bg-ink text-white hover:bg-black",
+  secondary: "bg-white text-ink border border-line hover:border-ink/30",
   ghost: "text-ink hover:bg-black/5",
   danger: "bg-white text-red-700 border border-red-200 hover:bg-red-50",
 };
-const sizes = { sm: "h-8 px-3 text-sm", md: "h-10 px-4 text-sm", lg: "h-12 px-6 text-base" };
+const sizes = { sm: "h-9 px-3 text-sm", md: "h-11 px-5 text-sm", lg: "h-13 px-7 text-base" };
 
 export function buttonClass(variant: Variant = "primary", size: keyof typeof sizes = "md", extra?: string) {
   return cx(
-    "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap",
+    "inline-flex items-center justify-center gap-2 rounded-full font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap",
     variants[variant],
     sizes[size],
     extra,
   );
 }
 
-export function Button({
-  variant = "primary",
-  size = "md",
-  className,
-  ...props
-}: ComponentProps<"button"> & { variant?: Variant; size?: keyof typeof sizes }) {
-  return <button className={buttonClass(variant, size, className)} {...props} />;
+export function Button({ variant = "primary", size = "md", className, ...p }: ComponentProps<"button"> & { variant?: Variant; size?: keyof typeof sizes }) {
+  return <button className={buttonClass(variant, size, className)} {...p} />;
 }
 
-export function LinkButton({
-  variant = "primary",
-  size = "md",
-  className,
-  ...props
-}: ComponentProps<typeof Link> & { variant?: Variant; size?: keyof typeof sizes }) {
-  return <Link className={buttonClass(variant, size, className)} {...props} />;
+export function LinkButton({ variant = "primary", size = "md", className, ...p }: ComponentProps<typeof Link> & { variant?: Variant; size?: keyof typeof sizes }) {
+  return <Link className={buttonClass(variant, size, className)} {...p} />;
 }
 
-export function Card({ className, ...props }: ComponentProps<"div">) {
-  return <div className={cx("rounded-2xl border border-line bg-surface", className)} {...props} />;
+export function Card({ className, ...p }: ComponentProps<"div">) {
+  return <div className={cx("rounded-3xl border border-line bg-surface", className)} {...p} />;
 }
 
-export type Tone = "neutral" | "accent" | "pending" | "success" | "danger" | "demo" | "info";
-const tones: Record<Tone, string> = {
-  neutral: "bg-canvas text-muted border-line",
-  accent: "bg-accent-50 text-accent border-accent-100",
-  pending: "bg-amber-50 text-amber-800 border-amber-200",
-  success: "bg-emerald-50 text-emerald-800 border-emerald-200",
-  danger: "bg-red-50 text-red-700 border-red-200",
-  demo: "bg-fuchsia-50 text-fuchsia-800 border-fuchsia-200",
-  info: "bg-sky-50 text-sky-800 border-sky-200",
-};
+export function Tag({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "flame" | "sun" | "green" }) {
+  const t = {
+    neutral: "bg-canvas text-ink border-line",
+    flame: "bg-flame-50 text-flame-700 border-flame/20",
+    sun: "bg-sun-100 text-[#7a4b00] border-sun/40",
+    green: "bg-emerald-50 text-emerald-800 border-emerald-200",
+  }[tone];
+  return <span className={cx("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium", t)}>{children}</span>;
+}
 
-export function Badge({ tone = "neutral", className, children }: { tone?: Tone; className?: string; children: ReactNode }) {
+const palette = ["bg-flame text-white", "bg-sun text-ink", "bg-ink text-white", "bg-[#6a24c2] text-white"];
+
+export function Avatar({ name, size = 48 }: { name: string; size?: number }) {
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("");
+  const color = palette[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % palette.length];
   return (
-    <span className={cx("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium", tones[tone], className)}>
-      {children}
-    </span>
-  );
-}
-
-export function DemoBadge() {
-  return (
-    <Badge tone="demo" className="uppercase tracking-wide">
-      Demo data
-    </Badge>
-  );
-}
-
-const avatarColors = ["bg-indigo-100 text-indigo-800", "bg-emerald-100 text-emerald-800", "bg-amber-100 text-amber-800", "bg-rose-100 text-rose-800", "bg-sky-100 text-sky-800", "bg-violet-100 text-violet-800"];
-
-export function Avatar({ name, src, size = 48, className }: { name: string; src?: string | null; size?: number; className?: string }) {
-  const initials = name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase())
-    .join("");
-  const color = avatarColors[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % avatarColors.length];
-  const style = { width: size, height: size, fontSize: Math.max(12, size * 0.38) };
-  if (src) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt="" width={size} height={size} style={style} className={cx("shrink-0 rounded-full object-cover bg-canvas", className)} />;
-  }
-  return (
-    <span aria-hidden style={style} className={cx("inline-flex shrink-0 items-center justify-center rounded-full font-semibold", color, className)}>
+    <span aria-hidden style={{ width: size, height: size, fontSize: size * 0.38 }} className={cx("inline-flex shrink-0 items-center justify-center rounded-full font-bold", color)}>
       {initials || "?"}
     </span>
   );
 }
 
-export function EmptyState({ icon, title, children, action }: { icon?: ReactNode; title: string; children?: ReactNode; action?: ReactNode }) {
+export function Empty({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center rounded-2xl border border-dashed border-line bg-surface px-6 py-10 text-center">
-      {icon && <div className="mb-3 text-muted">{icon}</div>}
-      <p className="font-semibold">{title}</p>
-      {children && <div className="mt-1 max-w-md text-sm text-muted">{children}</div>}
-      {action && <div className="mt-4">{action}</div>}
+    <div className="rounded-3xl border border-dashed border-line bg-surface px-6 py-12 text-center">
+      <p className="text-lg font-semibold">{title}</p>
+      {children && <div className="mx-auto mt-1 max-w-md text-sm text-muted">{children}</div>}
+      {action && <div className="mt-5">{action}</div>}
     </div>
   );
 }
 
-export function Notice({ tone = "info", title, children }: { tone?: "info" | "pending" | "danger" | "success"; title?: string; children: ReactNode }) {
-  const t = { info: "border-sky-200 bg-sky-50 text-sky-900", pending: "border-amber-200 bg-amber-50 text-amber-900", danger: "border-red-200 bg-red-50 text-red-800", success: "border-emerald-200 bg-emerald-50 text-emerald-900" }[tone];
+export function Notice({ tone = "info", children }: { tone?: "info" | "success" | "warn" | "danger"; children: ReactNode }) {
+  const t = { info: "border-line bg-white", success: "border-emerald-200 bg-emerald-50 text-emerald-900", warn: "border-sun/50 bg-sun-100 text-[#5c3a00]", danger: "border-red-200 bg-red-50 text-red-800" }[tone];
   return (
-    <div role={tone === "danger" ? "alert" : "status"} className={cx("rounded-xl border px-4 py-3 text-sm", t)}>
-      {title && <p className="font-semibold">{title}</p>}
-      <div className={title ? "mt-0.5" : undefined}>{children}</div>
+    <div role={tone === "danger" ? "alert" : "status"} className={cx("rounded-2xl border px-4 py-3 text-sm", t)}>
+      {children}
     </div>
   );
 }
 
-export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: ReactNode; action?: ReactNode }) {
+export function PageTitle({ title, sub, action }: { title: string; sub?: ReactNode; action?: ReactNode }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
-        {subtitle && <p className="mt-1 text-muted">{subtitle}</p>}
+        <h1 className="text-3xl font-extrabold uppercase tracking-tight sm:text-4xl">{title}</h1>
+        {sub && <p className="mt-1 text-muted">{sub}</p>}
       </div>
       {action}
     </div>
   );
 }
 
-export function SectionTitle({ children, action, id }: { children: ReactNode; action?: ReactNode; id?: string }) {
-  return (
-    <div className="mb-3 flex items-center justify-between gap-2">
-      <h2 id={id} className="text-lg font-semibold tracking-tight">
-        {children}
-      </h2>
-      {action}
-    </div>
-  );
-}
-
 export const inputClass =
-  "w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-muted/70 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 aria-[invalid=true]:border-red-400";
+  "w-full rounded-2xl border border-line bg-white px-4 py-3 text-base text-ink placeholder:text-muted/60 focus:border-flame focus:outline-none focus:ring-4 focus:ring-flame/15 aria-[invalid=true]:border-red-400 sm:text-sm";
 
-export function Field({ label, htmlFor, hint, error, children, optional }: { label: string; htmlFor?: string; hint?: string; error?: string; children: ReactNode; optional?: boolean }) {
+export function Field({ label, htmlFor, hint, error, optional, children }: { label: string; htmlFor?: string; hint?: string; error?: string; optional?: boolean; children: ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={htmlFor} className="block text-sm font-medium">
+      <label htmlFor={htmlFor} className="block text-sm font-semibold">
         {label} {optional && <span className="font-normal text-muted">(optional)</span>}
       </label>
       {children}
-      {hint && !error && <p className="text-xs text-muted">{hint}</p>}
-      {error && (
+      {error ? (
         <p className="text-xs text-red-600" role="alert">
           {error}
         </p>
+      ) : (
+        hint && <p className="text-xs text-muted">{hint}</p>
       )}
     </div>
   );
 }
 
-export function Chip({ children, active }: { children: ReactNode; active?: boolean }) {
+/** Original sunburst motif inspired by the 2026 Moonshot theme colours (not their artwork). */
+export function Sunburst({ className }: { className?: string }) {
+  const rays = Array.from({ length: 36 }, (_, i) => (i * 180) / 35);
   return (
-    <span className={cx("inline-flex items-center rounded-full px-2.5 py-1 text-xs", active ? "bg-accent text-white" : "bg-canvas text-ink border border-line")}>
-      {children}
-    </span>
+    <svg viewBox="0 0 400 200" className={className} aria-hidden preserveAspectRatio="xMidYMax slice">
+      <g stroke="#ffffff" strokeOpacity="0.18" strokeWidth="1.2">
+        {rays.map((deg) => {
+          const r = (deg * Math.PI) / 180;
+          return <line key={deg} x1="200" y1="200" x2={200 - Math.cos(r) * 420} y2={200 - Math.sin(r) * 420} />;
+        })}
+      </g>
+      <circle cx="200" cy="230" r="150" fill="#f6a821" />
+    </svg>
   );
 }

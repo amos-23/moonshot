@@ -1,109 +1,53 @@
 import { describe, expect, it } from "vitest";
-import { scoreMatch, type MatchProfile } from "@/lib/matching";
-import { detectThemes, parseXPostUrl, snowflakeToDate } from "@/lib/social/x-url";
-import { extractOEmbedText } from "@/lib/social/providers";
-import { parseImportText } from "@/lib/services/social";
-import { profileSchema } from "@/lib/validation";
+import { scoreMatch, type MatchCard } from "@/lib/matching";
+import { cardSchema } from "@/lib/validation";
+import { parseXPostUrl, snowflakeToDate } from "@/lib/social/x-url";
+import { parseImport } from "@/lib/data";
 
-const base: MatchProfile = {
-  userId: "a",
-  name: "Ada",
-  roleCategory: "founder",
-  industry: "fintech",
-  location: "Lagos",
-  interests: [],
-  goals: [],
-  offers: [],
-  attendance: "in_person",
-  networkingStyle: "both",
-};
+const base: MatchCard = { id: "a", name: "Ada Obi", headline: "Builder", wants: [], offers: [], interests: [], attendance: "in_person" };
 
 describe("matching", () => {
-  it("rewards complementary goals and offers in both directions", () => {
-    const founder = { ...base, goals: ["find_partners"], interests: ["fintech"] };
-    const marketer = { ...base, userId: "b", name: "Bola Ade", roleCategory: "marketing", offers: ["marketing"], goals: ["discover_startups"], interests: ["fintech"] };
-    const r = scoreMatch(founder, marketer);
-    const texts = r.reasons.map((x) => x.text);
-    expect(texts).toContain("You both care about Fintech");
-    expect(texts.some((t) => t.startsWith("Bola offers marketing"))).toBe(true);
-    expect(texts.some((t) => t.includes("You can help with what Bola wants"))).toBe(true);
-    expect(r.score).toBeGreaterThan(20);
+  it("explains complementary wants and offers in both directions", () => {
+    const founder = { ...base, headline: "Founder, payments startup", wants: ["partners", "investors"], interests: ["fintech"] };
+    const marketer = { ...base, id: "b", name: "Bola Ade", offers: ["distribution", "growth"], wants: ["founders"], interests: ["fintech"] };
+    const m = scoreMatch(founder, marketer);
+    expect(m.reasons[0]).toBe("You want business partners — Bola offers distribution & partnerships");
+    expect(m.reasons).toContain("Bola wants founders — you offer founder experience");
+    expect(m.reasons).toContain("You're both into Fintech");
+    expect(m.score).toBeGreaterThan(20);
   });
-
-  it("is deterministic and zero for unrelated remote people", () => {
-    const a = { ...base, interests: ["ai"], industry: null, location: null };
-    const b = { ...base, userId: "b", interests: ["climate"], industry: null, location: null, attendance: "remote", roleCategory: "other" };
-    expect(scoreMatch(a, b)).toEqual(scoreMatch(a, b));
-    expect(scoreMatch(a, b).score).toBe(0);
+  it("scores unrelated people zero", () => {
+    expect(scoreMatch({ ...base, interests: ["ai"] }, { ...base, id: "b", interests: ["health"] }).score).toBe(0);
   });
 });
 
-describe("X post URLs", () => {
-  it("parses and canonicalises public post URLs", () => {
-    expect(parseXPostUrl("https://twitter.com/TechCabal/status/1849000000000000000?s=20")).toEqual({
-      handle: "TechCabal",
-      id: "1849000000000000000",
-      url: "https://x.com/TechCabal/status/1849000000000000000",
-    });
-    expect(parseXPostUrl("https://x.com/someone/status/123456789012345678/photo/1")?.id).toBe("123456789012345678");
-    expect(parseXPostUrl("https://example.com/a/status/1234567")).toBeNull();
-    expect(parseXPostUrl("https://x.com/search?q=moonshot")).toBeNull();
-    expect(parseXPostUrl("javascript:alert(1)")).toBeNull();
+describe("card validation", () => {
+  const ok = { name: "Ada", headline: "Founder", wants: [], offers: [], interests: [], attendance: "in_person", whatsapp: "+234 803 000 0000" };
+  it("normalises contact details", () => {
+    const c = cardSchema.parse({ ...ok, xHandle: "https://x.com/ada_builds?s=1", linkedinUrl: "linkedin.com/in/ada", websiteUrl: "ada.dev" });
+    expect(c.xHandle).toBe("ada_builds");
+    expect(c.whatsapp).toBe("+2348030000000");
+    expect(c.linkedinUrl).toBe("https://linkedin.com/in/ada");
+    expect(c.websiteUrl).toBe("https://ada.dev/");
   });
-
-  it("derives creation time from the snowflake ID", () => {
-    // Snowflake 1288834974657 + (id >> 22): this ID decodes to 2024-10-23T…Z
-    const d = snowflakeToDate("1849000000000000000");
-    expect(d?.getUTCFullYear()).toBe(2024);
-    expect(snowflakeToDate("12345")).toBeNull();
-  });
-
-  it("detects themes from text", () => {
-    expect(detectThemes("Who's going to Moonshot? Looking to meet founders and investors building AI agents")).toEqual(
-      expect.arrayContaining(["attendance", "networking", "startups", "investors", "ai"]),
-    );
-    expect(detectThemes(null)).toEqual([]);
-  });
-
-  it("parses import text in both formats", () => {
-    expect(parseImportText("https://x.com/a/status/1849000000000000000\n# comment\n\nhttps://x.com/b/status/1849000000000000001").records).toHaveLength(2);
-    const json = parseImportText('[{"url":"https://x.com/a/status/1849000000000000000","text":"hi","themes":["ai"]},{"nope":1}]');
-    expect(json.records[0]).toMatchObject({ content: "hi", themes: ["ai"] });
-    expect(json.errors).toHaveLength(1);
-    expect(parseImportText("[broken").errors[0].message).toMatch(/JSON/);
-  });
-
-  it("extracts text from oEmbed HTML", () => {
-    const html = '<blockquote class="twitter-tweet"><p lang="en" dir="ltr">See you at <a href="#">#Moonshot</a> &amp; more<br>soon</p>&mdash; X</blockquote>';
-    expect(extractOEmbedText(html)).toBe("See you at #Moonshot & more\nsoon");
+  it("requires a way to be reached and rejects bad links", () => {
+    expect(cardSchema.safeParse({ ...ok, whatsapp: "" }).success).toBe(false);
+    expect(cardSchema.safeParse({ ...ok, linkedinUrl: "evil.com/in/x" }).success).toBe(false);
+    expect(cardSchema.safeParse({ ...ok, websiteUrl: "javascript:alert(1)" }).success).toBe(false);
+    expect(cardSchema.safeParse({ ...ok, wants: ["investors", "partners", "customers", "job"] }).success).toBe(false);
   });
 });
 
-describe("validation", () => {
-  const valid = {
-    name: "Ada",
-    headline: "Founder",
-    roleCategory: "founder",
-    bio: "Building payments infra.",
-    interests: ["fintech", "fintech"],
-    goals: ["meet_investors"],
-    offers: [],
-    attendance: "in_person",
-    networkingStyle: "both",
-    visibility: "public",
-    contactPreference: "everyone",
-    xHandle: "@ada_builds",
-    websiteUrl: "",
-  };
-  it("normalises input", () => {
-    const p = profileSchema.parse(valid);
-    expect(p.interests).toEqual(["fintech"]);
-    expect(p.xHandle).toBe("ada_builds");
-    expect(p.websiteUrl).toBeNull();
+describe("X posts", () => {
+  it("parses public post links and derives time from the ID", () => {
+    expect(parseXPostUrl("https://twitter.com/TechCabal/status/1849000000000000000?s=20")?.url).toBe("https://x.com/TechCabal/status/1849000000000000000");
+    expect(parseXPostUrl("https://example.com/a/status/123")).toBeNull();
+    expect(snowflakeToDate("1849000000000000000")?.getUTCFullYear()).toBe(2024);
   });
-  it("rejects unknown vocab and unsafe URLs", () => {
-    expect(profileSchema.safeParse({ ...valid, interests: ["hacking"] }).success).toBe(false);
-    expect(profileSchema.safeParse({ ...valid, websiteUrl: "javascript:alert(1)" }).success).toBe(false);
-    expect(profileSchema.safeParse({ ...valid, goals: [] }).success).toBe(false);
+  it("reads URL lists and JSON", () => {
+    expect(parseImport("https://x.com/a/status/1849000000000000000\n\n# note").records).toHaveLength(1);
+    const j = parseImport('[{"url":"https://x.com/a/status/1849000000000000000","text":"hi"},{"x":1}]');
+    expect(j.records[0].content).toBe("hi");
+    expect(j.errors).toHaveLength(1);
   });
 });

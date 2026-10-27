@@ -1,91 +1,130 @@
 import Link from "next/link";
-import { getDb } from "@/lib/db";
-import { metrics } from "@/lib/services/analytics";
-import { listReports, recentActions } from "@/lib/services/moderation";
-import { postCount } from "@/lib/services/social";
-import { liveStatus } from "@/lib/social/live";
-import { authMode } from "@/lib/env";
+import { desc, eq } from "drizzle-orm";
+import { getDb, schema } from "@/lib/db";
+import { isAdmin } from "@/lib/me";
+import { counts } from "@/lib/data";
+import { adminLogoutAction, cancelHangoutAction, refreshLiveAction, resolveReportAction, setHiddenAction } from "@/lib/actions";
 import { timeAgo } from "@/lib/time";
-import { Badge, Card, Notice, PageHeader } from "@/components/ui";
+import { AdminLogin, ImportForm } from "@/components/forms";
+import { ActionButton } from "@/components/client";
+import { Button, Card, PageTitle, Tag } from "@/components/ui";
 
-export const metadata = { title: "Admin" };
+export const metadata = { title: "Admin", robots: { index: false } };
 
-export default async function AdminHome() {
+export default async function AdminPage() {
+  if (!(await isAdmin())) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-12">
+        <PageTitle title="Admin" sub="Enter the ADMIN_KEY set on the server." />
+        <AdminLogin />
+      </div>
+    );
+  }
   const db = await getDb();
-  const [m, reports, posts, live, actions] = await Promise.all([metrics(db), listReports(db), postCount(db), liveStatus(db), recentActions(db)]);
-  const config = [
-    { label: "Authentication", value: authMode() === "supabase" ? "Supabase email" : authMode() === "demo" ? "Local demo sign-in (no verification)" : "Not configured", ok: authMode() === "supabase" },
-    { label: "Database", value: process.env.DATABASE_URL ? "PostgreSQL (DATABASE_URL)" : "Embedded PGlite (local only)", ok: Boolean(process.env.DATABASE_URL) },
-    { label: "Photo storage", value: process.env.SUPABASE_SERVICE_ROLE_KEY ? "Supabase Storage" : "Inline (≤300 KB)", ok: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY) },
-    { label: "X live search", value: live.provider ?? "Not configured — manual import only", ok: Boolean(live.provider) },
-  ];
+  const [c, reports, people, posts] = await Promise.all([
+    counts(db),
+    db.select().from(schema.reports).where(eq(schema.reports.resolved, false)).orderBy(desc(schema.reports.createdAt)).limit(100),
+    db.select().from(schema.people).orderBy(desc(schema.people.createdAt)).limit(300),
+    db.select().from(schema.socialPosts).orderBy(desc(schema.socialPosts.importedAt)).limit(200),
+  ]);
+  const nameOf = new Map(people.map((p) => [p.id, p.name]));
+
   return (
-    <>
-      <PageHeader title="Overview" />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {[
-          ["Accepted connections", m.totals.accepted],
-          ["Two-way conversations", m.totals.conversationsBothWays],
-          ["Confirmed meetings", m.totals.confirmedMeetings],
-          ["Profiles", m.totals.profiles],
-        ].map(([label, n]) => (
-          <Card key={label} className="p-4">
-            <p className="text-2xl font-semibold">{n}</p>
-            <p className="text-xs text-muted">{label}</p>
-          </Card>
-        ))}
-      </div>
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        <Card className="p-5">
-          <h2 className="font-semibold">Needs attention</h2>
-          <ul className="mt-3 space-y-2 text-sm">
-            <li>
-              <Link href="/admin/reports" className="text-accent hover:underline">
-                {reports.length} open report{reports.length === 1 ? "" : "s"}
-              </Link>
-            </li>
-            <li>
-              <Link href="/admin/posts" className="text-accent hover:underline">
-                {posts} visible X post{posts === 1 ? "" : "s"}
-              </Link>
-            </li>
-          </ul>
-        </Card>
-        <Card className="p-5">
-          <h2 className="font-semibold">Configuration</h2>
-          <ul className="mt-3 space-y-2 text-sm">
-            {config.map((c) => (
-              <li key={c.label} className="flex items-center justify-between gap-2">
-                <span className="text-muted">{c.label}</span>
-                <Badge tone={c.ok ? "success" : "pending"}>{c.value}</Badge>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      </div>
-      {authMode() === "demo" && (
-        <div className="mt-4">
-          <Notice tone="pending">Demo sign-in is active: anyone can sign in as any email. Configure Supabase before sharing this deployment.</Notice>
-        </div>
-      )}
-      <Card className="mt-6 p-5">
-        <h2 className="font-semibold">Recent admin actions</h2>
-        {actions.length === 0 ? (
-          <p className="mt-2 text-sm text-muted">None yet.</p>
+    <div className="mx-auto max-w-5xl space-y-8 px-4 py-8">
+      <PageTitle
+        title="Admin"
+        sub={`${c.people} cards · ${c.inPerson} at the venue · ${c.here} findable now`}
+        action={
+          <form action={adminLogoutAction}>
+            <Button type="submit" variant="ghost" size="sm">
+              Log out
+            </Button>
+          </form>
+        }
+      />
+
+      <section>
+        <h2 className="mb-3 text-lg font-bold">Reports ({reports.length})</h2>
+        {reports.length === 0 ? (
+          <p className="text-sm text-muted">Nothing to review.</p>
         ) : (
-          <ul className="mt-3 divide-y divide-line text-sm">
-            {actions.map((a) => (
-              <li key={a.id} className="flex justify-between gap-2 py-2">
-                <span>
-                  {a.action.replace(/_/g, " ")} <span className="text-muted">· {a.targetType}</span>
-                  {a.note && <span className="text-muted"> · {a.note}</span>}
-                </span>
-                <span className="shrink-0 text-muted">{timeAgo(a.createdAt)}</span>
+          <ul className="space-y-2">
+            {reports.map((r) => (
+              <li key={r.id}>
+                <Card className="flex flex-wrap items-center gap-3 p-3 text-sm">
+                  <Tag tone="flame">{r.targetType}</Tag>
+                  <span className="flex-1">
+                    {r.targetType === "person" ? (
+                      <Link href={`/p/${r.targetId}`} className="font-semibold underline">
+                        {nameOf.get(r.targetId) ?? r.targetId}
+                      </Link>
+                    ) : r.targetType === "hangout" ? (
+                      <Link href={`/hangouts#${r.targetId}`} className="underline">hangout</Link>
+                    ) : (
+                      <Link href={`/go/${r.targetId}`} className="underline">post</Link>
+                    )}{" "}
+                    — “{r.reason}” · {timeAgo(r.createdAt)}
+                  </span>
+                  {r.targetType === "person" && <ActionButton action={setHiddenAction.bind(null, "person", r.targetId, true)} variant="danger">Hide card</ActionButton>}
+                  {r.targetType === "post" && <ActionButton action={setHiddenAction.bind(null, "post", r.targetId, true)} variant="danger">Hide post</ActionButton>}
+                  {r.targetType === "hangout" && <ActionButton action={cancelHangoutAction.bind(null, r.targetId)} variant="danger">Cancel hangout</ActionButton>}
+                  <ActionButton action={resolveReportAction.bind(null, r.id)} variant="ghost">Dismiss</ActionButton>
+                </Card>
               </li>
             ))}
           </ul>
         )}
-      </Card>
-    </>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2">
+        <Card className="p-5">
+          <h2 className="mb-3 text-lg font-bold">Add X posts</h2>
+          <ImportForm />
+        </Card>
+        <Card className="space-y-3 p-5">
+          <h2 className="text-lg font-bold">Live X search</h2>
+          {process.env.X_BEARER_TOKEN ? (
+            <ActionButton action={refreshLiveAction} size="md">Fetch new posts now</ActionButton>
+          ) : (
+            <p className="text-sm text-muted">Set X_BEARER_TOKEN (official X API) to pull posts automatically every 15 minutes.</p>
+          )}
+        </Card>
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-lg font-bold">Posts ({posts.length})</h2>
+        <ul className="space-y-2">
+          {posts.map((p) => (
+            <li key={p.id}>
+              <Card className="flex flex-wrap items-center gap-3 p-3 text-sm">
+                <span className="min-w-0 flex-1">
+                  <a href={p.url} target="_blank" rel="noopener noreferrer" className="font-semibold underline">@{p.authorHandle}</a>{" "}
+                  <span className="text-muted">{p.content?.slice(0, 120) ?? "(no text)"}</span>
+                </span>
+                {p.hidden && <Tag>hidden</Tag>}
+                <ActionButton action={setHiddenAction.bind(null, "post", p.id, !p.hidden)} variant="ghost">{p.hidden ? "Unhide" : "Hide"}</ActionButton>
+              </Card>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-lg font-bold">Cards ({people.length})</h2>
+        <ul className="space-y-2">
+          {people.map((p) => (
+            <li key={p.id}>
+              <Card className="flex flex-wrap items-center gap-3 p-3 text-sm">
+                <span className="flex-1">
+                  <Link href={`/p/${p.id}`} className="font-semibold underline">{p.name}</Link> <span className="text-muted">{p.headline} · {timeAgo(p.createdAt)}</span>
+                </span>
+                {p.hidden && <Tag>hidden</Tag>}
+                <ActionButton action={setHiddenAction.bind(null, "person", p.id, !p.hidden)} variant={p.hidden ? "secondary" : "danger"}>{p.hidden ? "Unhide" : "Hide"}</ActionButton>
+              </Card>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
   );
 }
