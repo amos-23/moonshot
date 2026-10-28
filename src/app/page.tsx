@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { getMe } from "@/lib/me";
-import { commentsFor, feed } from "@/lib/data";
+import { commentsFor, feed, listMoments } from "@/lib/data";
 import { FILTERS, isFilter, searchWords } from "@/lib/search";
 import { after } from "next/server";
 import { backfillImages, refreshLive } from "@/lib/social/live";
@@ -28,7 +28,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
   // Fill in images for older X posts after the page has been sent, so it never slows it down.
   after(() => backfillImages(db).catch((err) => console.error("image backfill failed", err)));
   const { items, gaps, counts } = await feed(db, me, { q, filter, sort });
-  const comments = await commentsFor(db, items.flatMap((i) => (i.kind === "x" ? [i.post.id] : [])));
+  const [comments, moments] = await Promise.all([
+    commentsFor(db, items.flatMap((i) => (i.kind === "x" ? [i.post.id] : []))),
+    q || filter ? Promise.resolve([]) : listMoments(db, { limit: 12 }),
+  ]);
   if (q) await recordSearch(q, items.length);
   const origin = await siteOrigin();
 
@@ -85,6 +88,50 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
             )}
           </div>
           </ScrollIntoView>
+        )}
+
+        {!q && !filter && (
+          <section aria-labelledby="moments-h" className="mb-8">
+            <div className="mb-3 flex items-end justify-between">
+              <h2 id="moments-h" className="text-lg font-extrabold uppercase">
+                📸 Moments
+              </h2>
+              <Link href="/moments" className="text-sm font-semibold text-flame-700 hover:underline" data-track="moments_see_all">
+                {moments.length ? "See all →" : "Share one →"}
+              </Link>
+            </div>
+            {moments.length === 0 ? (
+              <Link href="/moments" className="block rounded-3xl border border-dashed border-line bg-white p-5 text-center text-sm text-muted hover:border-ink/30" data-track="moments_empty_cta">
+                Be the first to share a photo or update from Moonshot →
+              </Link>
+            ) : (
+              <ul className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none]">
+                <li className="shrink-0">
+                  <Link href="/moments" data-track="moments_strip_add" className="flex h-40 w-28 flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-flame/40 bg-flame-50 text-center text-sm font-semibold text-flame-700">
+                    <span className="text-2xl" aria-hidden>
+                      ＋
+                    </span>
+                    Add yours
+                  </Link>
+                </li>
+                {moments.map(({ moment: m, author }) => (
+                  <li key={m.id} className="shrink-0">
+                    <Link href="/moments" data-track="moments_strip" className="relative block h-40 w-28 overflow-hidden rounded-2xl bg-ink text-white">
+                      {m.hasPhoto ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={`/moment-photo/${m.id}`} alt="" loading="lazy" className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="line-clamp-6 p-3 text-sm font-medium">{m.body}</span>
+                      )}
+                      <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-4 text-xs font-semibold">
+                        {author?.name ?? (m.xHandle ? `@${m.xHandle}` : m.name ?? "At Moonshot")}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         )}
 
         <form role="search" method="get" className="mb-4 flex gap-2">

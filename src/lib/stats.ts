@@ -69,6 +69,7 @@ export async function siteStats(db: DB, days: number) {
     const [r] = await db.select({ n: sql<number>`count(*)::int` }).from(table).where(gte(col, from));
     return r.n;
   };
+  const [mRow] = await db.select({ n: sql<number>`count(*)::int`, photos: sql<number>`count(*) filter (where ${s.moments.hasPhoto})::int` }).from(s.moments).where(gte(s.moments.createdAt, from));
   const [cards, posts, comments] = await Promise.all([
     count(s.people, s.people.createdAt),
     count(s.socialPosts, s.socialPosts.importedAt),
@@ -94,5 +95,5 @@ export async function siteStats(db: DB, days: number) {
     .from(s.events)
     .where(inRange);
 
-  return { funnel, totals, series, pages, referrers, clicks, topTargets, searches, emptySearches, added: { cards, posts, comments } };
+  return { funnel, totals, series, pages, referrers, clicks, topTargets, searches, emptySearches, added: { cards, posts, comments, moments: mRow.n, momentPhotos: mRow.photos } };
 }

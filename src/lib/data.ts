@@ -112,6 +112,31 @@ export async function backfillDetails(db: DB, fetchDetails: DetailsFetcher, limi
   return pending.length;
 }
 
+export type MomentItem = {
+  moment: s.Moment;
+  author: { id: string; name: string; headline: string; xHandle: string | null } | null;
+};
+
+/** The Moments feed, newest first. Posts by hidden cards are left out. */
+export async function listMoments(db: DB, opts: { limit?: number; before?: Date; photosOnly?: boolean } = {}): Promise<MomentItem[]> {
+  const rows = await db
+    .select({ moment: s.moments, aid: s.people.id, aname: s.people.name, aheadline: s.people.headline, ax: s.people.xHandle, ahidden: s.people.hidden })
+    .from(s.moments)
+    .leftJoin(s.people, eq(s.people.id, s.moments.personId))
+    .where(
+      and(
+        eq(s.moments.hidden, false),
+        opts.before ? sql`${s.moments.createdAt} < ${opts.before}` : undefined,
+        opts.photosOnly ? eq(s.moments.hasPhoto, true) : undefined,
+      ),
+    )
+    .orderBy(desc(s.moments.createdAt))
+    .limit(opts.limit ?? 60);
+  return rows
+    .filter((r) => !r.ahidden)
+    .map((r) => ({ moment: r.moment, author: r.aid ? { id: r.aid, name: r.aname!, headline: r.aheadline!, xHandle: r.ax } : null }));
+}
+
 export class UserError extends Error {}
 
 export type ImportRecord = { url: string; content?: string | null; authorName?: string | null; postedAt?: string | null };

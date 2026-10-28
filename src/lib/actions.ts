@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { cardSchema, fieldErrors } from "@/lib/validation";
 import { clearCardCookie, getMe, hashToken, isAdmin, isAdminKey, newToken, rateLimit, setCardCookie } from "@/lib/me";
@@ -11,6 +11,7 @@ import { UserError, attachDetails, importPosts, parseImport } from "@/lib/data";
 import { fetchOEmbed, fetchPostDetails } from "@/lib/social/providers";
 import { parseXPostUrl } from "@/lib/social/x-url";
 import { parsePhoto } from "@/lib/photo";
+import { clientIp, visitorHash } from "@/lib/track";
 
 export type Result = { ok: true; message?: string; data?: unknown } | { ok: false; error: string; fields?: Record<string, string> };
 
@@ -90,6 +91,49 @@ export async function saveUpdateAction(_: Result | null, form: FormData): Promis
   return result;
 }
 
+/** Moments: anyone can post a photo and/or a short update. A card is optional. */
+export async function postMomentAction(_: Result | null, form: FormData): Promise<Result> {
+  const body = String(form.get("body") ?? "").trim();
+  const place = String(form.get("place") ?? "").trim();
+  const rawName = String(form.get("name") ?? "").trim();
+  const rawPhoto = String(form.get("photo") ?? "");
+  if (body.length > 280) return { ok: false, error: "Keep it under 280 characters.", fields: { body: "Keep it under 280 characters." } };
+  if (place.length > 100) return { ok: false, error: "Keep the place short.", fields: { place: "Keep it under 100 characters." } };
+  const photo = rawPhoto ? parsePhoto(rawPhoto) : null;
+  if (photo && "error" in photo) return { ok: false, error: photo.error, fields: { photo: photo.error } };
+  if (!photo && !body) return { ok: false, error: "Add a photo or write something." };
+  // "@handle" credits an X account; anything else is shown as a plain name.
+  const handle = rawName.match(/^@?([A-Za-z0-9_]{1,15})$/) && rawName.startsWith("@") ? rawName.slice(1) : null;
+  const name = handle ? null : rawName.slice(0, 40) || null;
+
+  const result = await guard(async () => {
+    if (!(await rateLimit("moment", Number(process.env.RATE_LIMIT_MOMENTS_PER_HOUR ?? 40), 60))) {
+      return { ok: false, error: "Lots of moments from this network right now — try again in a few minutes." };
+    }
+    const db = await getDb();
+    const me = await getMe();
+    const h = await headers();
+    const [m] = await db
+      .insert(schema.moments)
+      .values({
+        personId: me?.id ?? null,
+        name: me ? null : name,
+        xHandle: me ? null : handle,
+        body,
+        place: place || null,
+        hasPhoto: Boolean(photo),
+        visitor: visitorHash(clientIp(h), h.get("user-agent") ?? ""),
+      })
+      .returning({ id: schema.moments.id });
+    if (photo) await db.insert(schema.momentPhotos).values({ momentId: m.id, ...photo });
+    // A place on a card holder's moment also updates "Catch me at" on their card.
+    if (me && place) await db.update(schema.people).set({ whereNote: place, whereUpdatedAt: new Date() }).where(eq(schema.people.id, me.id));
+  });
+  refresh();
+  if (result.ok) redirect("/moments?posted=1");
+  return result;
+}
+
 /** Anyone can add a public X post about Moonshot; it must load via X's official embed. */
 export async function addXPostAction(_: Result | null, form: FormData): Promise<Result> {
   const url = String(form.get("url") ?? "").trim();
@@ -145,11 +189,25 @@ export async function deleteCardAction(): Promise<Result> {
   return result;
 }
 
-export async function reportAction(targetType: "person" | "post" | "comment", targetId: string, reason: string): Promise<Result> {
+const AUTO_HIDE_REPORTS = 3;
+
+export async function reportAction(targetType: "person" | "post" | "comment" | "moment", targetId: string, reason: string): Promise<Result> {
   return guard(async () => {
     if (!(await rateLimit("report", 60, 60))) return { ok: false, error: "Too many reports — try again later." };
     const me = await getMe();
-    await (await getDb()).insert(schema.reports).values({ targetType, targetId, reason: reason.slice(0, 300) || "unspecified", reporterId: me?.id ?? null });
+    const db = await getDb();
+    await db.insert(schema.reports).values({ targetType, targetId, reason: reason.slice(0, 300) || "unspecified", reporterId: me?.id ?? null });
+    // Moments are open to anyone, so enough reports hide one until an admin looks at it.
+    if (targetType === "moment") {
+      const [{ n }] = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(schema.reports)
+        .where(and(eq(schema.reports.targetId, targetId), eq(schema.reports.resolved, false)));
+      if (n >= AUTO_HIDE_REPORTS) {
+        await db.update(schema.moments).set({ hidden: true }).where(eq(schema.moments.id, targetId));
+        refresh();
+      }
+    }
     return { ok: true, message: "Thanks — we'll take a look." };
   });
 }
@@ -186,10 +244,11 @@ export async function importPostsAction(_: Result | null, form: FormData): Promi
   });
 }
 
-export async function setHiddenAction(kind: "person" | "post" | "comment", id: string, hidden: boolean): Promise<Result> {
+export async function setHiddenAction(kind: "person" | "post" | "comment" | "moment", id: string, hidden: boolean): Promise<Result> {
   return guard(async () => {
     const db = await requireAdmin();
-    if (kind === "person") await db.update(schema.people).set({ hidden }).where(eq(schema.people.id, id));
+    if (kind === "moment") await db.update(schema.moments).set({ hidden }).where(eq(schema.moments.id, id));
+    else if (kind === "person") await db.update(schema.people).set({ hidden }).where(eq(schema.people.id, id));
     else if (kind === "comment") await db.update(schema.comments).set({ hidden }).where(eq(schema.comments.id, id));
     else await db.update(schema.socialPosts).set({ hidden }).where(eq(schema.socialPosts.id, id));
     refresh();

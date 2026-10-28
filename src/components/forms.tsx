@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { addCommentAction, addXPostAction, adminLoginAction, importPostsAction, saveCardAction, saveUpdateAction } from "@/lib/actions";
+import { addCommentAction, addXPostAction, adminLoginAction, importPostsAction, postMomentAction, saveCardAction, saveUpdateAction } from "@/lib/actions";
 import type { Person } from "@/lib/db/schema";
 import { OFFERS, WANTS } from "@/lib/constants";
 import type { ImportResult } from "@/lib/data";
@@ -159,6 +159,40 @@ export function UpdateForm({ person, currentWhere }: { person: Person; currentWh
       <div className="flex items-center gap-3">
         <Submit pending={pending} size="lg" className="shrink-0" data-track="post_update">
           Post update
+        </Submit>
+        <div className="min-w-0 text-sm">
+          <Status state={state} />
+        </div>
+      </div>
+    </form>
+  );
+}
+
+export function MomentForm({ myName }: { myName: string | null }) {
+  const { state, pending, onSubmit, err } = useForm(postMomentAction);
+  return (
+    <form onSubmit={onSubmit} noValidate className="space-y-4">
+      <PhotoPicker current={null} maxSide={1080} addLabel="Add a photo" wide error={err("photo")} />
+      <Field label="What's happening?" htmlFor="body" optional error={err("body")}>
+        <textarea id="body" name="body" rows={2} maxLength={280} placeholder="The fintech panel is packed 🔥" className={inputClass} />
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Where are you?" htmlFor="place" optional error={err("place")}>
+          <input id="place" name="place" maxLength={100} placeholder="Main hall" className={inputClass} />
+        </Field>
+        {myName ? (
+          <p className="self-end pb-3 text-sm text-muted">
+            Posting as <span className="font-semibold text-ink">{myName}</span>
+          </p>
+        ) : (
+          <Field label="Your name or @handle" htmlFor="mname" optional>
+            <input id="mname" name="name" maxLength={40} placeholder="@yourhandle" autoCapitalize="none" className={inputClass} />
+          </Field>
+        )}
+      </div>
+      <div className="flex items-center gap-3">
+        <Submit pending={pending} size="lg" className="shrink-0" data-track="post_moment">
+          Post
         </Submit>
         <div className="min-w-0 text-sm">
           <Status state={state} />

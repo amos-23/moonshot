@@ -172,3 +172,35 @@ export const photos = mc.table("photos", {
   data: text("data").notNull(), // base64, resized in the browser to ≤ 720px
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Moments: open photo/text updates from the event. Anyone can post; a card is optional.
+export const moments = mc.table(
+  "moments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    personId: uuid("person_id").references(() => people.id, { onDelete: "set null" }),
+    name: text("name"), // shown when the poster has no card
+    xHandle: text("x_handle"),
+    body: text("body").notNull().default(""),
+    place: text("place"), // optional "where are you?"
+    hasPhoto: boolean("has_photo").notNull().default(false),
+    hidden: boolean("hidden").notNull().default(false),
+    visitor: text("visitor").notNull(), // anonymous daily hash, for rate limits and report counting
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("moments_created_idx").on(t.createdAt),
+    check("moments_body_len", sql`char_length(${t.body}) <= 280`),
+    check("moments_not_empty", sql`${t.hasPhoto} or char_length(${t.body}) > 0`),
+  ],
+);
+
+export const momentPhotos = mc.table("moment_photos", {
+  momentId: uuid("moment_id")
+    .primaryKey()
+    .references(() => moments.id, { onDelete: "cascade" }),
+  mime: text("mime").notNull(),
+  data: text("data").notNull(),
+});
+
+export type Moment = typeof moments.$inferSelect;

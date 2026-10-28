@@ -5,7 +5,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/lib/db/schema";
 import type { DB } from "@/lib/db";
-import { backfillDetails, commentsFor, importPosts, listPeople, listXCards } from "@/lib/data";
+import { backfillDetails, commentsFor, importPosts, listMoments, listPeople, listXCards } from "@/lib/data";
 import { siteStats } from "@/lib/stats";
 
 let db: DB;
@@ -119,5 +119,20 @@ describe("X post images backfill", () => {
     const before = calls.length;
     await backfillDetails(db, fake, 50);
     expect(calls.length).toBe(before); // nothing is fetched twice
+  });
+});
+
+describe("moments", () => {
+  it("lists visible moments newest first, with the author's card when there is one", async () => {
+    const author = await person({ name: "Moment Maker" });
+    await db.insert(schema.moments).values({ body: "first", name: "Anon", visitor: "v" });
+    await new Promise((r) => setTimeout(r, 5));
+    await db.insert(schema.moments).values({ body: "by a card holder", personId: author.id, visitor: "v" });
+    await db.insert(schema.moments).values({ body: "hidden", hidden: true, visitor: "v" });
+    const items = await listMoments(db);
+    expect(items.map((i) => i.moment.body)).toEqual(["by a card holder", "first"]);
+    expect(items[0].author?.name).toBe("Moment Maker");
+    expect(items[1].author).toBeNull();
+    await expect(db.insert(schema.moments).values({ body: "", hasPhoto: false, visitor: "v" })).rejects.toThrow();
   });
 });

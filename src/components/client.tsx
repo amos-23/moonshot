@@ -108,7 +108,7 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
   );
 }
 
-export function ReportLink({ type, id }: { type: "person" | "post" | "comment"; id: string }) {
+export function ReportLink({ type, id }: { type: "person" | "post" | "comment" | "moment"; id: string }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [pending, start] = useTransition();
   if (msg) return <span className="text-xs text-muted">{msg}</span>;
@@ -206,7 +206,7 @@ export function MultiSelect({ id, name, options, initial = [], max, placeholder 
  * Photo picker that shrinks the picture on the phone before upload (≤ 720px JPEG), so it's
  * quick on venue Wi-Fi. The result goes into a hidden "photo" field as a data URL.
  */
-export function PhotoPicker({ current, error }: { current: string | null; error?: string }) {
+export function PhotoPicker({ current, error, maxSide = 720, addLabel = "Add a photo", wide }: { current: string | null; error?: string; maxSide?: number; addLabel?: string; wide?: boolean }) {
   const [preview, setPreview] = useState<string | null>(current);
   const [data, setData] = useState("");
   const [remove, setRemove] = useState(false);
@@ -219,12 +219,14 @@ export function PhotoPicker({ current, error }: { current: string | null; error?
     setProblem(null);
     try {
       const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-      const scale = Math.min(1, 720 / Math.max(bitmap.width, bitmap.height));
+      const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
       const canvas = document.createElement("canvas");
       canvas.width = Math.round(bitmap.width * scale);
       canvas.height = Math.round(bitmap.height * scale);
       canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-      const url = canvas.toDataURL("image/jpeg", 0.82);
+      let url = canvas.toDataURL("image/jpeg", 0.82);
+      // Keep uploads small enough for the server (≈600 KB): retry at lower quality if needed.
+      for (const q of [0.7, 0.55]) if (url.length > 760_000) url = canvas.toDataURL("image/jpeg", q);
       setData(url);
       setPreview(url);
       setRemove(false);
@@ -237,12 +239,18 @@ export function PhotoPicker({ current, error }: { current: string | null; error?
 
   return (
     <div className="flex items-center gap-4">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {preview && !remove ? <img src={preview} alt="Your photo" className="h-20 w-20 shrink-0 rounded-2xl object-cover" /> : <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-dashed border-line text-2xl" aria-hidden>📸</span>}
+      {preview && !remove ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={preview} alt="Your photo" className={cx("shrink-0 rounded-2xl object-cover", wide ? "h-28 w-28" : "h-20 w-20")} />
+      ) : (
+        <span className={cx("flex shrink-0 items-center justify-center rounded-2xl border border-dashed border-line text-2xl", wide ? "h-28 w-28" : "h-20 w-20")} aria-hidden>
+          📸
+        </span>
+      )}
       <div className="min-w-0 space-y-1.5">
         <label className={cx(buttonLike, busy && "opacity-50")}>
           <input type="file" accept="image/*" className="sr-only" onChange={(e) => pick(e.target.files?.[0])} data-track="photo_pick" />
-          {busy ? "Preparing…" : preview && !remove ? "Change photo" : "Add a photo"}
+          {busy ? "Preparing…" : preview && !remove ? "Change photo" : addLabel}
         </label>
         {current && !data && (
           <label className="flex items-center gap-2 text-xs text-muted">

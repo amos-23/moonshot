@@ -20,19 +20,21 @@ export default async function AdminPage() {
     );
   }
   const db = await getDb();
-  const [reports, people, posts, comments] = await Promise.all([
+  const [reports, people, posts, comments, momentRows] = await Promise.all([
     db.select().from(schema.reports).where(eq(schema.reports.resolved, false)).orderBy(desc(schema.reports.createdAt)).limit(100),
     db.select().from(schema.people).orderBy(desc(schema.people.createdAt)).limit(500),
     db.select().from(schema.socialPosts).orderBy(desc(schema.socialPosts.importedAt)).limit(500),
     db.select().from(schema.comments).orderBy(desc(schema.comments.createdAt)).limit(300),
+    db.select().from(schema.moments).orderBy(desc(schema.moments.createdAt)).limit(300),
   ]);
   const label = new Map<string, string>([
     ...people.map((p) => [p.id, p.name] as const),
     ...posts.map((p) => [p.id, `@${p.authorHandle}`] as const),
     ...comments.map((c) => [c.id, `Comment by ${c.name}: “${c.body.slice(0, 60)}”`] as const),
+    ...momentRows.map((m) => [m.id, `Moment: “${(m.body || "photo").slice(0, 60)}”`] as const),
   ]);
 
-  const Row = ({ kind, id, title, sub, hidden, photo }: { kind: "person" | "post" | "comment"; id: string; title: string; sub: string; hidden: boolean; photo?: string | null }) => (
+  const Row = ({ kind, id, title, sub, hidden, photo }: { kind: "person" | "post" | "comment" | "moment"; id: string; title: string; sub: string; hidden: boolean; photo?: string | null }) => (
     <li>
       <Card className="flex flex-wrap items-center gap-3 p-3 text-sm">
         {photo && (
@@ -45,7 +47,7 @@ export default async function AdminPage() {
           <span className="font-semibold">{title}</span> <span className="text-muted">{sub}</span>
         </span>
         {hidden && <Tag>hidden</Tag>}
-        {photo && (
+        {photo && kind === "person" && (
           <ActionButton action={removePhotoAction.bind(null, id)} variant="ghost" confirm="Remove this photo?">
             Remove photo
           </ActionButton>
@@ -61,7 +63,7 @@ export default async function AdminPage() {
     <div className="mx-auto max-w-4xl space-y-8 px-4 py-8">
       <PageTitle
         title="Admin"
-        sub={`${people.length} cards · ${posts.length} X posts · ${comments.length} comments`}
+        sub={`${people.length} cards · ${posts.length} X posts · ${momentRows.length} moments · ${comments.length} comments`}
         action={
           <div className="flex items-center gap-2">
           <Link href="/admin/stats" className="inline-flex h-9 items-center rounded-full bg-flame-700 px-4 text-sm font-semibold text-white">
@@ -87,7 +89,7 @@ export default async function AdminPage() {
                   <span className="flex-1">
                     <strong>{label.get(r.targetId) ?? r.targetType}</strong> — “{r.reason}” · {timeAgo(r.createdAt)}
                   </span>
-                  <ActionButton action={setHiddenAction.bind(null, r.targetType === "post" ? "post" : r.targetType === "comment" ? "comment" : "person", r.targetId, true)} variant="danger">
+                  <ActionButton action={setHiddenAction.bind(null, (["post", "comment", "moment"].includes(r.targetType) ? r.targetType : "person") as "post" | "comment" | "moment" | "person", r.targetId, true)} variant="danger">
                     Hide
                   </ActionButton>
                   <ActionButton action={resolveReportAction.bind(null, r.id)} variant="ghost">
@@ -108,6 +110,23 @@ export default async function AdminPage() {
         <ul className="space-y-2">
           {people.map((p) => (
             <Row key={p.id} kind="person" id={p.id} title={p.name} sub={`${p.headline} · ${timeAgo(p.createdAt)}${p.whereNote ? ` · 📍 ${p.whereNote}` : ""}`} hidden={p.hidden} photo={p.photoUpdatedAt ? `/photo/${p.id}?v=${p.photoUpdatedAt.getTime()}` : null} />
+          ))}
+        </ul>
+      </section>
+      <section>
+        <h2 className="mb-3 font-bold">Moments</h2>
+        <p className="mb-2 text-xs text-muted">Moments hide automatically after 3 reports. Unhide here if a report was wrong.</p>
+        <ul className="space-y-2">
+          {momentRows.map((m) => (
+            <Row
+              key={m.id}
+              kind="moment"
+              id={m.id}
+              title={m.name ?? (m.xHandle ? `@${m.xHandle}` : m.personId ? (label.get(m.personId) ?? "Card holder") : "Anonymous")}
+              sub={`${m.body.slice(0, 100)}${m.place ? ` · 📍 ${m.place}` : ""} · ${timeAgo(m.createdAt)}`}
+              hidden={m.hidden}
+              photo={m.hasPhoto ? `/admin/moment-photo/${m.id}` : null}
+            />
           ))}
         </ul>
       </section>

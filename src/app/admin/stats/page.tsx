@@ -44,6 +44,14 @@ const CLICK_LABELS: Record<string, string> = {
   sort_match: "View: For you",
   sort_new: "View: Newest",
   photo_pick: "Picked a photo",
+  post_moment: "Post a moment",
+  moments_header: "📸 Moments (header)",
+  moments_see_all: "Moments: see all (home)",
+  moments_strip: "Moments strip (home)",
+  moments_strip_add: "Moments: add yours (home)",
+  moments_empty_cta: "Moments: be the first (home)",
+  moment_photo: "Opened a moment photo",
+  moment_author: "Moment → author's card",
   post_update: "Post update (photo / catch me at)",
   update_header: "📸 Update (header)",
   update_hero: "Post an update (home)",
@@ -121,11 +129,12 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
         ))}
       </nav>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         <Tile label="Visits" value={st.totals.views} sub="page views" />
         <Tile label="Visitors" value={st.totals.visitors} sub={days > 1 ? "unique per day, added up" : "unique"} />
         <Tile label="Clicks" value={st.totals.clicks} sub="buttons people pressed" />
         <Tile label="Searches" value={st.totals.searches} sub={`${st.emptySearches.reduce((a, r) => a + r.n, 0)} found nothing`} />
+        <Tile label="Moments" value={st.added.moments} sub={`${st.added.momentPhotos} with photos`} />
         <Tile label="New cards" value={st.added.cards} sub={`${st.added.posts} X post${st.added.posts === 1 ? "" : "s"} · ${st.added.comments} comment${st.added.comments === 1 ? "" : "s"}`} />
       </div>
 

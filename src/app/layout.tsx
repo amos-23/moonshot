@@ -38,14 +38,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <header className="sticky top-0 z-30 border-b border-line bg-canvas/90 backdrop-blur">
           <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
             <Link href="/" aria-label="Moonshot Connect home">
-              <Wordmark compact={Boolean(me)} />
+              <Wordmark compact />
             </Link>
             <div className="flex items-center gap-2">
-              {me && (
-                <Link href="/update" data-track="update_header" className="inline-flex h-10 items-center rounded-full bg-flame-700 px-4 text-sm font-semibold text-white hover:bg-flame">
-                  📸 Update
-                </Link>
-              )}
+              <Link href="/moments" data-track="moments_header" className="inline-flex h-10 items-center rounded-full bg-flame-700 px-4 text-sm font-semibold text-white hover:bg-flame">
+                📸 Moments
+              </Link>
               <Link href="/card" data-track="add_yourself_header" className="inline-flex h-10 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white hover:bg-black">
                 {me ? "My card" : "Add yourself"}
               </Link>

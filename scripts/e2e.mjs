@@ -78,8 +78,8 @@ async function addCard(page, { name, headline, wants = [], offers = [], contact,
   await page.getByRole("button", { name: "Add me" }).click();
   await page.waitForURL(/\?added=card/);
   if (where || photo) {
-    // Photos and "Catch me at" have their own page, reached from the "📸 Update" button.
-    await page.getByRole("link", { name: "📸 Update" }).click();
+    // Card photo and "Catch me at" have their own page, offered right after signing up.
+    await page.getByRole("link", { name: /add a photo & where to catch you/i }).click();
     await page.waitForURL(/\/update/);
     if (where) await page.getByLabel(/catch me at/i).fill(where);
     if (photo) {
@@ -137,12 +137,58 @@ try {
   await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`looking for investors ${run}`)}`);
   await card(anon.page, `Ada ${run}`).waitFor();
   await anon.page.goto(`${BASE}/?sort=new`);
-  assert.match(await anon.page.locator("li").first().innerText(), new RegExp(`Bola ${run}[\\s\\S]*joined`), "newest card first, with 'joined'");
+  assert.match(await anon.page.locator("ul.grid > li").first().innerText(), new RegExp(`Bola ${run}[\\s\\S]*joined`), "newest card first, with 'joined'");
   const ghost = `Biliyamin ${run.replace(/\d/g, (d) => "abcdefghij"[d])}`; // letters only, like a real name
   await anon.page.goto(`${BASE}/?q=${encodeURIComponent(ghost)}`);
   await anon.page.getByText(`“${ghost}” isn't here yet`).waitFor();
   assert.match(decodeURIComponent(await anon.page.getByRole("link", { name: "Share on X" }).getAttribute("href")), /\/card/);
   await shot(anon.page, "07-invite");
+
+  step("Moments: anyone can post a photo or update; card holders post as themselves");
+  await anon.page.goto(BASE);
+  await anon.page.getByRole("link", { name: "📸 Moments" }).click();
+  await anon.page.waitForURL(/\/moments/);
+  await anon.page.getByRole("button", { name: "Post", exact: true }).click();
+  await anon.page.getByText("Add a photo or write something.").waitFor();
+  await anon.page.getByLabel(/what's happening/i).fill(`The fintech panel is packed ${run}`);
+  await anon.page.getByLabel(/your name or @handle/i).fill("@moment_fan");
+  await anon.page.locator('input[type="file"]').setInputFiles({ name: "m.png", mimeType: "image/png", buffer: makePng(64, 40) });
+  await anon.page.getByRole("img", { name: "Your photo" }).waitFor();
+  await anon.page.getByRole("button", { name: "Post", exact: true }).click();
+  await anon.page.waitForURL(/posted=1/);
+  const mine = anon.page.locator("li", { hasText: `The fintech panel is packed ${run}` });
+  assert.equal(await mine.getByRole("link", { name: "@moment_fan" }).getAttribute("href"), "https://x.com/moment_fan");
+  const msrc = await mine.getByRole("img").first().getAttribute("src");
+  assert.equal((await anon.page.request.get(`${BASE}${msrc}`)).headers()["content-type"], "image/jpeg");
+
+  await bola.page.goto(`${BASE}/moments`);
+  await bola.page.getByText(`Posting as Bola ${run}`).waitFor();
+  await bola.page.getByLabel(/what's happening/i).fill(`Grabbing coffee ${run}`);
+  await bola.page.getByLabel(/where are you/i).fill("Food village");
+  await bola.page.getByRole("button", { name: "Post", exact: true }).click();
+  await bola.page.waitForURL(/posted=1/);
+  await bola.page.locator("li", { hasText: `Grabbing coffee ${run}` }).getByRole("link", { name: `Bola ${run}` }).waitFor();
+  await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`Bola ${run}`)}`);
+  await card(anon.page, `Bola ${run}`).getByText("Catch me at Food village").waitFor(); // a place updates the card too
+  await anon.page.goto(BASE);
+  await anon.page.getByRole("heading", { name: /moments/i }).waitFor();
+  await shot(anon.page, "08-moments-strip");
+  await anon.page.goto(`${BASE}/moments`);
+  await shot(anon.page, "09-moments");
+
+  step("3 reports hide a moment automatically");
+  for (let i = 0; i < 3; i++) {
+    const v = await visitor();
+    await v.page.goto(`${BASE}/moments`);
+    v.page.once("dialog", (d) => d.accept("spam"));
+    const target = v.page.locator("li", { hasText: `Grabbing coffee ${run}` });
+    await target.getByRole("button", { name: "Report" }).click();
+    // The third report hides the moment straight away, so its "thanks" note may vanish with it.
+    await Promise.race([v.page.getByText(/we'll take a look/i).waitFor(), target.waitFor({ state: "detached" })]);
+    await v.ctx.close();
+  }
+  await anon.page.goto(`${BASE}/moments`);
+  assert.equal(await anon.page.locator("li", { hasText: `Grabbing coffee ${run}` }).count(), 0, "reported moment is hidden");
 
   step("search works");
   await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`Bola ${run}`)}`);
