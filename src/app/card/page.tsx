@@ -1,11 +1,10 @@
 import { getMe, myToken } from "@/lib/me";
 import { deleteCardAction } from "@/lib/actions";
-import { CardForm, WhereForm, XPostForm } from "@/components/forms";
+import { CardForm, XPostForm } from "@/components/forms";
 import { ActionButton, CopyButton } from "@/components/client";
-import { Card, Notice, PageTitle } from "@/components/ui";
+import { Card, LinkButton, Notice, PageTitle } from "@/components/ui";
 import { ShareButtons } from "@/components/share";
 import { siteOrigin } from "@/lib/site";
-import { HERE_NOW_HOURS, isHereNow } from "@/lib/search";
 
 export const metadata = { title: "Add yourself" };
 
@@ -26,9 +25,14 @@ export default async function CardPage({ searchParams }: { searchParams: Promise
       <div className="mx-auto max-w-xl px-4 py-8">
         <PageTitle title="My card" />
         {notices}
-        <Card className="mb-4 p-5">
-          <WhereForm current={isHereNow(me) ? me.whereNote : null} />
-          <p className="mt-2 text-xs text-muted">Shows on your card for {HERE_NOW_HOURS} hours, and puts you in “Here now”.</p>
+        <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 p-5">
+          <div>
+            <p className="font-semibold">At the event?</p>
+            <p className="text-sm text-muted">Add a photo from today and where people can catch you.</p>
+          </div>
+          <LinkButton href="/update" data-track="update_mycard">
+            📸 Post an update
+          </LinkButton>
         </Card>
         <Card className="p-5 sm:p-6">
           <CardForm person={me} />

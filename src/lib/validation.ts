@@ -42,7 +42,6 @@ export const cardSchema = z
       .optional()
       .transform((v) => v || null),
     contact: z.string().max(300).default(""),
-    where: text(100).default(""),
   })
   .transform((c, ctx) => {
     const contact = parseContact(c.contact);

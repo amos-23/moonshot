@@ -49,7 +49,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
           </p>
           <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-black uppercase leading-[0.95] tracking-tight sm:text-6xl">Who&apos;s at Moonshot</h1>
           <p className="mx-auto mt-3 max-w-md font-medium">Find people worth meeting and reach them directly. No sign-up.</p>
-          {!me && (
+          {me ? (
+            <LinkButton href="/update" variant="dark" size="lg" className="mt-6" data-track="update_hero">
+              📸 Post an update
+            </LinkButton>
+          ) : (
             <LinkButton href="/card" variant="dark" size="lg" className="mt-6" data-track="add_yourself_hero">
               Add yourself
             </LinkButton>
@@ -62,9 +66,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
           <ScrollIntoView>
           <div className="mb-6 space-y-3 rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
             <p className="font-semibold text-emerald-900">
-              {sp.added === "x" ? "Your post is on the list." : "You're on the list! Now tell people where to find you."}
+              {sp.added === "x" ? "Your post is on the list." : sp.added === "update" ? "Update posted — it's on your card now." : "You're on the list! Now tell people where to find you."}
             </p>
             {sp.added === "card" && me && (
+              <LinkButton href="/update" size="sm" data-track="update_after_signup">
+                📸 Add a photo &amp; where to catch you
+              </LinkButton>
+            )}
+            {(sp.added === "card" || sp.added === "update") && me && (
               <ShareButtons
                 track="share_card"
                 text="I'm on Moonshot Connect — find me and see who else is at Moonshot:"

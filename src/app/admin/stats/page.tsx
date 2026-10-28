@@ -43,7 +43,11 @@ const CLICK_LABELS: Record<string, string> = {
   sort_match: "View: For you",
   sort_new: "View: Newest",
   photo_pick: "Picked a photo",
-  where_update: "Updated “Catch me at”",
+  post_update: "Post update (photo / catch me at)",
+  update_header: "📸 Update (header)",
+  update_hero: "Post an update (home)",
+  update_mycard: "Post an update (My card)",
+  update_after_signup: "Add photo & location (after sign-up)",
 };
 
 function Tile({ label, value, sub }: { label: string; value: number; sub?: string }) {

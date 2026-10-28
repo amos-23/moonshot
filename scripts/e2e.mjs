@@ -75,13 +75,21 @@ async function addCard(page, { name, headline, wants = [], offers = [], contact,
     await page.keyboard.press("Escape");
   }
   await page.getByLabel("Your X handle").fill(contact);
-  if (where) await page.getByLabel(/catch me at/i).fill(where);
-  if (photo) {
-    await page.locator('input[type="file"]').setInputFiles({ name: "me.png", mimeType: "image/png", buffer: makePng() });
-    await page.getByRole("img", { name: "Your photo" }).waitFor();
-  }
   await page.getByRole("button", { name: "Add me" }).click();
   await page.waitForURL(/\?added=card/);
+  if (where || photo) {
+    // Photos and "Catch me at" have their own page, reached from the "📸 Update" button.
+    await page.getByRole("link", { name: "📸 Update" }).click();
+    await page.waitForURL(/\/update/);
+    if (where) await page.getByLabel(/catch me at/i).fill(where);
+    if (photo) {
+      await page.locator('input[type="file"]').setInputFiles({ name: "me.png", mimeType: "image/png", buffer: makePng() });
+      await page.getByRole("img", { name: "Your photo" }).waitFor();
+    }
+    await page.getByRole("button", { name: "Post update" }).click();
+    await page.waitForURL(/\?added=update/);
+    await page.goto(`${BASE}/?added=card`);
+  }
 }
 
 try {

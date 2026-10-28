@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { addCommentAction, addXPostAction, adminLoginAction, importPostsAction, saveCardAction, setWhereAction } from "@/lib/actions";
+import { addCommentAction, addXPostAction, adminLoginAction, importPostsAction, saveCardAction, saveUpdateAction } from "@/lib/actions";
 import type { Person } from "@/lib/db/schema";
 import { OFFERS, WANTS } from "@/lib/constants";
 import type { ImportResult } from "@/lib/data";
@@ -27,21 +27,6 @@ export function CardForm({ person }: { person: Person | null }) {
       <Field label="Your X handle" htmlFor="contact" error={err("contact")} hint="That's enough for people to reach you. No X? A WhatsApp number, email or LinkedIn link works too. It shows on your card.">
         <input id="contact" name="contact" defaultValue={contactOf(p)} placeholder="@yourhandle" autoCapitalize="none" autoCorrect="off" className={inputClass} aria-invalid={!!err("contact")} />
       </Field>
-      {/* On My card this is edited in its own quick box at the top. */}
-      {p ? (
-        <input type="hidden" name="where" value={p.whereNote ?? ""} />
-      ) : (
-        <Field label="Catch me at" htmlFor="where" optional error={err("where")} hint="Where people can find you at the event today, e.g. “Booth 14, Hall B until 3pm”.">
-          <input id="where" name="where" maxLength={100} placeholder="Booth 14, Hall B until 3pm" className={inputClass} />
-        </Field>
-      )}
-      <div className="space-y-1.5">
-        <p className="text-sm font-semibold">
-          Photo from today <span className="font-normal text-muted">(optional)</span>
-        </p>
-        <PhotoPicker current={p?.photoUpdatedAt ? `/photo/${p.id}?v=${p.photoUpdatedAt.getTime()}` : null} error={err("photo")} />
-        <p className="text-xs text-muted">A picture of you at Moonshot helps people recognise you.</p>
-      </div>
       <details className="group" open={Boolean(p?.offers.length || p?.company)}>
         <summary className="cursor-pointer text-sm font-semibold text-muted">More (optional)</summary>
         <div className="mt-4 space-y-5">
@@ -159,20 +144,26 @@ export function CommentForm({ postId, myName }: { postId: string; myName: string
   );
 }
 
-export function WhereForm({ current }: { current: string | null }) {
-  const { state, pending, onSubmit } = useForm(setWhereAction, { refresh: true });
+export function UpdateForm({ person, currentWhere }: { person: Person; currentWhere: string }) {
+  const { state, pending, onSubmit, err } = useForm(saveUpdateAction);
   return (
-    <form onSubmit={onSubmit} className="space-y-2">
-      <label htmlFor="where-quick" className="block text-sm font-semibold">
-        📍 Catch me at…
-      </label>
-      <div className="flex gap-2">
-        <input id="where-quick" name="where" maxLength={100} defaultValue={current ?? ""} placeholder="Booth 14, Hall B until 3pm" className={inputClass} />
-        <Submit pending={pending} variant="dark" data-track="where_update">
-          Update
-        </Submit>
+    <form onSubmit={onSubmit} noValidate className="space-y-6">
+      <div className="space-y-2">
+        <p className="text-sm font-semibold">📸 Photo from today</p>
+        <PhotoPicker current={person.photoUpdatedAt ? `/photo/${person.id}?v=${person.photoUpdatedAt.getTime()}` : null} error={err("photo")} />
+        <p className="text-xs text-muted">A picture of you at Moonshot helps people recognise you.</p>
       </div>
-      <Status state={state} />
+      <Field label="📍 Catch me at" htmlFor="where" hint="Where people can find you right now. Shows on your card for 8 hours. Leave empty to clear it.">
+        <input id="where" name="where" maxLength={100} defaultValue={currentWhere} placeholder="Booth 14, Hall B until 3pm" className={inputClass} />
+      </Field>
+      <div className="flex items-center gap-3">
+        <Submit pending={pending} size="lg" className="shrink-0" data-track="post_update">
+          Post update
+        </Submit>
+        <div className="min-w-0 text-sm">
+          <Status state={state} />
+        </div>
+      </div>
     </form>
   );
 }
