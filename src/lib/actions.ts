@@ -5,11 +5,11 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { and, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import { cardSchema, fieldErrors } from "@/lib/validation";
+import { cardSchema, fieldErrors, parseContact, type Contact } from "@/lib/validation";
 import { clearCardCookie, getMe, hashToken, isAdmin, isAdminKey, newToken, rateLimit, setCardCookie } from "@/lib/me";
 import { UserError, attachDetails, importPosts, parseImport } from "@/lib/data";
 import { fetchOEmbed, fetchPostDetails } from "@/lib/social/providers";
-import { parseXPostUrl } from "@/lib/social/x-url";
+import { parseXPostUrl, snowflakeToDate } from "@/lib/social/x-url";
 import { parsePhoto } from "@/lib/photo";
 import { clientIp, visitorHash } from "@/lib/track";
 
@@ -59,13 +59,13 @@ export async function saveCardAction(_: Result | null, form: FormData): Promise<
   return result;
 }
 
-/** The "Update" page: a photo from today and/or a "Catch me at…" note. */
+/** The card "Update" page: your card photo from today. */
 export async function saveUpdateAction(_: Result | null, form: FormData): Promise<Result> {
   const rawPhoto = String(form.get("photo") ?? "");
   const photo = rawPhoto ? parsePhoto(rawPhoto) : null;
   if (photo && "error" in photo) return { ok: false, error: photo.error, fields: { photo: photo.error } };
   const removePhoto = form.get("removePhoto") === "on";
-  const where = String(form.get("where") ?? "").trim().slice(0, 100);
+  if (!photo && !removePhoto) return { ok: false, error: "Pick a photo first." };
 
   const result = await guard(async () => {
     const me = await getMe();
@@ -73,18 +73,15 @@ export async function saveUpdateAction(_: Result | null, form: FormData): Promis
     if (!(await rateLimit("update", 60, 60))) return { ok: false, error: "Too many updates — try again in a few minutes." };
     const db = await getDb();
     const now = new Date();
-    // "Catch me at" is time-stamped only when it changes, so its "20m ago" stays honest.
-    const whereFields = where !== (me.whereNote ?? "") ? { whereNote: where || null, whereUpdatedAt: where ? now : null } : {};
-    const photoFields = photo ? { photoUpdatedAt: now } : removePhoto ? { photoUpdatedAt: null } : {};
     if (photo) {
       await db
         .insert(schema.photos)
         .values({ personId: me.id, ...photo, updatedAt: now })
         .onConflictDoUpdate({ target: schema.photos.personId, set: { ...photo, updatedAt: now } });
-    } else if (removePhoto) {
+    } else {
       await db.delete(schema.photos).where(eq(schema.photos.personId, me.id));
     }
-    await db.update(schema.people).set({ ...whereFields, ...photoFields, updatedAt: now }).where(eq(schema.people.id, me.id));
+    await db.update(schema.people).set({ photoUpdatedAt: photo ? now : null, updatedAt: now }).where(eq(schema.people.id, me.id));
   });
   refresh();
   if (result.ok) redirect("/?added=update");
@@ -101,21 +98,42 @@ export async function postMomentAction(_: Result | null, form: FormData): Promis
   if (place.length > 100) return { ok: false, error: "Keep the place short.", fields: { place: "Keep it under 100 characters." } };
   const photo = rawPhoto ? parsePhoto(rawPhoto) : null;
   if (photo && "error" in photo) return { ok: false, error: photo.error, fields: { photo: photo.error } };
-  if (!photo && !body) return { ok: false, error: "Add a photo or write something." };
+  const rawX = String(form.get("xUrl") ?? "").trim();
+  const xPost = rawX ? parseXPostUrl(rawX) : null;
+  if (rawX && !xPost) return { ok: false, error: "That isn't an X post link.", fields: { xUrl: "Paste a link like x.com/name/status/123…" } };
+  if (!photo && !body && !xPost) return { ok: false, error: "Add a photo, an X post link, or write something." };
   // "@handle" credits an X account; anything else is shown as a plain name.
   const handle = rawName.match(/^@?([A-Za-z0-9_]{1,15})$/) && rawName.startsWith("@") ? rawName.slice(1) : null;
   const name = handle ? null : rawName.slice(0, 40) || null;
 
   const result = await guard(async () => {
-    if (!(await rateLimit("moment", Number(process.env.RATE_LIMIT_MOMENTS_PER_HOUR ?? 40), 60))) {
+    const admin = await isAdmin();
+    if (!admin && !(await rateLimit("moment", Number(process.env.RATE_LIMIT_MOMENTS_PER_HOUR ?? 40), 60))) {
       return { ok: false, error: "Lots of moments from this network right now — try again in a few minutes." };
     }
     const db = await getDb();
-    const me = await getMe();
+    // Moments added from the admin page are credited to the name typed there, not an admin's own card.
+    const me = admin && form.get("from") === "admin" ? null : await getMe();
     const h = await headers();
+    // An X post moment copies the post's text, images and author from X (it must be public).
+    let x = {};
+    if (xPost) {
+      const [embed, details] = await Promise.all([fetchOEmbed(xPost.url), fetchPostDetails(xPost.id)]);
+      if (!embed?.text && !details?.media.length) return { ok: false, error: "We couldn't load that X post. Is it public?", fields: { xUrl: "We couldn't load that post." } };
+      x = {
+        xPostUrl: xPost.url,
+        xAuthorHandle: xPost.handle,
+        xAuthorName: embed?.authorName ?? null,
+        xText: embed?.text?.slice(0, 1000) ?? null,
+        xMedia: details?.media ?? [],
+        xAvatarUrl: details?.avatarUrl ?? null,
+        xPostedAt: snowflakeToDate(xPost.id),
+      };
+    }
     const [m] = await db
       .insert(schema.moments)
       .values({
+        ...x,
         personId: me?.id ?? null,
         name: me ? null : name,
         xHandle: me ? null : handle,
@@ -126,12 +144,84 @@ export async function postMomentAction(_: Result | null, form: FormData): Promis
       })
       .returning({ id: schema.moments.id });
     if (photo) await db.insert(schema.momentPhotos).values({ momentId: m.id, ...photo });
-    // A place on a card holder's moment also updates "Catch me at" on their card.
-    if (me && place) await db.update(schema.people).set({ whereNote: place, whereUpdatedAt: new Date() }).where(eq(schema.people.id, me.id));
   });
   refresh();
-  if (result.ok) redirect("/moments?posted=1");
+  if (result.ok) redirect(form.get("from") === "admin" ? "/admin?moment=1" : "/moments?posted=1");
   return result;
+}
+
+// ─── Meet up ─────────────────────────────────────────────────────────────────
+
+const CHECKIN_COOKIE = "mc_checkin";
+
+/** When a check-in ends: in 1, 2 or 4 hours, or at the end of the day in Lagos. */
+export async function checkinExpiry(choice: string, now = new Date()): Promise<Date> {
+  const hours = { "1": 1, "2": 2, "4": 4 }[choice];
+  if (hours) return new Date(now.getTime() + hours * 3600_000);
+  // End of today in Lagos (UTC+1, no daylight saving): 23:59 local = 22:59 UTC.
+  const lagos = new Date(now.getTime() + 3600_000);
+  const end = new Date(Date.UTC(lagos.getUTCFullYear(), lagos.getUTCMonth(), lagos.getUTCDate(), 22, 59));
+  return end.getTime() - now.getTime() < 30 * 60_000 ? new Date(now.getTime() + 2 * 3600_000) : end;
+}
+
+export async function checkInAction(_: Result | null, form: FormData): Promise<Result> {
+  const place = String(form.get("place") ?? "").trim();
+  const note = String(form.get("note") ?? "").trim();
+  if (!place) return { ok: false, error: "Say where people can find you.", fields: { place: "Where are you? e.g. “Booth 14, Hall B”" } };
+  if (place.length > 100) return { ok: false, error: "Keep the place short.", fields: { place: "Keep it under 100 characters." } };
+  if (note.length > 140) return { ok: false, error: "Keep it under 140 characters.", fields: { note: "Keep it under 140 characters." } };
+
+  const result = await guard(async () => {
+    const me = await getMe();
+    let who: { name: string; headline: string | null } & Contact;
+    if (me) {
+      who = { name: me.name, headline: me.headline, xHandle: me.xHandle, whatsapp: me.whatsapp, email: me.email, linkedinUrl: me.linkedinUrl, websiteUrl: me.websiteUrl };
+    } else {
+      const name = String(form.get("name") ?? "").trim().slice(0, 60);
+      const contact = parseContact(String(form.get("contact") ?? ""));
+      const fields: Record<string, string> = {};
+      if (!name) fields.name = "Add your name";
+      if (!contact) fields.contact = "Add your X handle, WhatsApp number or email so people can reach you";
+      if (!name || !contact) return { ok: false, error: "Almost there — check the highlighted fields.", fields };
+      who = { name, headline: String(form.get("headline") ?? "").trim().slice(0, 80) || null, ...contact };
+    }
+    if (!(await rateLimit("checkin", 30, 60))) return { ok: false, error: "Too many check-ins from this network — try again shortly." };
+    const db = await getDb();
+    const h = await headers();
+    const expiresAt = await checkinExpiry(String(form.get("for") ?? "2"));
+    // One live check-in per person: a new one replaces the last.
+    const previous = me ? undefined : (await cookies()).get(CHECKIN_COOKIE)?.value;
+    if (me) await db.update(schema.checkins).set({ endedAt: new Date() }).where(and(eq(schema.checkins.personId, me.id), sql`${schema.checkins.endedAt} is null`));
+    else if (previous && /^[0-9a-f-]{36}$/i.test(previous)) await db.update(schema.checkins).set({ endedAt: new Date() }).where(eq(schema.checkins.id, previous));
+    const [c] = await db
+      .insert(schema.checkins)
+      .values({ personId: me?.id ?? null, ...who, place, note, expiresAt, visitor: visitorHash(clientIp(h), h.get("user-agent") ?? "") })
+      .returning({ id: schema.checkins.id });
+    // Card holders also show "Catch me at" on their card while checked in.
+    if (me) await db.update(schema.people).set({ whereNote: place, whereUpdatedAt: new Date() }).where(eq(schema.people.id, me.id));
+    else (await cookies()).set(CHECKIN_COOKIE, c.id, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 });
+  });
+  refresh();
+  if (result.ok) redirect("/meet?checked=1");
+  return result;
+}
+
+/** "I've left": ends your current check-in. */
+export async function endCheckinAction(): Promise<Result> {
+  return guard(async () => {
+    const db = await getDb();
+    const me = await getMe();
+    const jar = await cookies();
+    const id = jar.get(CHECKIN_COOKIE)?.value;
+    if (me) {
+      await db.update(schema.checkins).set({ endedAt: new Date() }).where(and(eq(schema.checkins.personId, me.id), sql`${schema.checkins.endedAt} is null`));
+      await db.update(schema.people).set({ whereNote: null, whereUpdatedAt: null }).where(eq(schema.people.id, me.id));
+    } else if (id && /^[0-9a-f-]{36}$/i.test(id)) {
+      await db.update(schema.checkins).set({ endedAt: new Date() }).where(eq(schema.checkins.id, id));
+      jar.delete(CHECKIN_COOKIE);
+    } else return { ok: false, error: "No check-in on this device." };
+    refresh();
+  });
 }
 
 /** Anyone can add a public X post about Moonshot; it must load via X's official embed. */
@@ -191,20 +281,21 @@ export async function deleteCardAction(): Promise<Result> {
 
 const AUTO_HIDE_REPORTS = 3;
 
-export async function reportAction(targetType: "person" | "post" | "comment" | "moment", targetId: string, reason: string): Promise<Result> {
+export async function reportAction(targetType: "person" | "post" | "comment" | "moment" | "checkin", targetId: string, reason: string): Promise<Result> {
   return guard(async () => {
     if (!(await rateLimit("report", 60, 60))) return { ok: false, error: "Too many reports — try again later." };
     const me = await getMe();
     const db = await getDb();
     await db.insert(schema.reports).values({ targetType, targetId, reason: reason.slice(0, 300) || "unspecified", reporterId: me?.id ?? null });
-    // Moments are open to anyone, so enough reports hide one until an admin looks at it.
-    if (targetType === "moment") {
+    // Moments and check-ins are open to anyone, so enough reports hide one until an admin looks at it.
+    if (targetType === "moment" || targetType === "checkin") {
       const [{ n }] = await db
         .select({ n: sql<number>`count(*)::int` })
         .from(schema.reports)
         .where(and(eq(schema.reports.targetId, targetId), eq(schema.reports.resolved, false)));
       if (n >= AUTO_HIDE_REPORTS) {
-        await db.update(schema.moments).set({ hidden: true }).where(eq(schema.moments.id, targetId));
+        if (targetType === "moment") await db.update(schema.moments).set({ hidden: true }).where(eq(schema.moments.id, targetId));
+        else await db.update(schema.checkins).set({ hidden: true }).where(eq(schema.checkins.id, targetId));
         refresh();
       }
     }
@@ -244,10 +335,11 @@ export async function importPostsAction(_: Result | null, form: FormData): Promi
   });
 }
 
-export async function setHiddenAction(kind: "person" | "post" | "comment" | "moment", id: string, hidden: boolean): Promise<Result> {
+export async function setHiddenAction(kind: "person" | "post" | "comment" | "moment" | "checkin", id: string, hidden: boolean): Promise<Result> {
   return guard(async () => {
     const db = await requireAdmin();
-    if (kind === "moment") await db.update(schema.moments).set({ hidden }).where(eq(schema.moments.id, id));
+    if (kind === "checkin") await db.update(schema.checkins).set({ hidden }).where(eq(schema.checkins.id, id));
+    else if (kind === "moment") await db.update(schema.moments).set({ hidden }).where(eq(schema.moments.id, id));
     else if (kind === "person") await db.update(schema.people).set({ hidden }).where(eq(schema.people.id, id));
     else if (kind === "comment") await db.update(schema.comments).set({ hidden }).where(eq(schema.comments.id, id));
     else await db.update(schema.socialPosts).set({ hidden }).where(eq(schema.socialPosts.id, id));

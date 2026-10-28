@@ -85,7 +85,6 @@ type Filter = { label: string; test: (p: Person) => boolean; wantedBy?: string; 
 
 // Filters apply to cards people made (they have structured info); "From X" shows only posts.
 export const FILTERS: Record<string, Filter> = {
-  here: { label: "📍 Here now", test: (p) => isHereNow(p) },
   investors: { label: "Investors", test: (p) => p.offers.includes("investment") || INVESTOR.test(p.headline), wantedBy: "investors", wantLabel: "investors" },
   hiring: { label: "Hiring", test: (p) => p.offers.includes("hiring") || HIRING.test(`${p.headline} ${p.bio}`), wantedBy: "job", wantLabel: "a job" },
   founders: { label: "Founders", test: (p) => FOUNDER.test(p.headline) },

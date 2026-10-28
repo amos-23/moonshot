@@ -184,6 +184,14 @@ export const moments = mc.table(
     body: text("body").notNull().default(""),
     place: text("place"), // optional "where are you?"
     hasPhoto: boolean("has_photo").notNull().default(false),
+    // A moment can be a shared X post: its details are copied from X when the link is added.
+    xPostUrl: text("x_post_url"),
+    xAuthorName: text("x_author_name"),
+    xAuthorHandle: text("x_author_handle"),
+    xText: text("x_text"),
+    xMedia: text("x_media").array().notNull().default(sql`'{}'::text[]`),
+    xAvatarUrl: text("x_avatar_url"),
+    xPostedAt: timestamp("x_posted_at", { withTimezone: true }),
     hidden: boolean("hidden").notNull().default(false),
     visitor: text("visitor").notNull(), // anonymous daily hash, for rate limits and report counting
     createdAt: createdAt(),
@@ -191,7 +199,7 @@ export const moments = mc.table(
   (t) => [
     index("moments_created_idx").on(t.createdAt),
     check("moments_body_len", sql`char_length(${t.body}) <= 280`),
-    check("moments_not_empty", sql`${t.hasPhoto} or char_length(${t.body}) > 0`),
+    check("moments_not_empty", sql`${t.hasPhoto} or char_length(${t.body}) > 0 or ${t.xPostUrl} is not null`),
   ],
 );
 
@@ -204,3 +212,29 @@ export const momentPhotos = mc.table("moment_photos", {
 });
 
 export type Moment = typeof moments.$inferSelect;
+
+// "Meet up" check-ins: where someone is right now, for quick in-person meetups. Expire on their own.
+export const checkins = mc.table(
+  "checkins",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    personId: uuid("person_id").references(() => people.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    headline: text("headline"),
+    xHandle: text("x_handle"),
+    whatsapp: text("whatsapp"),
+    email: text("email"),
+    linkedinUrl: text("linkedin_url"),
+    websiteUrl: text("website_url"),
+    place: text("place").notNull(),
+    note: text("note").notNull().default(""), // what they're up for
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    hidden: boolean("hidden").notNull().default(false),
+    visitor: text("visitor").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("checkins_expires_idx").on(t.expiresAt), check("checkins_note_len", sql`char_length(${t.note}) <= 140`)],
+);
+
+export type Checkin = typeof checkins.$inferSelect;

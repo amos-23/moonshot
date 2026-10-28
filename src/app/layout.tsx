@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import "./globals.css";
+import { UserRound } from "lucide-react";
 import { getMe } from "@/lib/me";
 import { Tracker } from "@/components/tracker";
 
@@ -41,11 +42,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Wordmark compact />
             </Link>
             <div className="flex items-center gap-2">
-              <Link href="/moments" data-track="moments_header" className="inline-flex h-10 items-center rounded-full bg-flame-700 px-4 text-sm font-semibold text-white hover:bg-flame">
+              <Link href="/meet" data-track="meet_header" className="inline-flex h-10 items-center rounded-full bg-sun px-3.5 text-sm font-semibold text-ink hover:bg-[#ffb93d]">
+                📍 Meet up
+              </Link>
+              <Link href="/moments" data-track="moments_header" className="inline-flex h-10 items-center rounded-full bg-flame-700 px-3.5 text-sm font-semibold text-white hover:bg-flame">
                 📸 Moments
               </Link>
-              <Link href="/card" data-track="add_yourself_header" className="inline-flex h-10 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white hover:bg-black">
-                {me ? "My card" : "Add yourself"}
+              <Link
+                href="/card"
+                data-track="add_yourself_header"
+                aria-label={me ? "My card" : "Add yourself"}
+                title={me ? "My card" : "Add yourself"}
+                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-ink px-3 text-sm font-semibold text-white hover:bg-black"
+              >
+                <UserRound size={18} aria-hidden />
+                <span className="hidden sm:inline">{me ? "My card" : "Add yourself"}</span>
               </Link>
             </div>
           </div>

@@ -129,10 +129,11 @@ describe("moments", () => {
     await new Promise((r) => setTimeout(r, 5));
     await db.insert(schema.moments).values({ body: "by a card holder", personId: author.id, visitor: "v" });
     await db.insert(schema.moments).values({ body: "hidden", hidden: true, visitor: "v" });
+    await db.insert(schema.moments).values({ xPostUrl: "https://x.com/a/status/1", xText: "shared from X", visitor: "v" });
     const items = await listMoments(db);
-    expect(items.map((i) => i.moment.body)).toEqual(["by a card holder", "first"]);
-    expect(items[0].author?.name).toBe("Moment Maker");
-    expect(items[1].author).toBeNull();
+    expect(items.map((i) => i.moment.body || i.moment.xText)).toEqual(["shared from X", "by a card holder", "first"]);
+    expect(items[1].author?.name).toBe("Moment Maker");
+    expect(items[2].author).toBeNull();
     await expect(db.insert(schema.moments).values({ body: "", hasPhoto: false, visitor: "v" })).rejects.toThrow();
   });
 });

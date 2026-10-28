@@ -28,11 +28,16 @@ export default async function CardPage({ searchParams }: { searchParams: Promise
         <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 p-5">
           <div>
             <p className="font-semibold">At the event?</p>
-            <p className="text-sm text-muted">Add a photo from today and where people can catch you.</p>
+            <p className="text-sm text-muted">Check in so people can come and meet you, or add a photo from today to your card.</p>
           </div>
-          <LinkButton href="/update" data-track="update_mycard">
-            📸 Post an update
-          </LinkButton>
+          <div className="flex flex-wrap gap-2">
+            <LinkButton href="/meet" data-track="meet_mycard">
+              📍 Meet up
+            </LinkButton>
+            <LinkButton href="/update" variant="secondary" data-track="update_mycard">
+              📸 Card photo
+            </LinkButton>
+          </div>
         </Card>
         <Card className="p-5 sm:p-6">
           <CardForm person={me} />

@@ -85,7 +85,7 @@ export async function siteStats(db: DB, days: number) {
   });
 
   // Funnel: visitors → opened the form → made a card → contacted someone.
-  const CONTACT = ["whatsapp", "x_profile", "linkedin", "email", "website"];
+  const CONTACT = ["whatsapp", "x_profile", "linkedin", "email", "website", "checkin_contact"];
   const [funnel] = await db
     .select({
       formVisitors: sql<number>`count(distinct ${s.events.visitor}) filter (where ${s.events.type} = 'view' and ${s.events.path} = '/card')::int`,

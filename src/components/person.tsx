@@ -10,11 +10,14 @@ import { Avatar, Card, Tag, cx } from "./ui";
 
 const HELLO = "Hi! Found you on Moonshot Connect — would love to meet at Moonshot.";
 
-function contact(p: Person) {
-  if (p.whatsapp) return { kind: "whatsapp", label: "WhatsApp", href: `https://wa.me/${p.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(HELLO)}`, icon: MessageCircle };
+type Reachable = Pick<Person, "whatsapp" | "xHandle" | "linkedinUrl" | "email" | "websiteUrl">;
+
+/** The best way to reach someone, as a ready-made link (WhatsApp opens with a hello typed in). */
+export function contact(p: Reachable, hello = HELLO) {
+  if (p.whatsapp) return { kind: "whatsapp", label: "WhatsApp", href: `https://wa.me/${p.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(hello)}`, icon: MessageCircle };
   if (p.xHandle) return { kind: "x_profile", label: `@${p.xHandle}`, href: `https://x.com/${p.xHandle}`, icon: AtSign };
   if (p.linkedinUrl) return { kind: "linkedin", label: "LinkedIn", href: p.linkedinUrl, icon: UserRound };
-  if (p.email) return { kind: "email", label: "Email", href: `mailto:${p.email}?subject=${encodeURIComponent("Meeting at Moonshot")}&body=${encodeURIComponent(HELLO)}`, icon: Mail };
+  if (p.email) return { kind: "email", label: "Email", href: `mailto:${p.email}?subject=${encodeURIComponent("Meeting at Moonshot")}&body=${encodeURIComponent(hello)}`, icon: Mail };
   if (p.websiteUrl) return { kind: "website", label: "Website", href: p.websiteUrl, icon: Globe };
   return null;
 }

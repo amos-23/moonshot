@@ -108,7 +108,7 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
   );
 }
 
-export function ReportLink({ type, id }: { type: "person" | "post" | "comment" | "moment"; id: string }) {
+export function ReportLink({ type, id }: { type: "person" | "post" | "comment" | "moment" | "checkin"; id: string }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [pending, start] = useTransition();
   if (msg) return <span className="text-xs text-muted">{msg}</span>;

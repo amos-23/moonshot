@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { addCommentAction, addXPostAction, adminLoginAction, importPostsAction, postMomentAction, saveCardAction, saveUpdateAction } from "@/lib/actions";
+import { addCommentAction, addXPostAction, adminLoginAction, checkInAction, importPostsAction, postMomentAction, saveCardAction, saveUpdateAction } from "@/lib/actions";
 import type { Person } from "@/lib/db/schema";
 import { OFFERS, WANTS } from "@/lib/constants";
 import type { ImportResult } from "@/lib/data";
@@ -144,21 +144,15 @@ export function CommentForm({ postId, myName }: { postId: string; myName: string
   );
 }
 
-export function UpdateForm({ person, currentWhere }: { person: Person; currentWhere: string }) {
+export function UpdateForm({ person }: { person: Person }) {
   const { state, pending, onSubmit, err } = useForm(saveUpdateAction);
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-6">
-      <div className="space-y-2">
-        <p className="text-sm font-semibold">📸 Photo from today</p>
-        <PhotoPicker current={person.photoUpdatedAt ? `/photo/${person.id}?v=${person.photoUpdatedAt.getTime()}` : null} error={err("photo")} />
-        <p className="text-xs text-muted">A picture of you at Moonshot helps people recognise you.</p>
-      </div>
-      <Field label="📍 Catch me at" htmlFor="where" hint="Where people can find you right now. Shows on your card for 8 hours. Leave empty to clear it.">
-        <input id="where" name="where" maxLength={100} defaultValue={currentWhere} placeholder="Booth 14, Hall B until 3pm" className={inputClass} />
-      </Field>
+    <form onSubmit={onSubmit} noValidate className="space-y-5">
+      <PhotoPicker current={person.photoUpdatedAt ? `/photo/${person.id}?v=${person.photoUpdatedAt.getTime()}` : null} error={err("photo")} />
+      <p className="text-xs text-muted">A picture of you at Moonshot on your card helps people recognise you.</p>
       <div className="flex items-center gap-3">
         <Submit pending={pending} size="lg" className="shrink-0" data-track="post_update">
-          Post update
+          Save photo
         </Submit>
         <div className="min-w-0 text-sm">
           <Status state={state} />
@@ -168,31 +162,92 @@ export function UpdateForm({ person, currentWhere }: { person: Person; currentWh
   );
 }
 
-export function MomentForm({ myName }: { myName: string | null }) {
+export function MomentForm({ myName, admin }: { myName: string | null; admin?: boolean }) {
   const { state, pending, onSubmit, err } = useForm(postMomentAction);
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-4">
+      {admin && <input type="hidden" name="from" value="admin" />}
       <PhotoPicker current={null} maxSide={1080} addLabel="Add a photo" wide error={err("photo")} />
-      <Field label="What's happening?" htmlFor="body" optional error={err("body")}>
-        <textarea id="body" name="body" rows={2} maxLength={280} placeholder="The fintech panel is packed 🔥" className={inputClass} />
+      <Field label="…or share an X post" htmlFor={admin ? "admin-xUrl" : "xUrl"} optional error={err("xUrl")} hint="Paste a link to a public post. Its text and images are shown with a link back to X.">
+        <input id={admin ? "admin-xUrl" : "xUrl"} name="xUrl" inputMode="url" placeholder="x.com/name/status/…" className={inputClass} />
+      </Field>
+      <Field label="What's happening?" htmlFor={admin ? "admin-body" : "body"} optional error={err("body")}>
+        <textarea id={admin ? "admin-body" : "body"} name="body" rows={2} maxLength={280} placeholder="The fintech panel is packed 🔥" className={inputClass} />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Where are you?" htmlFor="place" optional error={err("place")}>
-          <input id="place" name="place" maxLength={100} placeholder="Main hall" className={inputClass} />
+        <Field label="Where?" htmlFor={admin ? "admin-place" : "place"} optional error={err("place")}>
+          <input id={admin ? "admin-place" : "place"} name="place" maxLength={100} placeholder="Main hall" className={inputClass} />
         </Field>
-        {myName ? (
+        {myName && !admin ? (
           <p className="self-end pb-3 text-sm text-muted">
             Posting as <span className="font-semibold text-ink">{myName}</span>
           </p>
         ) : (
-          <Field label="Your name or @handle" htmlFor="mname" optional>
-            <input id="mname" name="name" maxLength={40} placeholder="@yourhandle" autoCapitalize="none" className={inputClass} />
+          <Field label={admin ? "Credit" : "Your name or @handle"} htmlFor={admin ? "admin-mname" : "mname"} optional>
+            <input id={admin ? "admin-mname" : "mname"} name="name" maxLength={40} defaultValue={admin ? "Moonshot Connect" : undefined} placeholder="@yourhandle" autoCapitalize="none" className={inputClass} />
           </Field>
         )}
       </div>
       <div className="flex items-center gap-3">
-        <Submit pending={pending} size="lg" className="shrink-0" data-track="post_moment">
+        <Submit pending={pending} size="lg" className="shrink-0" data-track={admin ? "admin_post_moment" : "post_moment"}>
           Post
+        </Submit>
+        <div className="min-w-0 text-sm">
+          <Status state={state} />
+        </div>
+      </div>
+    </form>
+  );
+}
+
+const DURATIONS = [
+  ["1", "1 hour"],
+  ["2", "2 hours"],
+  ["4", "4 hours"],
+  ["day", "Rest of today"],
+] as const;
+
+export function CheckinForm({ me }: { me: { name: string } | null }) {
+  const { state, pending, onSubmit, err } = useForm(checkInAction);
+  return (
+    <form onSubmit={onSubmit} noValidate className="space-y-4">
+      <Field label="Where are you?" htmlFor="place" error={err("place")}>
+        <input id="place" name="place" maxLength={100} placeholder="Booth 14, Hall B · coffee stand · main hall front row" className={inputClass} aria-invalid={!!err("place")} />
+      </Field>
+      <Field label="Up for…" htmlFor="note" optional error={err("note")}>
+        <input id="note" name="note" maxLength={140} placeholder="Coffee and a chat about fintech · meeting founders · come say hi" className={inputClass} />
+      </Field>
+      <fieldset className="space-y-1.5">
+        <legend className="text-sm font-semibold">For how long?</legend>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {DURATIONS.map(([value, label]) => (
+            <label key={value} className="flex cursor-pointer items-center justify-center rounded-2xl border border-line bg-white px-3 py-2.5 text-sm has-[:checked]:border-ink has-[:checked]:bg-ink has-[:checked]:text-white has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-flame/20">
+              <input type="radio" name="for" value={value} defaultChecked={value === "2"} className="sr-only" />
+              {label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      {me ? (
+        <p className="text-sm text-muted">
+          Checking in as <span className="font-semibold text-ink">{me.name}</span>, with the contact on your card.
+        </p>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Your name" htmlFor="ci-name" error={err("name")}>
+            <input id="ci-name" name="name" maxLength={60} autoComplete="name" className={inputClass} aria-invalid={!!err("name")} />
+          </Field>
+          <Field label="How to reach you" htmlFor="ci-contact" error={err("contact")} hint="Your X handle, WhatsApp number or email. Shown on the board.">
+            <input id="ci-contact" name="contact" placeholder="@yourhandle or +234…" autoCapitalize="none" className={inputClass} aria-invalid={!!err("contact")} />
+          </Field>
+          <Field label="What you do" htmlFor="ci-headline" optional>
+            <input id="ci-headline" name="headline" maxLength={80} placeholder="Founder, payments startup" className={inputClass} />
+          </Field>
+        </div>
+      )}
+      <div className="flex items-center gap-3">
+        <Submit pending={pending} size="lg" className="shrink-0" data-track="checkin">
+          📍 Check in
         </Submit>
         <div className="min-w-0 text-sm">
           <Status state={state} />

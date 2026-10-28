@@ -5,8 +5,10 @@ A minimal, no-sign-up list of who's at **Moonshot by TechCabal** (National Theat
 - **Add yourself** in a few seconds with your name, what you do, who you want to meet, and one way to reach you (@handle, WhatsApp number, email or LinkedIn).
 - **Or add your X post.** Paste a link to a public post about Moonshot and it shows up as a "From X" card. The card uses only what the post says publicly, links back to the original, and lists who the author says they want to meet.
 - **Filters and two views:** Here now, Investors, Hiring, Founders, Engineers, Marketing, Design and From X; "For you" (best fit) or "Newest" (a fresh feed).
-- **📸 Moments:** anyone (no card needed) can post a photo and/or a short update, with an optional place and name or @handle. They show in a feed at `/moments` and a strip on the home page. Moments hide automatically after 3 reports; admins can hide or restore them.
-- **At the event:** the **📸 Update** button (header, home page, My card) opens a page to add a photo of yourself from today (resized on your phone before upload) and a "Catch me at…" note, e.g. "Booth 14, Hall B until 3pm". Notes count as "Here now" for 8 hours.
+- **📍 Meet up** (`/meet`): anyone checks in with where they are, what they're up for and for how long (1, 2 or 4 hours, or the rest of the day). A live board shows who's around now with a one-tap WhatsApp/X/LinkedIn button. Check-ins expire on their own; "I've left" ends one early. Card holders check in with one tap, and their card shows "Catch me at…" while they're checked in.
+- **📸 Moments** (`/moments`): anyone (no card needed) can post a photo, a short update, or an X post link (shown with its text and images and a link back to X). Admins can add moments from the admin page. Moments and check-ins hide automatically after 3 reports; admins can hide or restore them.
+- **X posts are used in two places, each added on purpose:** as people ("From X" cards, via "Add yourself" or admin's "Add people from X posts") and as moments (via the Moments form or admin's "Add a moment").
+- **Card photo:** card holders can add a photo of themselves from today (resized on the phone before upload) from My card.
 - **Search** checks every word against names, roles, companies and tags (so "hiring" or "investors" work). A name that isn't found gets an "invite them" prompt.
 - **Best fits first,** with a one-line reason, e.g. "You want investors — Val offers investment".
 

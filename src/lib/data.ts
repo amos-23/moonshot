@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
 import type { DB } from "@/lib/db";
 import * as s from "@/lib/db/schema";
 import type { Person } from "@/lib/db/schema";
@@ -118,23 +118,29 @@ export type MomentItem = {
 };
 
 /** The Moments feed, newest first. Posts by hidden cards are left out. */
-export async function listMoments(db: DB, opts: { limit?: number; before?: Date; photosOnly?: boolean } = {}): Promise<MomentItem[]> {
+export async function listMoments(db: DB, opts: { limit?: number; before?: Date } = {}): Promise<MomentItem[]> {
   const rows = await db
     .select({ moment: s.moments, aid: s.people.id, aname: s.people.name, aheadline: s.people.headline, ax: s.people.xHandle, ahidden: s.people.hidden })
     .from(s.moments)
     .leftJoin(s.people, eq(s.people.id, s.moments.personId))
-    .where(
-      and(
-        eq(s.moments.hidden, false),
-        opts.before ? sql`${s.moments.createdAt} < ${opts.before}` : undefined,
-        opts.photosOnly ? eq(s.moments.hasPhoto, true) : undefined,
-      ),
-    )
+    .where(and(eq(s.moments.hidden, false), opts.before ? lt(s.moments.createdAt, opts.before) : undefined))
     .orderBy(desc(s.moments.createdAt))
     .limit(opts.limit ?? 60);
   return rows
     .filter((r) => !r.ahidden)
     .map((r) => ({ moment: r.moment, author: r.aid ? { id: r.aid, name: r.aname!, headline: r.aheadline!, xHandle: r.ax } : null }));
+}
+
+/** Active "Meet up" check-ins (not expired or ended), newest first. */
+export async function listCheckins(db: DB, now = new Date()) {
+  const rows = await db
+    .select({ c: s.checkins, cardHidden: s.people.hidden })
+    .from(s.checkins)
+    .leftJoin(s.people, eq(s.people.id, s.checkins.personId))
+    .where(and(eq(s.checkins.hidden, false), sql`${s.checkins.endedAt} is null`, gt(s.checkins.expiresAt, now)))
+    .orderBy(desc(s.checkins.createdAt))
+    .limit(300);
+  return rows.filter((r) => !r.cardHidden).map((r) => r.c);
 }
 
 export class UserError extends Error {}

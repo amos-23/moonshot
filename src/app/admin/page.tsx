@@ -1,16 +1,17 @@
 import Link from "next/link";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { isAdmin } from "@/lib/me";
 import { adminLogoutAction, removePhotoAction, resolveReportAction, setHiddenAction } from "@/lib/actions";
-import { timeAgo } from "@/lib/time";
-import { AdminLogin, ImportForm } from "@/components/forms";
+import { formatTime, timeAgo } from "@/lib/time";
+import { AdminLogin, ImportForm, MomentForm } from "@/components/forms";
 import { ActionButton } from "@/components/client";
-import { Button, Card, PageTitle, Tag } from "@/components/ui";
+import { Button, Card, Notice, PageTitle, Tag } from "@/components/ui";
 
 export const metadata = { title: "Admin", robots: { index: false } };
 
-export default async function AdminPage() {
+export default async function AdminPage({ searchParams }: { searchParams: Promise<{ moment?: string }> }) {
+  const { moment } = await searchParams;
   if (!(await isAdmin())) {
     return (
       <div className="mx-auto max-w-xl px-4 py-12">
@@ -20,21 +21,23 @@ export default async function AdminPage() {
     );
   }
   const db = await getDb();
-  const [reports, people, posts, comments, momentRows] = await Promise.all([
+  const [reports, people, posts, comments, momentRows, liveCheckins] = await Promise.all([
     db.select().from(schema.reports).where(eq(schema.reports.resolved, false)).orderBy(desc(schema.reports.createdAt)).limit(100),
     db.select().from(schema.people).orderBy(desc(schema.people.createdAt)).limit(500),
     db.select().from(schema.socialPosts).orderBy(desc(schema.socialPosts.importedAt)).limit(500),
     db.select().from(schema.comments).orderBy(desc(schema.comments.createdAt)).limit(300),
     db.select().from(schema.moments).orderBy(desc(schema.moments.createdAt)).limit(300),
+    db.select().from(schema.checkins).where(sql`${schema.checkins.endedAt} is null and ${schema.checkins.expiresAt} > now()`).orderBy(desc(schema.checkins.createdAt)).limit(300),
   ]);
   const label = new Map<string, string>([
     ...people.map((p) => [p.id, p.name] as const),
     ...posts.map((p) => [p.id, `@${p.authorHandle}`] as const),
     ...comments.map((c) => [c.id, `Comment by ${c.name}: “${c.body.slice(0, 60)}”`] as const),
-    ...momentRows.map((m) => [m.id, `Moment: “${(m.body || "photo").slice(0, 60)}”`] as const),
+    ...momentRows.map((m) => [m.id, `Moment: “${(m.body || m.xText || "photo").slice(0, 60)}”`] as const),
+    ...liveCheckins.map((c) => [c.id, `Check-in: ${c.name} at ${c.place}`] as const),
   ]);
 
-  const Row = ({ kind, id, title, sub, hidden, photo }: { kind: "person" | "post" | "comment" | "moment"; id: string; title: string; sub: string; hidden: boolean; photo?: string | null }) => (
+  const Row = ({ kind, id, title, sub, hidden, photo }: { kind: "person" | "post" | "comment" | "moment" | "checkin"; id: string; title: string; sub: string; hidden: boolean; photo?: string | null }) => (
     <li>
       <Card className="flex flex-wrap items-center gap-3 p-3 text-sm">
         {photo && (
@@ -89,7 +92,7 @@ export default async function AdminPage() {
                   <span className="flex-1">
                     <strong>{label.get(r.targetId) ?? r.targetType}</strong> — “{r.reason}” · {timeAgo(r.createdAt)}
                   </span>
-                  <ActionButton action={setHiddenAction.bind(null, (["post", "comment", "moment"].includes(r.targetType) ? r.targetType : "person") as "post" | "comment" | "moment" | "person", r.targetId, true)} variant="danger">
+                  <ActionButton action={setHiddenAction.bind(null, (["post", "comment", "moment", "checkin"].includes(r.targetType) ? r.targetType : "person") as "post" | "comment" | "moment" | "checkin" | "person", r.targetId, true)} variant="danger">
                     Hide
                   </ActionButton>
                   <ActionButton action={resolveReportAction.bind(null, r.id)} variant="ghost">
@@ -101,10 +104,32 @@ export default async function AdminPage() {
           </ul>
         )}
       </section>
-      <Card className="p-5">
-        <h2 className="mb-3 font-bold">Add X posts</h2>
-        <ImportForm />
-      </Card>
+      {moment && <Notice tone="success">Moment added.</Notice>}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="p-5">
+          <h2 className="font-bold">Add people from X posts</h2>
+          <p className="mb-3 text-xs text-muted">Each post becomes a “From X” card in the People list.</p>
+          <ImportForm />
+        </Card>
+        <Card className="p-5">
+          <h2 className="font-bold">Add a moment</h2>
+          <p className="mb-3 text-xs text-muted">A photo, an update, or an X post link. Shows in 📸 Moments.</p>
+          <MomentForm myName={null} admin />
+        </Card>
+      </div>
+      <section>
+        <h2 className="mb-3 font-bold">Meet up check-ins (live)</h2>
+        <p className="mb-2 text-xs text-muted">Check-ins hide automatically after 3 reports.</p>
+        {liveCheckins.length === 0 ? (
+          <p className="text-sm text-muted">No one is checked in right now.</p>
+        ) : (
+          <ul className="space-y-2">
+            {liveCheckins.map((c) => (
+              <Row key={c.id} kind="checkin" id={c.id} title={c.name} sub={`📍 ${c.place}${c.note ? ` · ${c.note}` : ""} · until ${formatTime(c.expiresAt)}`} hidden={c.hidden} />
+            ))}
+          </ul>
+        )}
+      </section>
       <section>
         <h2 className="mb-3 font-bold">Cards</h2>
         <ul className="space-y-2">
@@ -123,9 +148,9 @@ export default async function AdminPage() {
               kind="moment"
               id={m.id}
               title={m.name ?? (m.xHandle ? `@${m.xHandle}` : m.personId ? (label.get(m.personId) ?? "Card holder") : "Anonymous")}
-              sub={`${m.body.slice(0, 100)}${m.place ? ` · 📍 ${m.place}` : ""} · ${timeAgo(m.createdAt)}`}
+              sub={`${m.xPostUrl ? "𝕏 " : ""}${(m.body || m.xText || "").slice(0, 100)}${m.place ? ` · 📍 ${m.place}` : ""} · ${timeAgo(m.createdAt)}`}
               hidden={m.hidden}
-              photo={m.hasPhoto ? `/admin/moment-photo/${m.id}` : null}
+              photo={m.hasPhoto ? `/admin/moment-photo/${m.id}` : (m.xMedia[0] ?? null)}
             />
           ))}
         </ul>

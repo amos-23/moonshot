@@ -17,7 +17,7 @@ export default async function MomentsPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <PageTitle title="📸 Moments" sub="Photos and updates from Moonshot, shared by the people there. Anyone can post." />
+      <PageTitle title="📸 Moments" sub="Photos, updates and X posts from Moonshot, shared by the people there. Anyone can post." />
       {sp.posted && (
         <div className="mb-4">
           <Notice tone="success">Posted! Thanks for sharing.</Notice>

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { getMe } from "@/lib/me";
-import { commentsFor, feed, listMoments } from "@/lib/data";
+import { commentsFor, feed, listCheckins, listMoments } from "@/lib/data";
 import { FILTERS, isFilter, searchWords } from "@/lib/search";
 import { after } from "next/server";
 import { backfillImages, refreshLive } from "@/lib/social/live";
@@ -10,6 +10,7 @@ import { recordSearch } from "@/lib/track";
 import { siteOrigin } from "@/lib/site";
 import { EVENT } from "@/lib/constants";
 import { PersonCard, XCard } from "@/components/person";
+import { momentImage, momentWho } from "@/components/moment";
 import { ShareButtons } from "@/components/share";
 import { ScrollIntoView } from "@/components/client";
 import { Button, Card, Empty, LinkButton, Notice, Sunburst, cx, inputClass } from "@/components/ui";
@@ -28,9 +29,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
   // Fill in images for older X posts after the page has been sent, so it never slows it down.
   after(() => backfillImages(db).catch((err) => console.error("image backfill failed", err)));
   const { items, gaps, counts } = await feed(db, me, { q, filter, sort });
-  const [comments, moments] = await Promise.all([
+  const [comments, moments, checkins] = await Promise.all([
     commentsFor(db, items.flatMap((i) => (i.kind === "x" ? [i.post.id] : []))),
     q || filter ? Promise.resolve([]) : listMoments(db, { limit: 12 }),
+    listCheckins(db),
   ]);
   if (q) await recordSearch(q, items.length);
   const origin = await siteOrigin();
@@ -55,15 +57,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
           </p>
           <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-black uppercase leading-[0.95] tracking-tight sm:text-6xl">Who&apos;s at Moonshot</h1>
           <p className="mx-auto mt-3 max-w-md font-medium">Find people worth meeting and reach them directly. No sign-up.</p>
-          {me ? (
-            <LinkButton href="/update" variant="dark" size="lg" className="mt-6" data-track="update_hero">
-              📸 Post an update
+          <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <LinkButton href="/meet" variant="dark" size="lg" data-track="meet_hero">
+              📍 Meet someone now{checkins.length ? ` · ${checkins.length} around` : ""}
             </LinkButton>
-          ) : (
-            <LinkButton href="/card" variant="dark" size="lg" className="mt-6" data-track="add_yourself_hero">
-              Add yourself
-            </LinkButton>
-          )}
+            {!me && (
+              <LinkButton href="/card" variant="secondary" size="lg" data-track="add_yourself_hero">
+                Add yourself
+              </LinkButton>
+            )}
+          </div>
         </div>
       </section>
 
@@ -72,12 +75,17 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
           <ScrollIntoView>
           <div className="mb-6 space-y-3 rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
             <p className="font-semibold text-emerald-900">
-              {sp.added === "x" ? "Your post is on the list." : sp.added === "update" ? "Update posted — it's on your card now." : "You're on the list! Now tell people where to find you."}
+              {sp.added === "x" ? "Your post is on the list." : sp.added === "update" ? "Photo saved — it's on your card now." : "You're on the list! Now tell people where to find you."}
             </p>
             {sp.added === "card" && me && (
-              <LinkButton href="/update" size="sm" data-track="update_after_signup">
-                📸 Add a photo &amp; where to catch you
-              </LinkButton>
+              <div className="flex flex-wrap gap-2">
+                <LinkButton href="/meet" size="sm" data-track="meet_after_signup">
+                  📍 Check in to meet people now
+                </LinkButton>
+                <LinkButton href="/update" size="sm" variant="secondary" data-track="update_after_signup">
+                  📸 Add a photo to your card
+                </LinkButton>
+              </div>
             )}
             {(sp.added === "card" || sp.added === "update") && me && (
               <ShareButtons
@@ -114,21 +122,25 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
                     Add yours
                   </Link>
                 </li>
-                {moments.map(({ moment: m, author }) => (
-                  <li key={m.id} className="shrink-0">
-                    <Link href="/moments" data-track="moments_strip" className="relative block h-40 w-28 overflow-hidden rounded-2xl bg-ink text-white">
-                      {m.hasPhoto ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={`/moment-photo/${m.id}`} alt="" loading="lazy" className="h-full w-full object-cover" />
-                      ) : (
-                        <span className="line-clamp-6 p-3 text-sm font-medium">{m.body}</span>
-                      )}
-                      <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-4 text-xs font-semibold">
-                        {author?.name ?? (m.xHandle ? `@${m.xHandle}` : m.name ?? "At Moonshot")}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
+                {moments.map((item) => {
+                  const img = momentImage(item);
+                  return (
+                    <li key={item.moment.id} className="shrink-0">
+                      <Link href="/moments" data-track="moments_strip" className="relative block h-40 w-28 overflow-hidden rounded-2xl bg-ink text-white">
+                        {img ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={img} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="line-clamp-6 p-3 text-sm font-medium">{item.moment.body || item.moment.xText}</span>
+                        )}
+                        <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-4 text-xs font-semibold">
+                          {item.moment.xPostUrl ? "𝕏 " : ""}
+                          {momentWho(item)}
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>
@@ -150,6 +162,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
         <nav aria-label="Filters" className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
           <Link href={href({ f: undefined })} className={chip(!filter)} aria-current={!filter ? "page" : undefined}>
             All
+          </Link>
+          <Link href="/meet" className="shrink-0 rounded-full bg-sun px-3.5 py-1.5 text-sm font-semibold text-ink" data-track="meet_chip">
+            📍 Around now <span className="text-ink/60">{checkins.length}</span>
           </Link>
           {Object.entries(FILTERS).map(([key, def]) => (
             <Link key={key} href={href({ f: filter === key ? undefined : key })} className={chip(filter === key)} aria-current={filter === key ? "page" : undefined} data-track={`filter_${key}`}>
