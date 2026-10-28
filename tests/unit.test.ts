@@ -97,3 +97,24 @@ describe("photos and 'catch me at'", () => {
     expect(isHereNow({ whereNote: null, whereUpdatedAt: new Date(now) }, now)).toBe(false);
   });
 });
+
+import { parseSyndication, syndicationToken } from "@/lib/social/x-url";
+
+describe("X post images", () => {
+  it("uses attached photos first, then the link-preview image, and the author's picture", () => {
+    expect(
+      parseSyndication({
+        mediaDetails: [{ media_url_https: "https://pbs.twimg.com/media/A.jpg" }, { media_url_https: "https://evil.example/x.jpg" }],
+        user: { profile_image_url_https: "https://pbs.twimg.com/profile_images/1/me_normal.jpg" },
+      }),
+    ).toEqual({ media: ["https://pbs.twimg.com/media/A.jpg"], avatarUrl: "https://pbs.twimg.com/profile_images/1/me_bigger.jpg" });
+    expect(
+      parseSyndication({ card: { binding_values: { photo_image_full_size_large: { image_value: { url: "https://pbs.twimg.com/card_img/2/x?format=jpg&name=800x419" } } } } }).media,
+    ).toEqual(["https://pbs.twimg.com/card_img/2/x?format=jpg&name=800x419"]);
+    expect(parseSyndication({ user: { profile_image_url_https: "javascript:alert(1)" } })).toEqual({ media: [], avatarUrl: null });
+    expect(parseSyndication(null)).toEqual({ media: [], avatarUrl: null });
+  });
+  it("computes the embed token like X's widget", () => {
+    expect(syndicationToken("2114706863631572995")).toMatch(/^[0-9a-z]+$/);
+  });
+});

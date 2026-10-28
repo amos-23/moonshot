@@ -1,4 +1,5 @@
 import "server-only";
+import { parseSyndication, syndicationToken, type PostDetails } from "./x-url";
 
 // Provider abstraction for public social posts. Each provider must use a documented,
 // compliant access method. We never scrape, never bypass login, and never fabricate results.
@@ -115,4 +116,22 @@ export function extractOEmbedText(html: string): string | null {
     .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
     .trim();
   return text || null;
+}
+
+/**
+ * Images for a public post, from the same endpoint X's own embed widget uses to display posts
+ * on other sites. It needs no key but isn't formally documented, so failures just mean "no images".
+ */
+export async function fetchPostDetails(id: string): Promise<PostDetails | null> {
+  if (process.env.X_IMAGES_ENABLED === "false") return null;
+  try {
+    const res = await fetch(`https://cdn.syndication.twimg.com/tweet-result?${new URLSearchParams({ id, lang: "en", token: syndicationToken(id) })}`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) return null;
+    return parseSyndication(await res.json());
+  } catch {
+    return null;
+  }
 }

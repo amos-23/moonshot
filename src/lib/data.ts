@@ -89,6 +89,29 @@ export async function commentsFor(db: DB, postIds: string[]) {
   return map;
 }
 
+type DetailsFetcher = (externalId: string) => Promise<{ media: string[]; avatarUrl: string | null } | null>;
+
+/** Looks up a post's images once and stores them (or notes that there were none). */
+export async function attachDetails(db: DB, post: { id: string; externalId: string }, fetchDetails: DetailsFetcher) {
+  const d = await fetchDetails(post.externalId);
+  await db
+    .update(s.socialPosts)
+    .set({ ...(d ? { media: d.media, avatarUrl: d.avatarUrl } : {}), detailsCheckedAt: new Date() })
+    .where(eq(s.socialPosts.id, post.id));
+}
+
+/** Fills in images for posts added before this existed, a few at a time, newest first. */
+export async function backfillDetails(db: DB, fetchDetails: DetailsFetcher, limit = 10) {
+  const pending = await db
+    .select({ id: s.socialPosts.id, externalId: s.socialPosts.externalId })
+    .from(s.socialPosts)
+    .where(and(eq(s.socialPosts.hidden, false), sql`${s.socialPosts.detailsCheckedAt} is null`))
+    .orderBy(desc(s.socialPosts.importedAt))
+    .limit(limit);
+  for (const p of pending) await attachDetails(db, p, fetchDetails);
+  return pending.length;
+}
+
 export class UserError extends Error {}
 
 export type ImportRecord = { url: string; content?: string | null; authorName?: string | null; postedAt?: string | null };

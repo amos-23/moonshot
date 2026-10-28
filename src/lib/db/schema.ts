@@ -87,6 +87,9 @@ export const socialPosts = mc.table(
     postedAt: timestamp("posted_at", { withTimezone: true }),
     themes: text("themes").array().notNull().default(sql`'{}'::text[]`),
     source: text("source").notNull(), // import | oembed | x_api
+    media: text("media").array().notNull().default(sql`'{}'::text[]`), // image URLs on pbs.twimg.com
+    avatarUrl: text("avatar_url"),
+    detailsCheckedAt: timestamp("details_checked_at", { withTimezone: true }), // when we last looked for images
     hidden: boolean("hidden").notNull().default(false),
     importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
   },

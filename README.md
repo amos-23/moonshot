@@ -23,7 +23,7 @@ Tracking is built in and cookie-free. Each visitor is counted with an anonymous 
 
 ## Getting X posts in
 
-- **Manual (free):** anyone can paste a post link on **Add yourself**, and admins can paste many links at once in `/admin`. Post text comes from X's public embed endpoint.
+- **Manual (free):** anyone can paste a post link on **Add yourself**, and admins can paste many links at once in `/admin`. Post text comes from X's public embed endpoint. Images (attached photos, or the link-preview picture) and the author's profile picture come from the data X's own embed widget loads; posts already on the site get them filled in gradually in the background.
 - **Automatic:** set `X_BEARER_TOKEN` (the official X API, on a plan that includes recent search). The site then searches for Moonshot posts at most every 15 minutes and adds them as cards.
 
 Nothing is scraped and nothing is invented.

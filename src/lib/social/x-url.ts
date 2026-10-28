@@ -84,3 +84,36 @@ export function detectMentions(text: string | null | undefined): string[] {
   if (!text) return [];
   return MENTIONS.filter(([, re]) => re.test(text)).map(([label]) => label);
 }
+
+// ─── Post images ─────────────────────────────────────────────────────────────
+
+export type PostDetails = { media: string[]; avatarUrl: string | null };
+
+const X_IMAGE = /^https:\/\/pbs\.twimg\.com\/[A-Za-z0-9_\-./?=&%]+$/;
+const safeImage = (u: unknown): string | null => (typeof u === "string" && X_IMAGE.test(u) ? u : null);
+
+/** Token X's embed widget sends with a post ID when loading its details. */
+export function syndicationToken(id: string): string {
+  return ((Number(id) / 1e15) * Math.PI).toString(36).replace(/(0+|\.)/g, "");
+}
+
+/**
+ * Picks the images a post shows: attached photos (or video/GIF stills), else its link-preview
+ * image, plus the author's profile picture. Only images hosted by X are kept.
+ */
+export function parseSyndication(data: unknown): PostDetails {
+  const d = (data ?? {}) as {
+    mediaDetails?: { media_url_https?: string }[];
+    card?: { binding_values?: Record<string, { image_value?: { url?: string } }> };
+    user?: { profile_image_url_https?: string };
+  };
+  let media = (d.mediaDetails ?? []).map((m) => safeImage(m.media_url_https)).filter((u): u is string => Boolean(u));
+  if (!media.length && d.card?.binding_values) {
+    const b = d.card.binding_values;
+    const preview = safeImage(b.photo_image_full_size_large?.image_value?.url ?? b.summary_photo_image_large?.image_value?.url ?? b.thumbnail_image_large?.image_value?.url);
+    if (preview) media = [preview];
+  }
+  // "_normal" avatars are 48px; "_bigger" is 73px and still small.
+  const avatar = safeImage(d.user?.profile_image_url_https?.replace("_normal.", "_bigger."));
+  return { media: media.slice(0, 4), avatarUrl: avatar };
+}

@@ -6,7 +6,7 @@ import { timeAgo } from "@/lib/time";
 import { isHereNow } from "@/lib/search";
 import { Disclosure, ReportLink } from "./client";
 import { CommentForm } from "./forms";
-import { Avatar, Card, Tag } from "./ui";
+import { Avatar, Card, Tag, cx } from "./ui";
 
 const HELLO = "Hi! Found you on Moonshot Connect — would love to meet at Moonshot.";
 
@@ -19,7 +19,7 @@ function contact(p: Person) {
   return null;
 }
 
-function Shell({ avatar, title, sub, children, action, badge, photo }: { avatar: string; title: string; sub: string; children?: React.ReactNode; action: React.ReactNode; badge?: React.ReactNode; photo?: string | null }) {
+function Shell({ avatar, title, sub, children, action, badge, photo, avatarImg }: { avatar: string; title: string; sub: string; children?: React.ReactNode; action: React.ReactNode; badge?: React.ReactNode; photo?: string | null; avatarImg?: string | null }) {
   return (
     <Card className="flex h-full flex-col gap-3 p-5">
       <div className="flex items-start gap-3">
@@ -28,6 +28,9 @@ function Shell({ avatar, title, sub, children, action, badge, photo }: { avatar:
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={photo} alt={`${avatar} at Moonshot`} loading="lazy" decoding="async" width={72} height={72} className="h-[72px] w-[72px] rounded-2xl bg-canvas object-cover" />
           </a>
+        ) : avatarImg ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatarImg} alt="" width={44} height={44} loading="lazy" referrerPolicy="no-referrer" className="h-11 w-11 shrink-0 rounded-full bg-canvas object-cover" />
         ) : (
           <Avatar name={avatar} size={44} />
         )}
@@ -103,6 +106,7 @@ export function XCard({ post, comments = [], myName = null }: { post: SocialPost
       title={name}
       sub={`@${post.authorHandle}${post.postedAt ? ` · ${timeAgo(post.postedAt)}` : ""}`}
       badge={<Tag tone="sun">From X</Tag>}
+      avatarImg={post.avatarUrl}
       action={
         <>
           <a href={post.url} data-track="view_post" data-track-id={post.id} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-ink px-4 text-sm font-semibold text-white hover:bg-black">
@@ -113,6 +117,14 @@ export function XCard({ post, comments = [], myName = null }: { post: SocialPost
       }
     >
       {post.content && <p className="line-clamp-4 whitespace-pre-line text-sm">{post.content}</p>}
+      {post.media.length > 0 && (
+        <a href={post.url} target="_blank" rel="noopener noreferrer nofollow" data-track="view_post_image" data-track-id={post.id} className={cx("grid gap-1 overflow-hidden rounded-2xl", post.media.length > 1 && "grid-cols-2")} aria-label="Open the post on X">
+          {post.media.map((src, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={src} src={src} alt={i === 0 ? `Image from ${name}'s post` : ""} loading="lazy" decoding="async" referrerPolicy="no-referrer" className={cx("w-full bg-canvas object-cover", post.media.length === 1 ? "aspect-[16/9]" : "aspect-square")} />
+          ))}
+        </a>
+      )}
       {mentions.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {mentions.map((m) => (

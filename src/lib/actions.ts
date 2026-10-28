@@ -7,8 +7,8 @@ import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { cardSchema, fieldErrors } from "@/lib/validation";
 import { clearCardCookie, getMe, hashToken, isAdmin, isAdminKey, newToken, rateLimit, setCardCookie } from "@/lib/me";
-import { UserError, importPosts, parseImport } from "@/lib/data";
-import { fetchOEmbed } from "@/lib/social/providers";
+import { UserError, attachDetails, importPosts, parseImport } from "@/lib/data";
+import { fetchOEmbed, fetchPostDetails } from "@/lib/social/providers";
 import { parseXPostUrl } from "@/lib/social/x-url";
 import { parsePhoto } from "@/lib/photo";
 
@@ -99,8 +99,10 @@ export async function addXPostAction(_: Result | null, form: FormData): Promise<
     if (!(await rateLimit("xpost", 30, 60))) return { ok: false, error: "Too many posts from this network — try again shortly." };
     const embed = await fetchOEmbed(parsed.url);
     if (!embed?.text) return { ok: false, error: "We couldn't load that post. Is it public?" };
-    const [r] = await importPosts(await getDb(), [{ url: parsed.url, content: embed.text, authorName: embed.authorName }]);
+    const db = await getDb();
+    const [r] = await importPosts(db, [{ url: parsed.url, content: embed.text, authorName: embed.authorName }]);
     if (r.status === "duplicate") return { ok: false, error: "That post is already here." };
+    if (r.id) await attachDetails(db, { id: r.id, externalId: parsed.id }, fetchPostDetails);
   });
   if (result.ok) {
     refresh();

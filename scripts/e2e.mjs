@@ -169,6 +169,19 @@ try {
     await shot(x.page, "01-home");
   } else console.log("  (post already added, or X embed unreachable)");
 
+  step("X cards pick up the post's image and the author's picture");
+  {
+    let src = null;
+    for (let i = 0; i < 10 && !src; i++) {
+      await anon.page.goto(BASE); // each visit lets the background fill fetch a few posts' images
+      const img = card(anon.page, `@${handle}`).getByRole("img", { name: /image from/i });
+      src = (await img.count()) ? await img.getAttribute("src") : null;
+      if (!src) await anon.page.waitForTimeout(1500);
+    }
+    if (src) assert.match(src, /^https:\/\/pbs\.twimg\.com\//);
+    else console.log("  (no image found — X's embed data may be unreachable from here)");
+  }
+
   step("comments on an X card: name needed without a card, automatic with one");
   await anon.page.goto(BASE);
   const xcard = card(anon.page, `@${handle}`);

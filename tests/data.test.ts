@@ -5,7 +5,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/lib/db/schema";
 import type { DB } from "@/lib/db";
-import { commentsFor, importPosts, listPeople, listXCards } from "@/lib/data";
+import { backfillDetails, commentsFor, importPosts, listPeople, listXCards } from "@/lib/data";
 import { siteStats } from "@/lib/stats";
 
 let db: DB;
@@ -98,5 +98,26 @@ describe("stats", () => {
     expect(st.funnel).toEqual({ formVisitors: 1, contacters: 1, contactClicks: 1 });
     expect(st.series).toHaveLength(7);
     expect(st.series.at(-1)!.views).toBe(3);
+  });
+});
+
+describe("X post images backfill", () => {
+  it("fills in images once per post and remembers posts without any", async () => {
+    await importPosts(db, [
+      { url: "https://x.com/pics/status/1852000000000000000", content: "photo post" },
+      { url: "https://x.com/nopics/status/1852000000000000001", content: "text only" },
+    ]);
+    const calls: string[] = [];
+    const fake = async (id: string) => {
+      calls.push(id);
+      return id.endsWith("0") ? { media: ["https://pbs.twimg.com/media/A.jpg"], avatarUrl: null } : null;
+    };
+    await backfillDetails(db, fake, 50);
+    const cards = await listXCards(db, "post");
+    expect(cards.find((c) => c.authorHandle === "pics")?.media).toEqual(["https://pbs.twimg.com/media/A.jpg"]);
+    expect(calls).toEqual(expect.arrayContaining(["1852000000000000000", "1852000000000000001"]));
+    const before = calls.length;
+    await backfillDetails(db, fake, 50);
+    expect(calls.length).toBe(before); // nothing is fetched twice
   });
 });

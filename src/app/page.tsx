@@ -4,7 +4,8 @@ import { getDb } from "@/lib/db";
 import { getMe } from "@/lib/me";
 import { commentsFor, feed } from "@/lib/data";
 import { FILTERS, isFilter, searchWords } from "@/lib/search";
-import { refreshLive } from "@/lib/social/live";
+import { after } from "next/server";
+import { backfillImages, refreshLive } from "@/lib/social/live";
 import { recordSearch } from "@/lib/track";
 import { siteOrigin } from "@/lib/site";
 import { EVENT } from "@/lib/constants";
@@ -24,6 +25,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
   // "For you" needs a card to match against; without one, show the newest first.
   const sort = sp.sort === "new" || sp.sort === "match" ? sp.sort : me ? "match" : "new";
   await refreshLive(db).catch(() => null); // no-op unless X_BEARER_TOKEN is set
+  // Fill in images for older X posts after the page has been sent, so it never slows it down.
+  after(() => backfillImages(db).catch((err) => console.error("image backfill failed", err)));
   const { items, gaps, counts } = await feed(db, me, { q, filter, sort });
   const comments = await commentsFor(db, items.flatMap((i) => (i.kind === "x" ? [i.post.id] : [])));
   if (q) await recordSearch(q, items.length);

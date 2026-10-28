@@ -20,6 +20,7 @@ const CLICK_LABELS: Record<string, string> = {
   email: "Email button",
   website: "Website button",
   view_post: "View post (X)",
+  view_post_image: "Tapped an X post's image",
   comment: "Post comment",
   add_me: "Add me (card)",
   add_x_post: "Add X post",

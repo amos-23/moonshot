@@ -4,7 +4,8 @@ import type { DB } from "@/lib/db";
 import * as s from "@/lib/db/schema";
 import { SEARCH_PHRASES } from "@/lib/constants";
 import { detectThemes } from "./x-url";
-import { activeSearchProvider } from "./providers";
+import { activeSearchProvider, fetchPostDetails } from "./providers";
+import { backfillDetails } from "@/lib/data";
 
 const KEY = "x_last_refresh";
 const MIN_INTERVAL_MS = 15 * 60_000;
@@ -32,4 +33,17 @@ export async function refreshLive(db: DB, force = false): Promise<{ provider: st
     added += r.length;
   }
   return { provider: provider.label, added };
+}
+
+const BACKFILL_KEY = "details_backfill";
+
+/** Fetches images for up to 10 older posts, at most once a minute. Call after the response. */
+export async function backfillImages(db: DB) {
+  const last = await db.query.settings.findFirst({ where: eq(s.settings.key, BACKFILL_KEY) });
+  if (last && Date.now() - Number(last.value) < 60_000) return;
+  await db
+    .insert(s.settings)
+    .values({ key: BACKFILL_KEY, value: String(Date.now()) })
+    .onConflictDoUpdate({ target: s.settings.key, set: { value: String(Date.now()) } });
+  await backfillDetails(db, fetchPostDetails, 10);
 }
