@@ -1,8 +1,11 @@
 import { getMe, myToken } from "@/lib/me";
 import { deleteCardAction } from "@/lib/actions";
-import { CardForm, XPostForm } from "@/components/forms";
+import { CardForm, WhereForm, XPostForm } from "@/components/forms";
 import { ActionButton, CopyButton } from "@/components/client";
 import { Card, Notice, PageTitle } from "@/components/ui";
+import { ShareButtons } from "@/components/share";
+import { siteOrigin } from "@/lib/site";
+import { HERE_NOW_HOURS, isHereNow } from "@/lib/search";
 
 export const metadata = { title: "Add yourself" };
 
@@ -23,10 +26,18 @@ export default async function CardPage({ searchParams }: { searchParams: Promise
       <div className="mx-auto max-w-xl px-4 py-8">
         <PageTitle title="My card" />
         {notices}
+        <Card className="mb-4 p-5">
+          <WhereForm current={isHereNow(me) ? me.whereNote : null} />
+          <p className="mt-2 text-xs text-muted">Shows on your card for {HERE_NOW_HOURS} hours, and puts you in “Here now”.</p>
+        </Card>
         <Card className="p-5 sm:p-6">
           <CardForm person={me} />
         </Card>
         <div className="mt-6 space-y-4">
+          <Card className="space-y-3 p-5">
+            <p className="text-sm font-semibold">Share your card</p>
+            <ShareButtons track="share_card" text="I'm on Moonshot Connect — find me and see who else is at Moonshot:" url={`${await siteOrigin()}/?q=${encodeURIComponent(me.name)}`} />
+          </Card>
           <Card className="space-y-2 p-5">
             <p className="text-sm font-semibold">Edit from another device</p>
             <p className="text-xs text-muted">There&apos;s no password. Keep this private link to edit your card elsewhere.</p>

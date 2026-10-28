@@ -15,7 +15,8 @@ const NO_CONTACT: Contact = { xHandle: null, whatsapp: null, email: null, linked
 export function parseContact(raw: string): Contact | null {
   const v = raw.trim();
   if (!v) return null;
-  const x = v.match(/^@([A-Za-z0-9_]{1,15})$/) ?? v.match(/^(?:https?:\/\/)?(?:www\.)?(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})\/?(?:\?.*)?$/i);
+  // "@ada", or "ada" (a bare handle needs a letter, so phone numbers aren't mistaken for handles).
+  const x = v.match(/^@([A-Za-z0-9_]{1,15})$/) ?? v.match(/^(?=\w*[A-Za-z])([A-Za-z0-9_]{1,15})$/) ?? v.match(/^(?:https?:\/\/)?(?:www\.)?(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})\/?(?:\?.*)?$/i);
   if (x) return { ...NO_CONTACT, xHandle: x[1] };
   if (/^\+?[\d\s()-]{8,20}$/.test(v)) {
     const digits = v.replace(/[^\d+]/g, "");
@@ -41,11 +42,12 @@ export const cardSchema = z
       .optional()
       .transform((v) => v || null),
     contact: z.string().max(300).default(""),
+    where: text(100).default(""),
   })
   .transform((c, ctx) => {
     const contact = parseContact(c.contact);
     if (!contact) {
-      ctx.addIssue({ code: "custom", path: ["contact"], message: c.contact.trim() ? "Use @handle, a phone number, an email or a link" : "Add one way for people to reach you" });
+      ctx.addIssue({ code: "custom", path: ["contact"], message: c.contact.trim() ? "Try @yourhandle, a phone number, an email or a link" : "Add your X handle (or another way to reach you)" });
       return z.NEVER;
     }
     const { contact: _raw, ...rest } = c;

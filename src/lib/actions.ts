@@ -10,6 +10,7 @@ import { clearCardCookie, getMe, hashToken, isAdmin, isAdminKey, newToken, rateL
 import { UserError, importPosts, parseImport } from "@/lib/data";
 import { fetchOEmbed } from "@/lib/social/providers";
 import { parseXPostUrl } from "@/lib/social/x-url";
+import { parsePhoto } from "@/lib/photo";
 
 export type Result = { ok: true; message?: string; data?: unknown } | { ok: false; error: string; fields?: Record<string, string> };
 
@@ -33,24 +34,45 @@ export async function saveCardAction(_: Result | null, form: FormData): Promise<
     offers: form.getAll("offers").filter(Boolean),
     company: form.get("company") ?? "",
     contact: form.get("contact") ?? "",
+    where: form.get("where") ?? "",
   });
   if (!parsed.success) return { ok: false, error: "Almost there — check the highlighted field.", fields: fieldErrors(parsed.error) };
+  const rawPhoto = String(form.get("photo") ?? "");
+  const photo = rawPhoto ? parsePhoto(rawPhoto) : null;
+  if (photo && "error" in photo) return { ok: false, error: photo.error, fields: { photo: photo.error } };
+  const removePhoto = form.get("removePhoto") === "on";
 
+  const { where, ...card } = parsed.data;
   let created = false;
   const result = await guard(async () => {
     const db = await getDb();
     const me = await getMe();
+    const now = new Date();
+    // "Catch me at" is time-stamped only when it changes, so its "20m ago" stays honest.
+    const whereFields = where !== (me?.whereNote ?? "") ? { whereNote: where || null, whereUpdatedAt: where ? now : null } : {};
+    const photoFields = photo ? { photoUpdatedAt: now } : removePhoto ? { photoUpdatedAt: null } : {};
+    let id = me?.id;
     if (me) {
-      await db.update(schema.people).set({ ...parsed.data, updatedAt: new Date() }).where(eq(schema.people.id, me.id));
-      return { ok: true, message: "Saved." };
+      await db.update(schema.people).set({ ...card, ...whereFields, ...photoFields, updatedAt: now }).where(eq(schema.people.id, me.id));
+    } else {
+      if (!(await rateLimit("card", Number(process.env.RATE_LIMIT_CARDS_PER_HOUR ?? 60), 60))) {
+        return { ok: false, error: "Lots of cards are being made from this network — try again in a few minutes." };
+      }
+      const token = newToken();
+      const [row] = await db.insert(schema.people).values({ ...card, ...whereFields, ...photoFields, editTokenHash: hashToken(token) }).returning({ id: schema.people.id });
+      id = row.id;
+      await setCardCookie(token);
+      created = true;
     }
-    if (!(await rateLimit("card", Number(process.env.RATE_LIMIT_CARDS_PER_HOUR ?? 60), 60))) {
-      return { ok: false, error: "Lots of cards are being made from this network — try again in a few minutes." };
+    if (photo && id) {
+      await db
+        .insert(schema.photos)
+        .values({ personId: id, ...photo, updatedAt: now })
+        .onConflictDoUpdate({ target: schema.photos.personId, set: { ...photo, updatedAt: now } });
+    } else if (removePhoto && id) {
+      await db.delete(schema.photos).where(eq(schema.photos.personId, id));
     }
-    const token = newToken();
-    await db.insert(schema.people).values({ ...parsed.data, editTokenHash: hashToken(token) });
-    await setCardCookie(token);
-    created = true;
+    if (!created) return { ok: true, message: "Saved." };
   });
   refresh();
   if (created) redirect("/?added=card");
@@ -157,6 +179,30 @@ export async function setHiddenAction(kind: "person" | "post" | "comment", id: s
     if (kind === "person") await db.update(schema.people).set({ hidden }).where(eq(schema.people.id, id));
     else if (kind === "comment") await db.update(schema.comments).set({ hidden }).where(eq(schema.comments.id, id));
     else await db.update(schema.socialPosts).set({ hidden }).where(eq(schema.socialPosts.id, id));
+    refresh();
+  });
+}
+
+/** Quick "Catch me at…" update from My card. */
+export async function setWhereAction(_: Result | null, form: FormData): Promise<Result> {
+  return guard(async () => {
+    const me = await getMe();
+    if (!me) return { ok: false, error: "Add yourself first." };
+    const note = String(form.get("where") ?? "").trim().slice(0, 100);
+    await (await getDb())
+      .update(schema.people)
+      .set({ whereNote: note || null, whereUpdatedAt: note ? new Date() : null })
+      .where(eq(schema.people.id, me.id));
+    refresh();
+    return { ok: true, message: note ? "Updated — people can find you." : "Cleared." };
+  });
+}
+
+export async function removePhotoAction(personId: string): Promise<Result> {
+  return guard(async () => {
+    const db = await requireAdmin();
+    await db.delete(schema.photos).where(eq(schema.photos.personId, personId));
+    await db.update(schema.people).set({ photoUpdatedAt: null }).where(eq(schema.people.id, personId));
     refresh();
   });
 }

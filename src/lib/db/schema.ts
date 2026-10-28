@@ -27,7 +27,8 @@ export const people = mc.table(
     whatsapp: text("whatsapp"),
     email: text("email"),
     websiteUrl: text("website_url"),
-    // "Find me at…" — a short, time-stamped note for meeting at the venue.
+    photoUpdatedAt: timestamp("photo_updated_at", { withTimezone: true }), // set when a photo exists; versions its URL
+    // "Catch me at…" — a short, time-stamped note for meeting at the venue.
     whereNote: text("where_note"),
     whereUpdatedAt: timestamp("where_updated_at", { withTimezone: true }),
     hidden: boolean("hidden").notNull().default(false),
@@ -158,3 +159,13 @@ export const events = mc.table(
   },
   (t) => [index("events_type_created_idx").on(t.type, t.createdAt), check("events_type_check", sql`${t.type} in ('view','click','search')`)],
 );
+
+// Photos live apart from cards so listing people never loads image data.
+export const photos = mc.table("photos", {
+  personId: uuid("person_id")
+    .primaryKey()
+    .references(() => people.id, { onDelete: "cascade" }),
+  mime: text("mime").notNull(),
+  data: text("data").notNull(), // base64, resized in the browser to ≤ 720px
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

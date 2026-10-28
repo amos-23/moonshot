@@ -50,7 +50,9 @@ describe("X cards", () => {
     let cards = await listXCards(db);
     expect(cards.map((c) => c.authorHandle).sort()).toEqual(["kemi", "oreofe"]);
     expect(cards.find((c) => c.authorHandle === "oreofe")?.content).toMatch(/Newer post/);
-    expect((await listXCards(db, "founders")).map((c) => c.authorHandle)).toEqual(["oreofe"]);
+    // Search matches the post each card shows (the latest one).
+    expect((await listXCards(db, "founders")).map((c) => c.authorHandle)).toEqual([]);
+    expect((await listXCards(db, "newer moonshot")).map((c) => c.authorHandle)).toEqual(["oreofe"]);
     await person({ name: "Kemi", xHandle: "Kemi" });
     cards = await listXCards(db);
     expect(cards.map((c) => c.authorHandle)).toEqual(["oreofe"]);
@@ -93,6 +95,7 @@ describe("stats", () => {
     expect(st.pages[0]).toEqual({ key: "/", n: 2 });
     expect(st.referrers).toEqual([{ key: "x.com", n: 1 }]);
     expect(st.topTargets[0]).toMatchObject({ name: "Clicky", n: 1 });
+    expect(st.funnel).toEqual({ formVisitors: 1, contacters: 1, contactClicks: 1 });
     expect(st.series).toHaveLength(7);
     expect(st.series.at(-1)!.views).toBe(3);
   });

@@ -26,6 +26,24 @@ const CLICK_LABELS: Record<string, string> = {
   save_card: "Save card",
   add_yourself_header: "Add yourself (header)",
   add_yourself_hero: "Add yourself (home)",
+  share_card_x: "Share my card on X",
+  share_card_whatsapp: "Share my card on WhatsApp",
+  share_card_copy: "Copy my card link",
+  invite_x: "Invite (not found) on X",
+  invite_whatsapp: "Invite (not found) on WhatsApp",
+  invite_copy: "Invite (not found) copy link",
+  filter_investors: "Filter: Investors",
+  filter_hiring: "Filter: Hiring",
+  filter_founders: "Filter: Founders",
+  filter_engineers: "Filter: Engineers",
+  filter_marketing: "Filter: Marketing",
+  filter_design: "Filter: Design",
+  filter_here: "Filter: Here now",
+  filter_x: "Filter: From X",
+  sort_match: "View: For you",
+  sort_new: "View: Newest",
+  photo_pick: "Picked a photo",
+  where_update: "Updated “Catch me at”",
 };
 
 function Tile({ label, value, sub }: { label: string; value: number; sub?: string }) {
@@ -105,6 +123,29 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
         <Tile label="Searches" value={st.totals.searches} sub={`${st.emptySearches.reduce((a, r) => a + r.n, 0)} found nothing`} />
         <Tile label="New cards" value={st.added.cards} sub={`${st.added.posts} X post${st.added.posts === 1 ? "" : "s"} · ${st.added.comments} comment${st.added.comments === 1 ? "" : "s"}`} />
       </div>
+
+      <Card className="p-5">
+        <h2 className="font-bold">From visit to connection</h2>
+        <p className="text-sm text-muted">How many visitors take each step. Contacting someone is the goal.</p>
+        <ol className="mt-4 grid gap-3 sm:grid-cols-4">
+          {[
+            { label: "Visited", n: st.totals.visitors },
+            { label: "Opened the form", n: st.funnel.formVisitors },
+            { label: "Made a card", n: st.added.cards },
+            { label: "Contacted someone", n: st.funnel.contacters, sub: `${st.funnel.contactClicks} contact clicks` },
+          ].map((step, i) => (
+            <li key={step.label} className="rounded-2xl bg-canvas p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-muted">Step {i + 1}</p>
+              <p className="mt-1 text-2xl font-extrabold tabular-nums">{step.n.toLocaleString()}</p>
+              <p className="text-sm font-semibold">{step.label}</p>
+              <p className="text-xs text-muted">
+                {i === 0 ? "unique visitors" : `${st.totals.visitors ? Math.min(100, Math.round((step.n / st.totals.visitors) * 100)) : 0}% of visitors`}
+                {step.sub ? ` · ${step.sub}` : ""}
+              </p>
+            </li>
+          ))}
+        </ol>
+      </Card>
 
       {days > 1 && (
         <Card className="p-5">

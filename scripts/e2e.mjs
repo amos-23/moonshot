@@ -4,6 +4,7 @@
 import { createRequire } from "node:module";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import zlib from "node:zlib";
 
 // Resolved via require so a globally installed Playwright (NODE_PATH) also works.
 const { chromium } = createRequire(import.meta.url)("playwright");
@@ -30,7 +31,35 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: `${SHOTS}/${name}.
 const step = (s) => console.log(`• ${s}`);
 const card = (page, text) => page.locator("li", { hasText: text }).first();
 
-async function addCard(page, { name, headline, wants = [], offers = [], contact }) {
+// A small valid PNG (solid colour) for the photo upload, built without extra dependencies.
+function makePng(w = 48, h = 48) {
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (buf) => {
+    let c = 0xffffffff;
+    for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type), data]);
+    const c = Buffer.alloc(4);
+    c.writeUInt32BE(crc(td));
+    return Buffer.concat([len, td, c]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0);
+  ihdr.writeUInt32BE(h, 4);
+  ihdr.set([8, 2, 0, 0, 0], 8);
+  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(w * 3, Buffer.from([232, 80, 42]))]);
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr), chunk("IDAT", zlib.deflateSync(Buffer.concat(Array(h).fill(row)))), chunk("IEND", Buffer.alloc(0))]);
+}
+
+async function addCard(page, { name, headline, wants = [], offers = [], contact, where, photo }) {
   await page.goto(`${BASE}/card`);
   await page.getByLabel("Name", { exact: true }).fill(name);
   await page.getByLabel("What you do").fill(headline);
@@ -45,7 +74,12 @@ async function addCard(page, { name, headline, wants = [], offers = [], contact 
     for (const o of offers) await page.getByRole("checkbox", { name: o, exact: true }).check();
     await page.keyboard.press("Escape");
   }
-  await page.getByLabel("Best way to reach you").fill(contact);
+  await page.getByLabel("Your X handle").fill(contact);
+  if (where) await page.getByLabel(/catch me at/i).fill(where);
+  if (photo) {
+    await page.locator('input[type="file"]').setInputFiles({ name: "me.png", mimeType: "image/png", buffer: makePng() });
+    await page.getByRole("img", { name: "Your photo" }).waitFor();
+  }
   await page.getByRole("button", { name: "Add me" }).click();
   await page.waitForURL(/\?added=card/);
 }
@@ -63,22 +97,44 @@ try {
   await ada.page.getByLabel("Name", { exact: true }).fill(`Ada ${run}`);
   await ada.page.getByLabel("What you do").fill("Founder, payments startup");
   await ada.page.getByRole("button", { name: "Add me" }).click();
-  await ada.page.getByText("Add one way for people to reach you").waitFor();
+  await ada.page.getByText(/add your x handle/i).first().waitFor();
   assert.equal(await ada.page.getByLabel("Name", { exact: true }).inputValue(), `Ada ${run}`);
   await shot(ada.page, "02-add-yourself");
 
-  step("Ada adds herself with a WhatsApp number");
-  await addCard(ada.page, { name: `Ada ${run}`, headline: "Founder, payments startup", wants: ["Business partners", "Investors"], contact: "+234 803 000 0000" });
+  step("Ada adds herself with a WhatsApp number, a photo and where to catch her");
+  await addCard(ada.page, { name: `Ada ${run}`, headline: "Founder, payments startup", wants: ["Business partners", "Investors"], contact: "+234 803 000 0000", where: "Booth 14, Hall B", photo: true });
   await ada.page.getByText(/you're on the list/i).waitFor();
+  const shareX = await ada.page.getByRole("link", { name: "Share on X" }).getAttribute("href");
+  assert.ok(new URL(shareX).searchParams.get("text").endsWith(`/?q=${encodeURIComponent(`Ada ${run}`)}`), "share link points to her card");
   await ada.page.goto(`${BASE}/card`);
   assert.equal(await ada.page.locator("#wants").innerText(), "Business partners, Investors", "multi-select keeps both choices");
 
   step("Bola adds herself with an @handle and sees why to meet Ada");
   const bola = await visitor();
-  await addCard(bola.page, { name: `Bola ${run}`, headline: "Growth lead", wants: ["Founders"], offers: ["Distribution & partnerships"], contact: "@bola_grows" });
+  await addCard(bola.page, { name: `Bola ${run}`, headline: "Growth lead", wants: ["Founders"], offers: ["Distribution & partnerships"], contact: "bola_grows" });
   const adaCard = card(bola.page, `Ada ${run}`);
   assert.match(await adaCard.innerText(), /You want founders — Ada offers founder experience/);
+  assert.match(await adaCard.innerText(), /Catch me at Booth 14, Hall B/);
+  const photoSrc = await adaCard.getByRole("img", { name: `Ada ${run} at Moonshot` }).getAttribute("src");
+  const photoRes = await bola.page.request.get(`${BASE}${photoSrc}`);
+  assert.equal(photoRes.headers()["content-type"], "image/jpeg", "photo was resized to JPEG and served");
   assert.match(await adaCard.getByRole("link", { name: "WhatsApp" }).getAttribute("href"), /^https:\/\/wa\.me\/2348030000000\?text=/);
+
+  step("filters, fresh feed, tag search and invites");
+  await anon.page.goto(`${BASE}/?f=here`);
+  await card(anon.page, `Ada ${run}`).waitFor();
+  assert.equal(await anon.page.locator("li", { hasText: `Bola ${run}` }).count(), 0, "Bola has no 'catch me at'");
+  await anon.page.goto(`${BASE}/?f=investors`);
+  await anon.page.getByText(/want to meet investors/).waitFor();
+  await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`looking for investors ${run}`)}`);
+  await card(anon.page, `Ada ${run}`).waitFor();
+  await anon.page.goto(`${BASE}/?sort=new`);
+  assert.match(await anon.page.locator("li").first().innerText(), new RegExp(`Bola ${run}[\\s\\S]*joined`), "newest card first, with 'joined'");
+  const ghost = `Biliyamin ${run.replace(/\d/g, (d) => "abcdefghij"[d])}`; // letters only, like a real name
+  await anon.page.goto(`${BASE}/?q=${encodeURIComponent(ghost)}`);
+  await anon.page.getByText(`“${ghost}” isn't here yet`).waitFor();
+  assert.match(decodeURIComponent(await anon.page.getByRole("link", { name: "Share on X" }).getAttribute("href")), /\/card/);
+  await shot(anon.page, "07-invite");
 
   step("search works");
   await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`Bola ${run}`)}`);
@@ -156,7 +212,8 @@ try {
   await anon.page.getByText(/no one matches/i).waitFor();
 
   const nothing = `zzz-nobody-${run}`;
-  await anon.page.goto(`${BASE}/?q=${nothing}`);
+  // Repeat it so it ranks in the top-10 list even with earlier test searches around.
+  for (let i = 0; i < 5; i++) await anon.page.goto(`${BASE}/?q=${nothing}`);
   await anon.page.getByText(/no one matches/i).waitFor();
 
   step("admin Stats shows visits, clicks and searches");
@@ -170,6 +227,7 @@ try {
   await empty.getByText(`“${nothing}”`).waitFor();
   await admin.page.goto(`${BASE}/admin/stats?days=7`);
   await admin.page.getByText("Visits per day").waitFor();
+  await admin.page.getByText("From visit to connection").waitFor();
   await shot(admin.page, "06-stats");
 
   step("Ada deletes her card");

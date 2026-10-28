@@ -26,6 +26,8 @@ describe("card validation", () => {
   it("works out the contact type from one box", () => {
     expect(cardSchema.parse(ok).whatsapp).toBe("+2348030000000");
     expect(cardSchema.parse({ ...ok, contact: "@ada_builds" }).xHandle).toBe("ada_builds");
+    expect(cardSchema.parse({ ...ok, contact: "ada_builds" }).xHandle).toBe("ada_builds");
+    expect(cardSchema.parse({ ...ok, contact: "08030000000" }).whatsapp).toBe("08030000000");
     expect(cardSchema.parse({ ...ok, contact: "https://x.com/ada_builds" }).xHandle).toBe("ada_builds");
     expect(cardSchema.parse({ ...ok, contact: "Ada@Example.com" }).email).toBe("ada@example.com");
     expect(cardSchema.parse({ ...ok, contact: "linkedin.com/in/ada" }).linkedinUrl).toBe("https://linkedin.com/in/ada");
@@ -52,5 +54,46 @@ describe("X posts", () => {
   });
   it("picks out who an author wants to meet from their own words", () => {
     expect(detectMentions("Founders building difficult things. Operators who understand distribution. Engineers working on problems")).toEqual(["Founders", "Engineers", "Operators", "Distribution"]);
+  });
+});
+
+import { FILTERS, matches, personText, searchWords } from "@/lib/search";
+
+describe("search", () => {
+  const person = (over: Record<string, unknown>) =>
+    ({ id: "x", name: "Moses Oluwaseun Ejidokun", headline: "Recruiter", company: "Acme", bio: "", xHandle: null, wants: [], offers: [], ...over }) as never;
+  it("matches every word, in any order, across names and tags", () => {
+    const p = person({ offers: ["hiring"], wants: ["investors"] });
+    expect(matches(personText(p), searchWords("ejidokun moses"))).toBe(true);
+    expect(matches(personText(p), searchWords("I'm hiring"))).toBe(true);
+    expect(matches(personText(p), searchWords("looking for investors"))).toBe(true);
+    expect(matches(personText(p), searchWords("moses designer"))).toBe(false);
+  });
+  it("finds investors and hiring people by tag or job title", () => {
+    expect(FILTERS.investors.test(person({ headline: "Partner, Demo Ventures", offers: ["investment"] }))).toBe(true);
+    expect(FILTERS.investors.test(person({ headline: "Angel investor" }))).toBe(true);
+    expect(FILTERS.hiring.test(person({ headline: "Head of Talent", bio: "We're hiring engineers" }))).toBe(true);
+    expect(FILTERS.hiring.test(person({ headline: "Head of Talent, fintech" }))).toBe(true);
+    expect(FILTERS.engineers.test(person({ headline: "Mobile developer" }))).toBe(true);
+    expect(FILTERS.founders.test(person({ headline: "Growth lead" }))).toBe(false);
+  });
+});
+
+import { parsePhoto } from "@/lib/photo";
+import { isHereNow } from "@/lib/search";
+
+describe("photos and 'catch me at'", () => {
+  it("accepts real images and rejects anything else", () => {
+    const png = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex").toString("base64");
+    expect(parsePhoto(`data:image/png;base64,${png}`)).toMatchObject({ mime: "image/png" });
+    expect(parsePhoto(`data:image/jpeg;base64,${png}`)).toEqual({ error: "That file isn't a photo." });
+    expect("error" in parsePhoto("data:text/html;base64,PGgxPg==")).toBe(true);
+    expect("error" in parsePhoto(`data:image/png;base64,${Buffer.alloc(700 * 1024).toString("base64")}`)).toBe(true);
+  });
+  it("treats a note as current for 8 hours", () => {
+    const now = Date.now();
+    expect(isHereNow({ whereNote: "Booth 14", whereUpdatedAt: new Date(now - 7 * 3600_000) }, now)).toBe(true);
+    expect(isHereNow({ whereNote: "Booth 14", whereUpdatedAt: new Date(now - 9 * 3600_000) }, now)).toBe(false);
+    expect(isHereNow({ whereNote: null, whereUpdatedAt: new Date(now) }, now)).toBe(false);
   });
 });

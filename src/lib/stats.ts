@@ -83,5 +83,16 @@ export async function siteStats(db: DB, days: number) {
     return { day: key, views: byDay.get(key)?.views ?? 0, visitors: byDay.get(key)?.visitors ?? 0 };
   });
 
-  return { totals, series, pages, referrers, clicks, topTargets, searches, emptySearches, added: { cards, posts, comments } };
+  // Funnel: visitors → opened the form → made a card → contacted someone.
+  const CONTACT = ["whatsapp", "x_profile", "linkedin", "email", "website"];
+  const [funnel] = await db
+    .select({
+      formVisitors: sql<number>`count(distinct ${s.events.visitor}) filter (where ${s.events.type} = 'view' and ${s.events.path} = '/card')::int`,
+      contacters: sql<number>`count(distinct ${s.events.visitor}) filter (where ${s.events.type} = 'click' and ${s.events.target} in (${sql.join(CONTACT.map((c) => sql`${c}`), sql`, `)}))::int`,
+      contactClicks: sql<number>`count(*) filter (where ${s.events.type} = 'click' and ${s.events.target} in (${sql.join(CONTACT.map((c) => sql`${c}`), sql`, `)}))::int`,
+    })
+    .from(s.events)
+    .where(inRange);
+
+  return { funnel, totals, series, pages, referrers, clicks, topTargets, searches, emptySearches, added: { cards, posts, comments } };
 }

@@ -4,6 +4,9 @@ A minimal, no-sign-up list of who's at **Moonshot by TechCabal** (National Theat
 
 - **Add yourself** in a few seconds with your name, what you do, who you want to meet, and one way to reach you (@handle, WhatsApp number, email or LinkedIn).
 - **Or add your X post.** Paste a link to a public post about Moonshot and it shows up as a "From X" card. The card uses only what the post says publicly, links back to the original, and lists who the author says they want to meet.
+- **Filters and two views:** Here now, Investors, Hiring, Founders, Engineers, Marketing, Design and From X; "For you" (best fit) or "Newest" (a fresh feed).
+- **At the event:** add a photo of yourself from today (resized on your phone before upload) and a "Catch me at…" note, e.g. "Booth 14, Hall B until 3pm". Notes count as "Here now" for 8 hours.
+- **Search** checks every word against names, roles, companies and tags (so "hiring" or "investors" work). A name that isn't found gets an "invite them" prompt.
 - **Best fits first,** with a one-line reason, e.g. "You want investors — Val offers investment".
 
 This is an independent, community-made tool. It isn't run or endorsed by TechCabal, and it uses no TechCabal logos.
@@ -14,7 +17,7 @@ When you add yourself, your browser keeps a private edit token in a cookie. **My
 
 ## Stats
 
-`/admin/stats` shows visits, unique visitors, button clicks (WhatsApp, X, LinkedIn, View post, comments, Add me…), the most-clicked people and posts, top searches (and searches that found nothing), the top pages and the referring sites, for the last 24 hours, 7 days or 30 days.
+`/admin/stats` shows a funnel (visited → opened the form → made a card → contacted someone), visits, unique visitors, button clicks (WhatsApp, X, LinkedIn, View post, comments, Add me…), the most-clicked people and posts, top searches (and searches that found nothing), the top pages and the referring sites, for the last 24 hours, 7 days or 30 days.
 
 Tracking is built in and cookie-free. Each visitor is counted with an anonymous hash that changes daily. Bots and admin pages are not counted.
 

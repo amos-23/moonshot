@@ -201,3 +201,76 @@ export function MultiSelect({ id, name, options, initial = [], max, placeholder 
     </div>
   );
 }
+
+/**
+ * Photo picker that shrinks the picture on the phone before upload (≤ 720px JPEG), so it's
+ * quick on venue Wi-Fi. The result goes into a hidden "photo" field as a data URL.
+ */
+export function PhotoPicker({ current, error }: { current: string | null; error?: string }) {
+  const [preview, setPreview] = useState<string | null>(current);
+  const [data, setData] = useState("");
+  const [remove, setRemove] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  const pick = async (file: File | undefined) => {
+    if (!file) return;
+    setBusy(true);
+    setProblem(null);
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      const scale = Math.min(1, 720 / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(bitmap.width * scale);
+      canvas.height = Math.round(bitmap.height * scale);
+      canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const url = canvas.toDataURL("image/jpeg", 0.82);
+      setData(url);
+      setPreview(url);
+      setRemove(false);
+    } catch {
+      setProblem("That photo couldn't be opened. Try a JPEG or PNG.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-4">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {preview && !remove ? <img src={preview} alt="Your photo" className="h-20 w-20 shrink-0 rounded-2xl object-cover" /> : <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-dashed border-line text-2xl" aria-hidden>📸</span>}
+      <div className="min-w-0 space-y-1.5">
+        <label className={cx(buttonLike, busy && "opacity-50")}>
+          <input type="file" accept="image/*" className="sr-only" onChange={(e) => pick(e.target.files?.[0])} data-track="photo_pick" />
+          {busy ? "Preparing…" : preview && !remove ? "Change photo" : "Add a photo"}
+        </label>
+        {current && !data && (
+          <label className="flex items-center gap-2 text-xs text-muted">
+            <input type="checkbox" name="removePhoto" checked={remove} onChange={(e) => setRemove(e.target.checked)} /> Remove photo
+          </label>
+        )}
+        {(problem || error) && (
+          <p role="alert" className="text-xs text-red-600">
+            {problem ?? error}
+          </p>
+        )}
+      </div>
+      <input type="hidden" name="photo" value={data} />
+    </div>
+  );
+}
+
+const buttonLike = "inline-flex h-9 cursor-pointer items-center rounded-full border border-line bg-white px-4 text-sm font-semibold hover:border-ink/30 has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-flame/20";
+
+/** Scrolls itself into view when shown (e.g. the "share your card" box right after signing up). */
+export function ScrollIntoView({ children, className }: { children: ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, []);
+  return (
+    <div ref={ref} className={cx("scroll-mt-20", className)}>
+      {children}
+    </div>
+  );
+}

@@ -1,28 +1,57 @@
-import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { DB } from "@/lib/db";
 import * as s from "@/lib/db/schema";
 import type { Person } from "@/lib/db/schema";
 import { scoreMatch } from "@/lib/matching";
+import { FILTERS, isHereNow, matches, personText, postText, searchWords, type FilterKey } from "@/lib/search";
 import { detectThemes, parseXPostUrl, snowflakeToDate } from "@/lib/social/x-url";
+
+export type FeedItem =
+  | { kind: "person"; at: Date; person: Person; score: number; reasons: string[] }
+  | { kind: "x"; at: Date; post: s.SocialPost };
+
+export type FeedOptions = { q?: string; filter?: FilterKey; sort?: "match" | "new" };
+
+/**
+ * The home feed: cards people made plus "From X" cards, searched word by word (tags included),
+ * filtered, and sorted by fit ("match") or newest first ("new").
+ */
+export async function feed(db: DB, me: Person | null, opts: FeedOptions = {}) {
+  const words = searchWords(opts.q);
+  const [people, posts] = await Promise.all([
+    db.select().from(s.people).where(eq(s.people.hidden, false)).orderBy(desc(s.people.createdAt)).limit(2000),
+    listXCards(db),
+  ]);
+  const f = opts.filter && opts.filter !== "x" ? FILTERS[opts.filter] : null;
+
+  const personItems = (opts.filter === "x" ? [] : people)
+    .filter((p) => p.id !== me?.id && (!f || f.test(p)) && matches(personText(p), words))
+    .map((p) => ({ kind: "person" as const, at: p.createdAt, person: p, ...(me ? scoreMatch(me, p) : { score: 0, reasons: [] as string[] }) }));
+  const xItems = (f ? [] : posts)
+    .filter((p) => matches(postText(p), words))
+    .map((p) => ({ kind: "x" as const, at: p.postedAt ?? p.importedAt, post: p }));
+
+  const newest = (a: FeedItem, b: FeedItem) => b.at.getTime() - a.at.getTime();
+  const items: FeedItem[] =
+    opts.sort === "new"
+      ? [...personItems, ...xItems].sort(newest)
+      : [...personItems.sort((a, b) => b.score - a.score || Number(isHereNow(b.person)) - Number(isHereNow(a.person)) || newest(a, b)), ...xItems.sort(newest)];
+
+  // Supply vs demand for the scarce filters, e.g. "20 want investors · 1 investor here".
+  const gaps: Record<string, { have: number; want: number }> = {};
+  const counts: Record<string, number> = {};
+  for (const [key, def] of Object.entries(FILTERS)) {
+    counts[key] = people.filter(def.test).length;
+    if (def.wantedBy) gaps[key] = { have: counts[key], want: people.filter((p) => p.wants.includes(def.wantedBy!)).length };
+  }
+  counts.x = posts.length;
+  return { items, gaps, counts };
+}
 
 /** Cards people made, best fit first when we know who's looking. */
 export async function listPeople(db: DB, me: Person | null, q?: string) {
-  const term = q?.trim().slice(0, 80);
-  const rows = await db
-    .select()
-    .from(s.people)
-    .where(
-      and(
-        eq(s.people.hidden, false),
-        term ? or(ilike(s.people.name, `%${term}%`), ilike(s.people.headline, `%${term}%`), ilike(s.people.company, `%${term}%`), ilike(s.people.bio, `%${term}%`)) : undefined,
-      ),
-    )
-    .orderBy(desc(s.people.createdAt))
-    .limit(1000);
-  return rows
-    .filter((p) => p.id !== me?.id)
-    .map((p) => ({ person: p, ...(me ? scoreMatch(me, p) : { score: 0, reasons: [] as string[] }) }))
-    .sort((a, b) => b.score - a.score);
+  const { items } = await feed(db, me, { q, sort: "match" });
+  return items.flatMap((i) => (i.kind === "person" ? [{ person: i.person, score: i.score, reasons: i.reasons }] : []));
 }
 
 /**
@@ -30,7 +59,6 @@ export async function listPeople(db: DB, me: Person | null, q?: string) {
  * they published. Authors who made their own card are shown once, as their own card.
  */
 export async function listXCards(db: DB, q?: string) {
-  const term = q?.trim().slice(0, 80);
   const rows = await db
     .selectDistinctOn([sql`lower(${s.socialPosts.authorHandle})`])
     .from(s.socialPosts)
@@ -39,11 +67,13 @@ export async function listXCards(db: DB, q?: string) {
         eq(s.socialPosts.hidden, false),
         sql`${s.socialPosts.authorHandle} is not null`,
         sql`not exists (select 1 from ${s.people} p where lower(p.x_handle) = lower(${s.socialPosts.authorHandle}) and p.hidden = false)`,
-        term ? or(ilike(s.socialPosts.content, `%${term}%`), ilike(s.socialPosts.authorHandle, `%${term.replace(/^@/, "")}%`), ilike(s.socialPosts.authorName, `%${term}%`)) : undefined,
       ),
     )
     .orderBy(sql`lower(${s.socialPosts.authorHandle})`, desc(sql`coalesce(${s.socialPosts.postedAt}, ${s.socialPosts.importedAt})`));
-  return rows.sort((a, b) => (b.postedAt ?? b.importedAt).getTime() - (a.postedAt ?? a.importedAt).getTime());
+  const words = searchWords(q);
+  return rows
+    .filter((p) => matches(postText(p), words))
+    .sort((a, b) => (b.postedAt ?? b.importedAt).getTime() - (a.postedAt ?? a.importedAt).getTime());
 }
 
 /** Visible comments for the given posts, oldest first, grouped by post. */

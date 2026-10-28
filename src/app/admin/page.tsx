@@ -2,7 +2,7 @@ import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { isAdmin } from "@/lib/me";
-import { adminLogoutAction, resolveReportAction, setHiddenAction } from "@/lib/actions";
+import { adminLogoutAction, removePhotoAction, resolveReportAction, setHiddenAction } from "@/lib/actions";
 import { timeAgo } from "@/lib/time";
 import { AdminLogin, ImportForm } from "@/components/forms";
 import { ActionButton } from "@/components/client";
@@ -32,13 +32,24 @@ export default async function AdminPage() {
     ...comments.map((c) => [c.id, `Comment by ${c.name}: “${c.body.slice(0, 60)}”`] as const),
   ]);
 
-  const Row = ({ kind, id, title, sub, hidden }: { kind: "person" | "post" | "comment"; id: string; title: string; sub: string; hidden: boolean }) => (
+  const Row = ({ kind, id, title, sub, hidden, photo }: { kind: "person" | "post" | "comment"; id: string; title: string; sub: string; hidden: boolean; photo?: string | null }) => (
     <li>
       <Card className="flex flex-wrap items-center gap-3 p-3 text-sm">
+        {photo && (
+          <a href={photo} target="_blank" rel="noopener">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photo} alt="" className="h-10 w-10 rounded-lg object-cover" loading="lazy" />
+          </a>
+        )}
         <span className="min-w-0 flex-1">
           <span className="font-semibold">{title}</span> <span className="text-muted">{sub}</span>
         </span>
         {hidden && <Tag>hidden</Tag>}
+        {photo && (
+          <ActionButton action={removePhotoAction.bind(null, id)} variant="ghost" confirm="Remove this photo?">
+            Remove photo
+          </ActionButton>
+        )}
         <ActionButton action={setHiddenAction.bind(null, kind, id, !hidden)} variant={hidden ? "secondary" : "danger"}>
           {hidden ? "Unhide" : "Hide"}
         </ActionButton>
@@ -96,7 +107,7 @@ export default async function AdminPage() {
         <h2 className="mb-3 font-bold">Cards</h2>
         <ul className="space-y-2">
           {people.map((p) => (
-            <Row key={p.id} kind="person" id={p.id} title={p.name} sub={`${p.headline} · ${timeAgo(p.createdAt)}`} hidden={p.hidden} />
+            <Row key={p.id} kind="person" id={p.id} title={p.name} sub={`${p.headline} · ${timeAgo(p.createdAt)}${p.whereNote ? ` · 📍 ${p.whereNote}` : ""}`} hidden={p.hidden} photo={p.photoUpdatedAt ? `/photo/${p.id}?v=${p.photoUpdatedAt.getTime()}` : null} />
           ))}
         </ul>
       </section>
