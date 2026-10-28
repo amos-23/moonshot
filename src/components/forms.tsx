@@ -210,49 +210,68 @@ const DURATIONS = [
 export function CheckinForm({ me }: { me: { name: string } | null }) {
   const { state, pending, onSubmit, err } = useForm(checkInAction);
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-4">
-      <Field label="Where are you?" htmlFor="place" error={err("place")}>
-        <input id="place" name="place" maxLength={100} placeholder="Booth 14, Hall B · coffee stand · main hall front row" className={inputClass} aria-invalid={!!err("place")} />
-      </Field>
-      <Field label="Up for…" htmlFor="note" optional error={err("note")}>
-        <input id="note" name="note" maxLength={140} placeholder="Coffee and a chat about fintech · meeting founders · come say hi" className={inputClass} />
-      </Field>
-      <fieldset className="space-y-1.5">
-        <legend className="text-sm font-semibold">For how long?</legend>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {DURATIONS.map(([value, label]) => (
-            <label key={value} className="flex cursor-pointer items-center justify-center rounded-2xl border border-line bg-white px-3 py-2.5 text-sm has-[:checked]:border-ink has-[:checked]:bg-ink has-[:checked]:text-white has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-flame/20">
-              <input type="radio" name="for" value={value} defaultChecked={value === "2"} className="sr-only" />
-              {label}
+    <form onSubmit={onSubmit} noValidate className="space-y-3">
+      <div className={cx("grid gap-3", me ? "sm:grid-cols-[1fr_auto]" : "sm:grid-cols-[1fr_1fr_auto]")}>
+        <div>
+          <label htmlFor="place" className="sr-only">
+            Where are you?
+          </label>
+          <input id="place" name="place" maxLength={100} placeholder="Where are you? e.g. Booth 14, Hall B" className={inputClass} aria-invalid={!!err("place")} aria-label="Where are you?" />
+          {err("place") && <p className="mt-1 text-xs text-red-600">{err("place")}</p>}
+        </div>
+        {!me && (
+          <div>
+            <label htmlFor="ci-contact" className="sr-only">
+              Your X handle
             </label>
-          ))}
-        </div>
-      </fieldset>
-      {me ? (
-        <p className="text-sm text-muted">
-          Checking in as <span className="font-semibold text-ink">{me.name}</span>, with the contact on your card.
-        </p>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Your name" htmlFor="ci-name" error={err("name")}>
-            <input id="ci-name" name="name" maxLength={60} autoComplete="name" className={inputClass} aria-invalid={!!err("name")} />
-          </Field>
-          <Field label="How to reach you" htmlFor="ci-contact" error={err("contact")} hint="Your X handle, WhatsApp number or email. Shown on the board.">
-            <input id="ci-contact" name="contact" placeholder="@yourhandle or +234…" autoCapitalize="none" className={inputClass} aria-invalid={!!err("contact")} />
-          </Field>
-          <Field label="What you do" htmlFor="ci-headline" optional>
-            <input id="ci-headline" name="headline" maxLength={80} placeholder="Founder, payments startup" className={inputClass} />
-          </Field>
-        </div>
-      )}
-      <div className="flex items-center gap-3">
+            <input id="ci-contact" name="contact" placeholder="Your X handle, e.g. @you" autoCapitalize="none" className={inputClass} aria-invalid={!!err("contact")} aria-label="Your X handle" />
+            {err("contact") && <p className="mt-1 text-xs text-red-600">{err("contact")}</p>}
+          </div>
+        )}
         <Submit pending={pending} size="lg" className="shrink-0" data-track="checkin">
-          📍 Check in
+          📍 I&apos;m here
         </Submit>
-        <div className="min-w-0 text-sm">
-          <Status state={state} />
-        </div>
       </div>
+      {(err("name") || (state && !state.ok && !err("place") && !err("contact"))) && (
+        <p role="alert" className="text-sm text-red-600">
+          {err("name") ?? (state && !state.ok ? state.error : "")}
+        </p>
+      )}
+      <details className="text-sm" open={Boolean(err("name"))}>
+        <summary className="cursor-pointer text-muted">
+          {me ? (
+            <>
+              Checking in as <span className="font-semibold text-ink">{me.name}</span> · more options
+            </>
+          ) : (
+            "More options (name, what you're up for, how long)"
+          )}
+        </summary>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {!me && (
+            <Field label="Your name" htmlFor="ci-name" optional hint="Needed if you used a phone number or email above.">
+              <input id="ci-name" name="name" maxLength={60} autoComplete="name" className={inputClass} />
+            </Field>
+          )}
+          <Field label="Up for…" htmlFor="note" optional error={err("note")}>
+            <input id="note" name="note" maxLength={140} placeholder="Coffee and a chat about fintech" className={inputClass} />
+          </Field>
+          {!me && (
+            <Field label="What you do" htmlFor="ci-headline" optional>
+              <input id="ci-headline" name="headline" maxLength={80} placeholder="Founder, payments startup" className={inputClass} />
+            </Field>
+          )}
+          <Field label="For how long?" htmlFor="ci-for">
+            <select id="ci-for" name="for" defaultValue="2" className={inputClass}>
+              {DURATIONS.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      </details>
     </form>
   );
 }

@@ -165,6 +165,7 @@ export async function checkinExpiry(choice: string, now = new Date()): Promise<D
 }
 
 export async function checkInAction(_: Result | null, form: FormData): Promise<Result> {
+  const fail = (error: string, fields: Record<string, string>): Result => ({ ok: false, error, fields });
   const place = String(form.get("place") ?? "").trim();
   const note = String(form.get("note") ?? "").trim();
   if (!place) return { ok: false, error: "Say where people can find you.", fields: { place: "Where are you? e.g. “Booth 14, Hall B”" } };
@@ -177,12 +178,11 @@ export async function checkInAction(_: Result | null, form: FormData): Promise<R
     if (me) {
       who = { name: me.name, headline: me.headline, xHandle: me.xHandle, whatsapp: me.whatsapp, email: me.email, linkedinUrl: me.linkedinUrl, websiteUrl: me.websiteUrl };
     } else {
-      const name = String(form.get("name") ?? "").trim().slice(0, 60);
       const contact = parseContact(String(form.get("contact") ?? ""));
-      const fields: Record<string, string> = {};
-      if (!name) fields.name = "Add your name";
-      if (!contact) fields.contact = "Add your X handle, WhatsApp number or email so people can reach you";
-      if (!name || !contact) return { ok: false, error: "Almost there — check the highlighted fields.", fields };
+      if (!contact) return fail("Add your X handle so people can reach you.", { contact: "Add your X handle (or a WhatsApp number)" });
+      // An X handle doubles as a name; a phone number or email needs a name to go with it.
+      const name = String(form.get("name") ?? "").trim().slice(0, 60) || (contact.xHandle ? `@${contact.xHandle}` : "");
+      if (!name) return fail("Add your name under “More options” so people know who to look for.", { name: "Add your name" });
       who = { name, headline: String(form.get("headline") ?? "").trim().slice(0, 80) || null, ...contact };
     }
     if (!(await rateLimit("checkin", 30, 60))) return { ok: false, error: "Too many check-ins from this network — try again shortly." };

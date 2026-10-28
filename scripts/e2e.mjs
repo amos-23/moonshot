@@ -92,7 +92,7 @@ async function addCard(page, { name, headline, wants = [], offers = [], contact,
     await page.waitForURL(/\/meet/);
     await page.getByText(`Checking in as ${name}`).waitFor();
     await page.getByLabel("Where are you?").fill(where);
-    await page.getByRole("button", { name: "📍 Check in" }).click();
+    await page.getByRole("button", { name: "📍 I'm here" }).click();
     await page.waitForURL(/checked=1/);
   }
   if (photo || where) await page.goto(`${BASE}/?added=card`);
@@ -140,25 +140,36 @@ try {
   await adaSpot.getByText("Booth 14, Hall B").waitFor();
   assert.match(await adaSpot.getByRole("link", { name: "WhatsApp" }).getAttribute("href"), /wa\.me\/2348030000000\?text=.*Booth%2014/);
   const walker = await visitor();
+  const wh = `w_${run}`; // a unique X handle
   await walker.page.goto(`${BASE}/meet`);
   await walker.page.getByLabel("Where are you?").fill(`Coffee stand ${run}`);
-  await walker.page.getByRole("button", { name: "📍 Check in" }).click();
-  await walker.page.getByText(/add your name/i).first().waitFor(); // no card: name + contact needed
-  await walker.page.getByLabel("Your name").fill(`Walker ${run}`);
-  await walker.page.getByLabel("How to reach you").fill("@walker_demo");
-  await walker.page.getByLabel(/up for/i).fill("Chat about AI agents");
-  await walker.page.getByText("1 hour").click();
-  await walker.page.getByRole("button", { name: "📍 Check in" }).click();
+  await walker.page.getByRole("button", { name: "📍 I'm here" }).click();
+  await walker.page.getByText(/add your x handle/i).first().waitFor(); // no card: a handle is needed
+  await walker.page.getByLabel("Your X handle").fill(`@${wh}`);
+  await walker.page.getByRole("button", { name: "📍 I'm here" }).click(); // just two boxes
   await walker.page.waitForURL(/checked=1/);
   await walker.page.getByText(`You're checked in at Coffee stand ${run}`).waitFor();
   await anon.page.reload();
-  const walkerSpot = anon.page.locator("li", { hasText: `Walker ${run}` });
-  assert.equal(await walkerSpot.getByRole("link", { name: "@walker_demo" }).getAttribute("href"), "https://x.com/walker_demo");
+  const walkerSpot = anon.page.locator("li", { hasText: `@${wh}` });
+  assert.equal(await walkerSpot.getByRole("link", { name: `@${wh}` }).getAttribute("href"), `https://x.com/${wh}`);
+  assert.match(await walkerSpot.innerText(), /until/, "defaults to a time limit");
   await shot(anon.page, "10-meet");
   await walker.page.getByRole("button", { name: "I've left" }).click();
   await walker.page.getByText(`You're checked in at`).waitFor({ state: "detached" });
   await anon.page.reload();
-  assert.equal(await anon.page.locator("li", { hasText: `Walker ${run}` }).count(), 0, "left people drop off the board");
+  assert.equal(await anon.page.locator("li", { hasText: `@${wh}` }).count(), 0, "left people drop off the board");
+  // A phone number instead of a handle needs a name (under "More options").
+  await walker.page.goto(`${BASE}/meet`);
+  await walker.page.getByLabel("Where are you?").fill(`Food village ${run}`);
+  await walker.page.getByLabel("Your X handle").fill("+2348030001111");
+  await walker.page.getByRole("button", { name: "📍 I'm here" }).click();
+  await walker.page.getByText(/add your name/i).first().waitFor();
+  await walker.page.getByLabel(/your name/i).fill(`Walker ${run}`);
+  await walker.page.getByLabel(/for how long/i).selectOption("1");
+  await walker.page.getByRole("button", { name: "📍 I'm here" }).click();
+  await walker.page.waitForURL(/checked=1/);
+  await anon.page.reload();
+  await anon.page.locator("li", { hasText: `Walker ${run}` }).getByRole("link", { name: "WhatsApp" }).waitFor();
   await walker.ctx.close();
 
   step("filters, fresh feed, tag search and invites");
