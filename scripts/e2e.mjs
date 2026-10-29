@@ -21,6 +21,12 @@ const mobile = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, is
 const errors = [];
 // A normal browser user agent: the tracker ignores "HeadlessChrome" as a bot.
 const UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36";
+/** The Moments form is folded into a one-line "Share a photo, update or X post" row (open only while there are no moments yet). */
+async function openShare(page) {
+  if (!(await page.getByLabel(/what's happening/i).isVisible())) await page.locator("summary", { hasText: "Share a photo" }).click();
+  await page.getByLabel(/what's happening/i).waitFor();
+}
+
 async function visitor(opts = mobile) {
   const ctx = await browser.newContext({ userAgent: UA, ...opts });
   const page = await ctx.newPage();
@@ -189,6 +195,7 @@ try {
   await anon.page.goto(BASE);
   await anon.page.getByRole("link", { name: "📸 Moments" }).click();
   await anon.page.waitForURL(/\/moments/);
+  await openShare(anon.page);
   await anon.page.getByRole("button", { name: "Post", exact: true }).click();
   await anon.page.getByText("Add a photo, an X post link, or write something.").waitFor();
   await anon.page.getByLabel(/what's happening/i).fill(`The fintech panel is packed ${run}`);
@@ -203,6 +210,8 @@ try {
   assert.equal((await anon.page.request.get(`${BASE}${msrc}`)).headers()["content-type"], "image/jpeg");
 
   await bola.page.goto(`${BASE}/moments`);
+  assert.equal(await bola.page.getByLabel(/what's happening/i).isVisible(), false, "once there are moments, the form is folded into one line");
+  await openShare(bola.page);
   await bola.page.getByText(`Posting as Bola ${run}`).waitFor();
   await bola.page.getByLabel(/what's happening/i).fill(`Grabbing coffee ${run}`);
   await bola.page.getByLabel("Where?").fill("Food village");
@@ -214,6 +223,7 @@ try {
 
   step("an X post can be shared as a moment");
   await anon.page.goto(`${BASE}/moments`);
+  await openShare(anon.page);
   await anon.page.getByLabel(/share an x post/i).fill("https://example.com/nope");
   await anon.page.getByRole("button", { name: "Post", exact: true }).click();
   await anon.page.getByText("That isn't an X post link.").waitFor();

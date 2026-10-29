@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { ChevronDown, Plus } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { getMe } from "@/lib/me";
 import { listMoments } from "@/lib/data";
 import { MomentForm } from "@/components/forms";
 import { MomentCard } from "@/components/moment";
-import { Card, Empty, Notice, PageTitle } from "@/components/ui";
+import { Disclosure } from "@/components/client";
+import { Empty, Notice, PageTitle } from "@/components/ui";
 
 export const metadata = { title: "Moments", description: "Photos and updates from Moonshot 2026, shared by the people there." };
 
@@ -17,16 +19,29 @@ export default async function MomentsPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <PageTitle title="📸 Moments" sub="Photos, updates and X posts from Moonshot, shared by the people there. Anyone can post." />
+      <PageTitle title="📸 Moments" sub="Photos, updates and X posts from the people at Moonshot." />
       {sp.posted && (
         <div className="mb-4">
           <Notice tone="success">Posted! Thanks for sharing.</Notice>
         </div>
       )}
       {!before && (
-        <Card className="mb-8 p-5 sm:p-6">
+        <Disclosure
+          initialOpen={items.length === 0}
+          className="group mb-6 rounded-3xl border border-line bg-surface open:p-5 sm:open:p-6"
+          summaryClassName="flex cursor-pointer list-none items-center gap-2 rounded-3xl px-4 py-3 font-semibold group-open:mb-4 group-open:p-0 [&::-webkit-details-marker]:hidden"
+          summary={
+            <>
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-flame text-white">
+                <Plus size={18} aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1 truncate">Share a photo, update or X post</span>
+              <ChevronDown size={18} className="shrink-0 text-muted transition-transform group-open:rotate-180" aria-hidden />
+            </>
+          }
+        >
           <MomentForm myName={me?.name ?? null} />
-        </Card>
+        </Disclosure>
       )}
       {items.length === 0 ? (
         <Empty title={before ? "That's everything" : "No moments yet"}>{before ? "You've reached the first moment." : "Be the first to share what's happening at Moonshot."}</Empty>
