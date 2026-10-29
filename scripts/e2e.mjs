@@ -349,15 +349,26 @@ try {
   for (let i = 0; i < 5; i++) await anon.page.goto(`${BASE}/?q=${nothing}`);
   await anon.page.getByText(/no one matches/i).waitFor();
 
-  step("admin adds a moment, credited to a name");
+  step("admin adds a moment from just an X link, or an update with no credit");
   await admin.page.goto(`${BASE}/admin`);
   const adminMoment = admin.page.locator("form", { has: admin.page.locator('input[name="from"][value="admin"]') });
+  await adminMoment.getByLabel("X post link").fill("https://example.com/nope");
+  await adminMoment.getByRole("button", { name: "Add", exact: true }).click();
+  await adminMoment.getByText("That isn't an X post link.").waitFor();
+  await adminMoment.getByText("Or add a photo or update instead").click();
+  await adminMoment.getByLabel("X post link").fill("");
   await adminMoment.getByLabel(/what's happening/i).fill(`Doors open for day 2 ${run}`);
-  await adminMoment.getByRole("button", { name: "Post", exact: true }).click();
+  await adminMoment.getByRole("button", { name: "Add", exact: true }).click();
   await admin.page.waitForURL(/moment=1/);
   await anon.page.goto(`${BASE}/moments`);
   const am = anon.page.locator("li", { hasText: `Doors open for day 2 ${run}` });
-  await am.getByText("Moonshot Connect").waitFor();
+  await am.getByText("Someone at Moonshot").waitFor();
+  assert.equal(await am.getByText("Moonshot Connect").count(), 0, "no default credit");
+  await admin.page.goto(`${BASE}/admin`);
+  await adminMoment.getByLabel("X post link").fill(SAMPLE_POST);
+  await adminMoment.getByRole("button", { name: "Add", exact: true }).click();
+  const ax = await Promise.race([admin.page.waitForURL(/moment=1/).then(() => "added"), adminMoment.getByText(/couldn't load that x post/i).waitFor().then(() => "skipped")]);
+  if (ax === "skipped") console.log("  (X embed unreachable, skipped the X-link-only moment)");
 
   step("admin Stats shows visits, clicks and searches");
   await admin.page.goto(`${BASE}/admin/stats?days=1`);

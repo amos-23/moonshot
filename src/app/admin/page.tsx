@@ -4,7 +4,7 @@ import { getDb, schema } from "@/lib/db";
 import { isAdmin } from "@/lib/me";
 import { adminLogoutAction, removePhotoAction, resolveReportAction, setHiddenAction } from "@/lib/actions";
 import { formatTime, timeAgo } from "@/lib/time";
-import { AdminLogin, ImportForm, MomentForm } from "@/components/forms";
+import { AdminLogin, AdminMomentForm, ImportForm } from "@/components/forms";
 import { ActionButton } from "@/components/client";
 import { Button, Card, Notice, PageTitle, Tag } from "@/components/ui";
 
@@ -113,8 +113,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         </Card>
         <Card className="p-5">
           <h2 className="font-bold">Add a moment</h2>
-          <p className="mb-3 text-xs text-muted">A photo, an update, or an X post link. Shows in 📸 Moments.</p>
-          <MomentForm myName={null} admin />
+          <p className="mb-3 text-xs text-muted">Paste an X post link: its text, images and author show in 📸 Moments.</p>
+          <AdminMomentForm />
         </Card>
       </div>
       <section>

@@ -162,40 +162,75 @@ export function UpdateForm({ person }: { person: Person }) {
   );
 }
 
-export function MomentForm({ myName, admin }: { myName: string | null; admin?: boolean }) {
+export function MomentForm({ myName }: { myName: string | null }) {
   const { state, pending, onSubmit, err } = useForm(postMomentAction);
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-4">
-      {admin && <input type="hidden" name="from" value="admin" />}
       <PhotoPicker current={null} maxSide={1080} addLabel="Add a photo" wide error={err("photo")} />
-      <Field label="…or share an X post" htmlFor={admin ? "admin-xUrl" : "xUrl"} optional error={err("xUrl")} hint="Paste a link to a public post. Its text and images are shown with a link back to X.">
-        <input id={admin ? "admin-xUrl" : "xUrl"} name="xUrl" inputMode="url" placeholder="x.com/name/status/…" className={inputClass} />
+      <Field label="…or share an X post" htmlFor="xUrl" optional error={err("xUrl")} hint="Paste a link to a public post. Its text and images are shown with a link back to X.">
+        <input id="xUrl" name="xUrl" inputMode="url" placeholder="x.com/name/status/…" className={inputClass} />
       </Field>
-      <Field label="What's happening?" htmlFor={admin ? "admin-body" : "body"} optional error={err("body")}>
-        <textarea id={admin ? "admin-body" : "body"} name="body" rows={2} maxLength={280} placeholder="The fintech panel is packed 🔥" className={inputClass} />
+      <Field label="What's happening?" htmlFor="body" optional error={err("body")}>
+        <textarea id="body" name="body" rows={2} maxLength={280} placeholder="The fintech panel is packed 🔥" className={inputClass} />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Where?" htmlFor={admin ? "admin-place" : "place"} optional error={err("place")}>
-          <input id={admin ? "admin-place" : "place"} name="place" maxLength={100} placeholder="Main hall" className={inputClass} />
+        <Field label="Where?" htmlFor="place" optional error={err("place")}>
+          <input id="place" name="place" maxLength={100} placeholder="Main hall" className={inputClass} />
         </Field>
-        {myName && !admin ? (
+        {myName ? (
           <p className="self-end pb-3 text-sm text-muted">
             Posting as <span className="font-semibold text-ink">{myName}</span>
           </p>
         ) : (
-          <Field label={admin ? "Credit" : "Your name or @handle"} htmlFor={admin ? "admin-mname" : "mname"} optional>
-            <input id={admin ? "admin-mname" : "mname"} name="name" maxLength={40} defaultValue={admin ? "Moonshot Connect" : undefined} placeholder="@yourhandle" autoCapitalize="none" className={inputClass} />
+          <Field label="Your name or @handle" htmlFor="mname" optional>
+            <input id="mname" name="name" maxLength={40} placeholder="@yourhandle" autoCapitalize="none" className={inputClass} />
           </Field>
         )}
       </div>
       <div className="flex items-center gap-3">
-        <Submit pending={pending} size="lg" className="shrink-0" data-track={admin ? "admin_post_moment" : "post_moment"}>
+        <Submit pending={pending} size="lg" className="shrink-0" data-track="post_moment">
           Post
         </Submit>
         <div className="min-w-0 text-sm">
           <Status state={state} />
         </div>
       </div>
+    </form>
+  );
+}
+
+/** Admin: an X post link is all it takes. A photo or written update sits under "more options". */
+export function AdminMomentForm() {
+  const { state, pending, onSubmit, err } = useForm(postMomentAction);
+  return (
+    <form onSubmit={onSubmit} noValidate className="space-y-3">
+      <input type="hidden" name="from" value="admin" />
+      <div className="flex gap-2">
+        <input name="xUrl" inputMode="url" aria-label="X post link" placeholder="Paste an X post link" aria-invalid={!!err("xUrl")} className={cx(inputClass, "min-w-0 flex-1")} />
+        <Submit pending={pending} className="shrink-0" data-track="admin_post_moment">
+          Add
+        </Submit>
+      </div>
+      <div className="text-sm">
+        <Status state={state} />
+      </div>
+      <details className="text-sm">
+        <summary className="cursor-pointer text-muted">Or add a photo or update instead</summary>
+        <div className="mt-3 space-y-3">
+          <PhotoPicker current={null} maxSide={1080} addLabel="Add a photo" wide error={err("photo")} />
+          <Field label="What's happening?" htmlFor="admin-body" optional error={err("body")}>
+            <textarea id="admin-body" name="body" rows={2} maxLength={280} className={inputClass} />
+          </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Where?" htmlFor="admin-place" optional error={err("place")}>
+              <input id="admin-place" name="place" maxLength={100} className={inputClass} />
+            </Field>
+            <Field label="Credit" htmlFor="admin-mname" optional hint="A name or @handle. X posts are credited to their author.">
+              <input id="admin-mname" name="name" maxLength={40} autoCapitalize="none" className={inputClass} />
+            </Field>
+          </div>
+        </div>
+      </details>
     </form>
   );
 }
