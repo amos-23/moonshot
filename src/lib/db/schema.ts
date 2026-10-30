@@ -244,3 +244,16 @@ export const checkins = mc.table(
 );
 
 export type Checkin = typeof checkins.$inferSelect;
+
+// Optional sign-ups: an email (and a little about you) for future Moonshot Connect updates. Never required.
+export const signups = mc.table("signups", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(),
+  name: text("name"),
+  about: text("about"), // "what do you do?"
+  personId: uuid("person_id").references(() => people.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type Signup = typeof signups.$inferSelect;

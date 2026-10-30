@@ -21,13 +21,14 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     );
   }
   const db = await getDb();
-  const [reports, people, posts, comments, momentRows, liveCheckins] = await Promise.all([
+  const [reports, people, posts, comments, momentRows, liveCheckins, signups] = await Promise.all([
     db.select().from(schema.reports).where(eq(schema.reports.resolved, false)).orderBy(desc(schema.reports.createdAt)).limit(100),
     db.select().from(schema.people).orderBy(desc(schema.people.createdAt)).limit(500),
     db.select().from(schema.socialPosts).orderBy(desc(schema.socialPosts.importedAt)).limit(500),
     db.select().from(schema.comments).orderBy(desc(schema.comments.createdAt)).limit(300),
     db.select().from(schema.moments).orderBy(desc(schema.moments.createdAt)).limit(300),
     db.select().from(schema.checkins).where(sql`${schema.checkins.endedAt} is null and ${schema.checkins.expiresAt} > now()`).orderBy(desc(schema.checkins.createdAt)).limit(300),
+    db.select().from(schema.signups).orderBy(desc(schema.signups.createdAt)),
   ]);
   const label = new Map<string, string>([
     ...people.map((p) => [p.id, p.name] as const),
@@ -66,7 +67,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     <div className="mx-auto max-w-4xl space-y-8 px-4 py-8">
       <PageTitle
         title="Admin"
-        sub={`${people.length} cards · ${posts.length} X posts · ${momentRows.length} moments · ${comments.length} comments`}
+        sub={`${people.length} cards · ${posts.length} X posts · ${momentRows.length} moments · ${comments.length} comments · ${signups.length} sign-ups`}
         action={
           <div className="flex items-center gap-2">
           <Link href="/admin/stats" className="inline-flex h-9 items-center rounded-full bg-flame-700 px-4 text-sm font-semibold text-white">
@@ -117,6 +118,32 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <AdminMomentForm />
         </Card>
       </div>
+      <section>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="font-bold">Sign-ups · {signups.length}</h2>
+          {signups.length > 0 && (
+            <a href="/admin/signups.csv" className="text-sm font-semibold text-flame-700 underline">
+              Download CSV
+            </a>
+          )}
+        </div>
+        {signups.length === 0 ? (
+          <p className="text-sm text-muted">No sign-ups yet.</p>
+        ) : (
+          <ul className="divide-y divide-line rounded-2xl border border-line bg-white text-sm">
+            {signups.slice(0, 20).map((u) => (
+              <li key={u.id} className="flex flex-wrap items-baseline justify-between gap-x-3 px-4 py-2">
+                <span className="min-w-0 break-all">
+                  <span className="font-semibold">{u.name ?? "—"}</span> · {u.email}
+                  {u.about && <span className="text-muted"> · {u.about}</span>}
+                </span>
+                <span className="text-xs text-muted">{timeAgo(u.createdAt)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {signups.length > 20 && <p className="mt-2 text-xs text-muted">Showing the latest 20. The CSV has everyone.</p>}
+      </section>
       <section>
         <h2 className="mb-3 font-bold">Meet up check-ins (live)</h2>
         <p className="mb-2 text-xs text-muted">Check-ins hide automatically after 3 reports.</p>

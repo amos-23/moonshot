@@ -61,3 +61,9 @@ export function fieldErrors(error: z.ZodError): Record<string, string> {
   for (const i of error.issues) out[String(i.path[0] ?? "_form")] ??= i.message;
   return out;
 }
+
+export const signupSchema = z.object({
+  email: z.string().trim().toLowerCase().pipe(z.email("That email doesn't look right")),
+  name: text(60).transform((v) => v || null),
+  about: text(100).transform((v) => v || null),
+});

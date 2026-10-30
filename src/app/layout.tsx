@@ -4,7 +4,8 @@ import "./globals.css";
 import { UserRound } from "lucide-react";
 import { getMe } from "@/lib/me";
 import { Tracker } from "@/components/tracker";
-import { eventOver } from "@/lib/constants";
+import { cookies } from "next/headers";
+import { SIGNUP_COOKIE, eventOver } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ function Wordmark({ compact }: { compact?: boolean }) {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const me = await getMe().catch(() => null);
+  const signedUp = (await cookies()).get(SIGNUP_COOKIE)?.value === "1";
   return (
     <html lang="en">
       <body className="min-h-dvh antialiased">
@@ -50,6 +52,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Wordmark compact />
             </Link>
             <div className="flex items-center gap-2">
+              {!signedUp && (
+                <Link href="/signup" data-track="signup_header" className="px-1.5 text-sm font-semibold text-muted hover:text-ink">
+                  Sign up
+                </Link>
+              )}
               {!eventOver() && (
                 <Link href="/meet" data-track="meet_header" className="inline-flex h-10 items-center rounded-full bg-sun px-3.5 text-sm font-semibold text-ink hover:bg-[#ffb93d]">
                   📍 Meet up

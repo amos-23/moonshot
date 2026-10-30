@@ -339,6 +339,20 @@ try {
   await laptop.page.getByText(/isn.t valid/i).waitFor();
   await shot(ada.page, "03-my-card");
 
+  step("anyone can sign up from the header (optional, nothing needs it)");
+  await anon.page.goto(BASE);
+  await anon.page.getByRole("link", { name: "Sign up", exact: true }).click();
+  await anon.page.waitForURL(/\/signup/);
+  await anon.page.getByLabel("Email").fill("not-an-email");
+  await anon.page.getByRole("button", { name: "Sign up" }).click();
+  await anon.page.getByText("That email doesn't look right").first().waitFor();
+  await anon.page.getByLabel("Email").fill(`Fan.${run}@Example.com`);
+  await anon.page.getByLabel(/what do you do/i).fill("=Founder");
+  await anon.page.getByRole("button", { name: "Sign up" }).click();
+  await anon.page.getByText("You're signed up 🎉").waitFor();
+  await anon.page.goto(BASE);
+  assert.equal(await anon.page.getByRole("link", { name: "Sign up", exact: true }).count(), 0, "header link goes away after signing up");
+
   step("admin: wrong key refused; right key hides a card");
   const admin = await visitor({ viewport: { width: 1280, height: 900 } });
   await admin.page.goto(`${BASE}/admin`);
@@ -358,6 +372,13 @@ try {
   // Repeat it so it ranks in the top-10 list even with earlier test searches around.
   for (let i = 0; i < 5; i++) await anon.page.goto(`${BASE}/?q=${nothing}`);
   await anon.page.getByText(/no one matches|isn't here yet/i).waitFor();
+
+  step("admin sees sign-ups and can download them");
+  await admin.page.goto(`${BASE}/admin`);
+  await admin.page.getByText(`fan.${run}@example.com`).waitFor();
+  const csv = await (await admin.page.request.get(`${BASE}/admin/signups.csv`)).text();
+  assert.match(csv, new RegExp(`"fan\\.${run}@example\\.com",.*"'=Founder"`), "CSV has the sign-up, formula-safe");
+  assert.equal((await anon.page.request.get(`${BASE}/admin/signups.csv`)).status(), 404, "CSV is admin-only");
 
   step("admin adds moments from many X links at once, or an update with no credit");
   await admin.page.goto(`${BASE}/admin`);

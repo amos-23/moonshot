@@ -62,6 +62,8 @@ const CLICK_LABELS: Record<string, string> = {
   highlights_add: "Highlights: add yours (home)",
   highlights_empty: "Highlights: share yours (home, empty)",
   search_hero: "Find (home search)",
+  signup_header: "Sign up (header)",
+  signup_submit: "Sign up (submitted)",
   moments_strip_add: "Moments: add yours (home)",
   moments_empty_cta: "Moments: be the first (home)",
   moment_photo: "Opened a moment photo",
@@ -148,7 +150,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
         <Tile label="Clicks" value={st.totals.clicks} sub="buttons people pressed" />
         <Tile label="Searches" value={st.totals.searches} sub={`${st.emptySearches.reduce((a, r) => a + r.n, 0)} found nothing`} />
         <Tile label="Moments" value={st.added.moments} sub={`${st.added.momentPhotos} with photos`} />
-        <Tile label="New cards" value={st.added.cards} sub={`${st.added.posts} X post${st.added.posts === 1 ? "" : "s"} · ${st.added.comments} comment${st.added.comments === 1 ? "" : "s"}`} />
+        <Tile label="New cards" value={st.added.cards} sub={`${st.added.posts} X post${st.added.posts === 1 ? "" : "s"} · ${st.added.comments} comment${st.added.comments === 1 ? "" : "s"} · ${st.added.signups} sign-up${st.added.signups === 1 ? "" : "s"}`} />
       </div>
 
       <Card className="p-5">

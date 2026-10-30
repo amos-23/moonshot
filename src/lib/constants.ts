@@ -113,3 +113,6 @@ export const values = (options: Option[]) => options.map((o) => o.value) as [str
 
 /** Photos per moment. */
 export const MAX_MOMENT_PHOTOS = 4;
+
+/** Set after the optional sign-up, so the header link goes away. */
+export const SIGNUP_COOKIE = "mc_signed";

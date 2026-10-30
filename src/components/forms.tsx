@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef } from "react";
-import { addCommentAction, addXPostAction, adminLoginAction, checkInAction, importMomentsAction, importPostsAction, postMomentAction, saveCardAction, saveUpdateAction } from "@/lib/actions";
+import { addCommentAction, addXPostAction, adminLoginAction, checkInAction, importMomentsAction, importPostsAction, postMomentAction, signUpAction, saveCardAction, saveUpdateAction } from "@/lib/actions";
 import type { Person } from "@/lib/db/schema";
 import { MAX_MOMENT_PHOTOS, OFFERS, WANTS } from "@/lib/constants";
 import type { ImportResult } from "@/lib/data";
@@ -327,6 +328,43 @@ export function CheckinForm({ me }: { me: { name: string } | null }) {
           </Field>
         </div>
       </details>
+    </form>
+  );
+}
+
+export function SignupForm({ name, about }: { name: string; about: string }) {
+  const { state, pending, onSubmit, err } = useForm(signUpAction);
+  if (state?.ok)
+    return (
+      <div className="space-y-2 text-center">
+        <p className="text-lg font-bold">You&apos;re signed up 🎉</p>
+        <p className="text-sm text-muted">We&apos;ll be in touch when there&apos;s something new.</p>
+        <Link href="/" className="inline-block pt-2 text-sm font-semibold text-flame-700 underline">
+          Back to the site
+        </Link>
+      </div>
+    );
+  return (
+    <form onSubmit={onSubmit} noValidate className="space-y-4">
+      <Field label="Email" htmlFor="su-email" error={err("email")}>
+        <input id="su-email" name="email" type="email" inputMode="email" autoComplete="email" required className={inputClass} aria-invalid={!!err("email")} />
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Name" htmlFor="su-name" optional error={err("name")}>
+          <input id="su-name" name="name" maxLength={60} autoComplete="name" defaultValue={name} className={inputClass} />
+        </Field>
+        <Field label="What do you do?" htmlFor="su-about" optional error={err("about")}>
+          <input id="su-about" name="about" maxLength={100} defaultValue={about} placeholder="Founder, engineer, investor…" className={inputClass} />
+        </Field>
+      </div>
+      <div className="flex items-center gap-3">
+        <Submit pending={pending} variant="dark" data-track="signup_submit">
+          Sign up
+        </Submit>
+        <div className="min-w-0 text-sm">
+          <Status state={state} />
+        </div>
+      </div>
     </form>
   );
 }

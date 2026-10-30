@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { eventOver } from "@/lib/constants";
 import { scoreMatch, type MatchCard } from "@/lib/matching";
-import { cardSchema } from "@/lib/validation";
+import { cardSchema, signupSchema } from "@/lib/validation";
 import { detectMentions, parseXPostUrl, snowflakeToDate } from "@/lib/social/x-url";
 import { parseImport } from "@/lib/data";
 
@@ -132,5 +132,13 @@ describe("eventOver", () => {
     expect(eventOver(new Date("2026-10-28T12:00:00Z"))).toBe(true);
     if (prev === undefined) delete process.env.EVENT_MODE;
     else process.env.EVENT_MODE = prev;
+  });
+});
+
+describe("signupSchema", () => {
+  it("needs only a valid email; name and what you do are optional", () => {
+    expect(signupSchema.parse({ email: "  Ada@Example.COM ", name: "", about: "" })).toEqual({ email: "ada@example.com", name: null, about: null });
+    expect(signupSchema.safeParse({ email: "nope", name: "", about: "" }).success).toBe(false);
+    expect(signupSchema.safeParse({ email: "a@b.co", name: "x".repeat(61), about: "" }).success).toBe(false);
   });
 });

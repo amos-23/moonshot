@@ -5,14 +5,14 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { and, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import { cardSchema, fieldErrors, parseContact, type Contact } from "@/lib/validation";
+import { cardSchema, fieldErrors, parseContact, signupSchema, type Contact } from "@/lib/validation";
 import { clearCardCookie, getMe, hashToken, isAdmin, isAdminKey, newToken, rateLimit, setCardCookie } from "@/lib/me";
 import { UserError, attachDetails, importPosts, parseImport, type ImportResult } from "@/lib/data";
 import { fetchOEmbed, fetchPostDetails } from "@/lib/social/providers";
 import { parseXPostUrl, snowflakeToDate } from "@/lib/social/x-url";
 import { parsePhoto } from "@/lib/photo";
 import { clientIp, visitorHash } from "@/lib/track";
-import { MAX_MOMENT_PHOTOS, eventOver } from "@/lib/constants";
+import { MAX_MOMENT_PHOTOS, SIGNUP_COOKIE, eventOver } from "@/lib/constants";
 
 export type Result = { ok: true; message?: string; data?: unknown } | { ok: false; error: string; fields?: Record<string, string> };
 
@@ -203,6 +203,32 @@ export async function postMomentAction(_: Result | null, form: FormData): Promis
   refresh();
   if (result.ok) redirect(form.get("from") === "admin" ? "/admin?moment=1" : "/moments?posted=1");
   return result;
+}
+
+// ─── Sign up ─────────────────────────────────────────────────────────────────
+
+/** Optional sign-up for future updates. Nothing on the site needs it. Signing up again updates your details. */
+export async function signUpAction(_: Result | null, form: FormData): Promise<Result> {
+  const parsed = signupSchema.safeParse({ email: form.get("email") ?? "", name: form.get("name") ?? "", about: form.get("about") ?? "" });
+  if (!parsed.success) {
+    const fields = fieldErrors(parsed.error);
+    return { ok: false, error: Object.values(fields)[0] ?? "Check the form.", fields };
+  }
+  const { email, name, about } = parsed.data;
+  return guard(async () => {
+    if (!(await rateLimit("signup", 10, 60))) return { ok: false, error: "Too many sign-ups from this network — try again later." };
+    const db = await getDb();
+    const me = await getMe();
+    const now = new Date();
+    // Only fill in what was given, so a repeat sign-up never blanks earlier details.
+    const set = { updatedAt: now, ...(name && { name }), ...(about && { about }), ...(me && { personId: me.id }) };
+    await db
+      .insert(schema.signups)
+      .values({ email, name, about, personId: me?.id ?? null })
+      .onConflictDoUpdate({ target: schema.signups.email, set });
+    (await cookies()).set(SIGNUP_COOKIE, "1", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 365 });
+    return { ok: true, message: "You're signed up. Thanks!" };
+  });
 }
 
 // ─── Meet up ─────────────────────────────────────────────────────────────────
