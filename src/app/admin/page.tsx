@@ -81,6 +81,12 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </div>
         }
       />
+      {moment && <Notice tone="success">Moment added.</Notice>}
+      <Card className="p-5 sm:p-6">
+        <h2 className="text-lg font-bold">📸 Add moments</h2>
+        <p className="mb-3 text-sm text-muted">Paste an X post link (a recap, photos, a highlight) and it&apos;s added straight away. Keep pasting: one after another, or many at once.</p>
+        <AdminMomentForm />
+      </Card>
       <section>
         <h2 className="mb-3 font-bold">Reports ({reports.length})</h2>
         {reports.length === 0 ? (
@@ -105,19 +111,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </ul>
         )}
       </section>
-      {moment && <Notice tone="success">Moment added.</Notice>}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="p-5">
-          <h2 className="font-bold">Add people from X posts</h2>
-          <p className="mb-3 text-xs text-muted">Each post becomes a “From X” card in the People list.</p>
-          <ImportForm />
-        </Card>
-        <Card className="p-5">
-          <h2 className="font-bold">Add a moment</h2>
-          <p className="mb-3 text-xs text-muted">Paste X post links (recaps, photos, highlights): their text, images and author show in 📸 Moments.</p>
-          <AdminMomentForm />
-        </Card>
-      </div>
+      <Card className="p-5">
+        <h2 className="font-bold">Add people from X posts</h2>
+        <p className="mb-3 text-xs text-muted">Each post becomes a “From X” card in the People list.</p>
+        <ImportForm />
+      </Card>
       <section>
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="font-bold">Sign-ups · {signups.length}</h2>

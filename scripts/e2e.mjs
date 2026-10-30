@@ -404,10 +404,17 @@ try {
   // The sample post may already be a moment (shared above); either way it's in Moments now, unless X is unreachable.
   const xIn = (await admin.page.getByText(/^(1 added, 0|0 added, 1) already there/).count()) > 0;
   if (!xIn) console.log("  (X embed unreachable, skipped the X-link moment)");
-  // The same link again is skipped.
-  await admin.page.getByLabel("X post links for Moments").fill(SAMPLE_POST);
-  await admin.page.getByRole("button", { name: "Add", exact: true }).click();
-  if (xIn) await admin.page.getByText(/^0 added, 1 already there, 0/).waitFor();
+  // Pasting a link adds it straight away (no button); the same link again is skipped, and the box clears.
+  const linksBox = admin.page.getByLabel("X post links for Moments");
+  await linksBox.evaluate((el, text) => {
+    el.focus();
+    const dt = new DataTransfer();
+    dt.setData("text/plain", text);
+    el.value = text;
+    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true }));
+  }, SAMPLE_POST);
+  await admin.page.getByText(xIn ? /^0 added, 1 already there, 0/ : /^0 added, 0 already there, 1/).waitFor();
+  assert.equal(await linksBox.inputValue(), "", "the box clears for the next paste");
   const adminMoment = admin.page.locator("form", { has: admin.page.locator('input[name="from"][value="admin"]') });
   await admin.page.getByText("Or add a photo or update instead").click();
   await adminMoment.getByLabel(/what's happening/i).fill(`Doors open for day 2 ${run}`);

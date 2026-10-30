@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { addCommentAction, addXPostAction, adminLoginAction, checkInAction, importMomentsAction, importPostsAction, postMomentAction, signUpAction, saveCardAction, saveUpdateAction } from "@/lib/actions";
 import type { Person } from "@/lib/db/schema";
 import { MAX_MOMENT_PHOTOS, OFFERS, WANTS } from "@/lib/constants";
@@ -209,22 +209,43 @@ function ImportResults({ rows }: { rows: ImportResult[] }) {
 export function AdminMomentForm() {
   const links = useForm(importMomentsAction, { refresh: true });
   const { state, pending, onSubmit, err } = useForm(postMomentAction);
+  const linksForm = useRef<HTMLFormElement>(null);
+  // Every batch's results, newest first, so a run of pastes reads as one list.
+  const [log, setLog] = useState<ImportResult[]>([]);
+  useEffect(() => {
+    const st = links.state;
+    if (!st?.ok) return;
+    setLog((l) => [...(st.data as ImportResult[]), ...l].slice(0, 100));
+    const box = linksForm.current?.elements.namedItem("links") as HTMLTextAreaElement | null;
+    if (box) box.value = "";
+  }, [links.state]);
   return (
     <div className="space-y-3">
-      <form onSubmit={links.onSubmit} noValidate className="space-y-2">
+      <form ref={linksForm} onSubmit={links.onSubmit} noValidate className="space-y-2">
         <label htmlFor="admin-links" className="sr-only">
           X post links for Moments
         </label>
-        <textarea id="admin-links" name="links" rows={3} placeholder={"Paste X post links, one per line\nhttps://x.com/someone/status/…"} className={cx(inputClass, "font-mono text-xs")} />
+        <textarea
+          id="admin-links"
+          name="links"
+          rows={3}
+          placeholder={"Paste an X post link — it's added right away\nhttps://x.com/someone/status/…"}
+          className={cx(inputClass, "font-mono text-xs")}
+          // Pasting a post link adds it at once; typed links still use the button.
+          onPaste={(e) => {
+            if (!/\/status\/\d+/.test(e.clipboardData.getData("text"))) return;
+            setTimeout(() => !links.pending && linksForm.current?.requestSubmit(), 0);
+          }}
+        />
         <div className="flex items-center gap-3">
           <Submit pending={links.pending} className="shrink-0" data-track="admin_import_moments">
-            Add
+            {links.pending ? "Adding…" : "Add"}
           </Submit>
           <div className="min-w-0 text-sm">
             <Status state={links.state} />
           </div>
         </div>
-        <ImportResults rows={links.state?.ok ? (links.state.data as ImportResult[]) : []} />
+        <ImportResults rows={log} />
       </form>
       <details className="text-sm">
         <summary className="cursor-pointer text-muted">Or add a photo or update instead</summary>
