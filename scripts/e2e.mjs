@@ -342,12 +342,13 @@ try {
   await card(admin.page, `Bola ${run}`).getByRole("button", { name: "Hide" }).click();
   await card(admin.page, `Bola ${run}`).getByRole("button", { name: "Unhide" }).waitFor();
   await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`Bola ${run}`)}`);
-  await anon.page.getByText(/no one matches/i).waitFor();
+  // A name-like search with no result shows an invite instead of "no one matches".
+  await anon.page.getByText(/no one matches|isn't here yet/i).waitFor();
 
   const nothing = `zzz-nobody-${run}`;
   // Repeat it so it ranks in the top-10 list even with earlier test searches around.
   for (let i = 0; i < 5; i++) await anon.page.goto(`${BASE}/?q=${nothing}`);
-  await anon.page.getByText(/no one matches/i).waitFor();
+  await anon.page.getByText(/no one matches|isn't here yet/i).waitFor();
 
   step("admin adds a moment from just an X link, or an update with no credit");
   await admin.page.goto(`${BASE}/admin`);
@@ -389,7 +390,7 @@ try {
   await ada.page.getByRole("button", { name: "Delete my card" }).click();
   await ada.page.waitForURL((u) => new URL(u).pathname === "/");
   await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`Ada ${run}`)}`);
-  await anon.page.getByText(/no one matches/i).waitFor();
+  await anon.page.getByText(/no one matches|isn't here yet/i).waitFor();
 
   if (SHOTS) {
     await laptop.page.goto(BASE);

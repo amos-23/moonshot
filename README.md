@@ -12,6 +12,8 @@ A minimal, no-sign-up list of who's at **Moonshot by TechCabal** (National Theat
 - **Search** checks every word against names, roles, companies and tags (so "hiring" or "investors" work). A name that isn't found gets an "invite them" prompt.
 - **Best fits first,** with a one-line reason, e.g. "You want investors — Val offers investment".
 
+- **After Moonshot** (from midnight in Lagos after day 2) the homepage becomes "Find the people you met": a name search up top, Meet up is closed and hidden, and Moments stay in the header. Set `EVENT_MODE=live` or `EVENT_MODE=after` to override the date.
+
 This is an independent, community-made tool. It isn't run or endorsed by TechCabal, and it uses no TechCabal logos.
 
 ## How "no sign-up" works

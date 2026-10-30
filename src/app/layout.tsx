@@ -4,13 +4,21 @@ import "./globals.css";
 import { UserRound } from "lucide-react";
 import { getMe } from "@/lib/me";
 import { Tracker } from "@/components/tracker";
+import { eventOver } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: { default: "Moonshot Connect — meet the right people at Moonshot 2026", template: "%s · Moonshot Connect" },
-  description: "See who's going to Moonshot by TechCabal (Lagos, 28–29 Oct 2026) and reach the people worth meeting. No sign-up.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return eventOver()
+    ? {
+        title: { default: "Moonshot Connect — find the people you met at Moonshot 2026", template: "%s · Moonshot Connect" },
+        description: "Find and follow up with the people you met at Moonshot by TechCabal (Lagos, 28–29 Oct 2026). No sign-up.",
+      }
+    : {
+        title: { default: "Moonshot Connect — meet the right people at Moonshot 2026", template: "%s · Moonshot Connect" },
+        description: "See who's going to Moonshot by TechCabal (Lagos, 28–29 Oct 2026) and reach the people worth meeting. No sign-up.",
+      };
+}
 
 export const viewport: Viewport = { themeColor: "#e8502a", width: "device-width", initialScale: 1 };
 
@@ -42,9 +50,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Wordmark compact />
             </Link>
             <div className="flex items-center gap-2">
-              <Link href="/meet" data-track="meet_header" className="inline-flex h-10 items-center rounded-full bg-sun px-3.5 text-sm font-semibold text-ink hover:bg-[#ffb93d]">
-                📍 Meet up
-              </Link>
+              {!eventOver() && (
+                <Link href="/meet" data-track="meet_header" className="inline-flex h-10 items-center rounded-full bg-sun px-3.5 text-sm font-semibold text-ink hover:bg-[#ffb93d]">
+                  📍 Meet up
+                </Link>
+              )}
               <Link href="/moments" data-track="moments_header" className="inline-flex h-10 items-center rounded-full bg-flame-700 px-3.5 text-sm font-semibold text-white hover:bg-flame">
                 📸 Moments
               </Link>

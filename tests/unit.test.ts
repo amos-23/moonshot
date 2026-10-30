@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { eventOver } from "@/lib/constants";
 import { scoreMatch, type MatchCard } from "@/lib/matching";
 import { cardSchema } from "@/lib/validation";
 import { detectMentions, parseXPostUrl, snowflakeToDate } from "@/lib/social/x-url";
@@ -116,5 +117,20 @@ describe("X post images", () => {
   });
   it("computes the embed token like X's widget", () => {
     expect(syndicationToken("2114706863631572995")).toMatch(/^[0-9a-z]+$/);
+  });
+});
+
+describe("eventOver", () => {
+  it("switches to the after-Moonshot site at midnight in Lagos after day 2, unless EVENT_MODE says otherwise", () => {
+    const prev = process.env.EVENT_MODE;
+    delete process.env.EVENT_MODE;
+    expect(eventOver(new Date("2026-10-29T22:59:00Z"))).toBe(false);
+    expect(eventOver(new Date("2026-10-29T23:00:00Z"))).toBe(true);
+    process.env.EVENT_MODE = "live";
+    expect(eventOver(new Date("2026-11-05T12:00:00Z"))).toBe(false);
+    process.env.EVENT_MODE = "after";
+    expect(eventOver(new Date("2026-10-28T12:00:00Z"))).toBe(true);
+    if (prev === undefined) delete process.env.EVENT_MODE;
+    else process.env.EVENT_MODE = prev;
   });
 });

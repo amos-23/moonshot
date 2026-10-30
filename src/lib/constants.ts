@@ -93,7 +93,16 @@ export const EVENT = {
   dates: "28–29 October 2026",
   venue: "National Theatre, Lagos",
   url: "https://moonshot.techcabal.com",
+  /** Midnight in Lagos after day 2. */
+  endsAt: new Date("2026-10-29T23:00:00Z"),
 };
+
+/** After Moonshot the site switches to "find the people you met". EVENT_MODE=live|after overrides the date. */
+export function eventOver(now = new Date()) {
+  const mode = process.env.EVENT_MODE;
+  if (mode === "live" || mode === "after") return mode === "after";
+  return now >= EVENT.endsAt;
+}
 
 export function labelFor(options: Option[], value: string | null | undefined): string {
   if (!value) return "";

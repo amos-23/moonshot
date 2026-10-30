@@ -8,7 +8,7 @@ import { after } from "next/server";
 import { backfillImages, refreshLive } from "@/lib/social/live";
 import { recordSearch } from "@/lib/track";
 import { siteOrigin } from "@/lib/site";
-import { EVENT } from "@/lib/constants";
+import { EVENT, eventOver } from "@/lib/constants";
 import { PersonCard, XCard } from "@/components/person";
 import { momentImage, momentWho } from "@/components/moment";
 import { ShareButtons } from "@/components/share";
@@ -23,6 +23,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
   const filter = isFilter(sp.f) ? sp.f : undefined;
   const db = await getDb();
   const me = await getMe();
+  const over = eventOver();
   // "For you" needs a card to match against; without one, show the newest first.
   const sort = sp.sort === "new" || sp.sort === "match" ? sp.sort : me ? "match" : "new";
   await refreshLive(db).catch(() => null); // no-op unless X_BEARER_TOKEN is set
@@ -31,8 +32,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
   const { items, gaps, counts } = await feed(db, me, { q, filter, sort });
   const [comments, moments, checkins] = await Promise.all([
     commentsFor(db, items.flatMap((i) => (i.kind === "x" ? [i.post.id] : []))),
-    q || filter ? Promise.resolve([]) : listMoments(db, { limit: 12 }),
-    listCheckins(db),
+    q || filter || over ? Promise.resolve([]) : listMoments(db, { limit: 12 }),
+    over ? Promise.resolve([]) : listCheckins(db),
   ]);
   if (q) await recordSearch(q, items.length);
   const origin = await siteOrigin();
@@ -49,26 +50,57 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
 
   return (
     <div>
+      {!(over && (q || filter)) && (
       <section className="relative overflow-hidden bg-flame text-white">
         <Sunburst className="absolute inset-x-0 bottom-0 h-full w-full" />
         <div className="relative mx-auto max-w-6xl px-4 py-12 text-center sm:py-16">
-          <p className="text-xs font-bold uppercase tracking-[0.2em]">
-            {EVENT.dates} · {EVENT.venue}
-          </p>
-          <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-black uppercase leading-[0.95] tracking-tight sm:text-6xl">Who&apos;s at Moonshot</h1>
-          <p className="mx-auto mt-3 max-w-md font-medium">Find people worth meeting and reach them directly. No sign-up.</p>
-          <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <LinkButton href="/meet" variant="dark" size="lg" data-track="meet_hero">
-              📍 Meet someone now{checkins.length ? ` · ${checkins.length} around` : ""}
-            </LinkButton>
-            {!me && (
-              <LinkButton href="/card" variant="secondary" size="lg" data-track="add_yourself_hero">
-                Add yourself
+          {over ? (
+            <>
+              <p className="text-xs font-bold uppercase tracking-[0.2em]">Moonshot 2026 · thanks for coming</p>
+              <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-black uppercase leading-[0.95] tracking-tight sm:text-6xl">Find the people you met</h1>
+              <p className="mx-auto mt-3 max-w-md font-medium">Everyone who added themselves at Moonshot is still here. Search a name and follow up.</p>
+              <form role="search" method="get" className="mx-auto mt-6 flex max-w-xl gap-2">
+                <label className="relative flex-1">
+                  <span className="sr-only">Search a name</span>
+                  <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted" aria-hidden />
+                  <input name="q" defaultValue={q} placeholder="Who did you meet?" className={`${inputClass} pl-11 text-ink`} />
+                </label>
+                <Button type="submit" variant="dark" data-track="search_hero">
+                  Find
+                </Button>
+              </form>
+              {!me && (
+                <p className="mt-4 text-sm font-medium">
+                  Not on the list?{" "}
+                  <Link href="/card" className="underline" data-track="add_yourself_hero">
+                    Add yourself
+                  </Link>{" "}
+                  so the people you met can find you.
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+            <p className="text-xs font-bold uppercase tracking-[0.2em]">
+              {EVENT.dates} · {EVENT.venue}
+            </p>
+            <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-black uppercase leading-[0.95] tracking-tight sm:text-6xl">Who&apos;s at Moonshot</h1>
+            <p className="mx-auto mt-3 max-w-md font-medium">Find people worth meeting and reach them directly. No sign-up.</p>
+            <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <LinkButton href="/meet" variant="dark" size="lg" data-track="meet_hero">
+                📍 Meet someone now{checkins.length ? ` · ${checkins.length} around` : ""}
               </LinkButton>
-            )}
-          </div>
+              {!me && (
+                <LinkButton href="/card" variant="secondary" size="lg" data-track="add_yourself_hero">
+                  Add yourself
+                </LinkButton>
+              )}
+            </div>
+            </>
+          )}
         </div>
       </section>
+      )}
 
       <div className="mx-auto max-w-6xl px-4 py-8">
         {sp.added && (
@@ -77,7 +109,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
             <p className="font-semibold text-emerald-900">
               {sp.added === "x" ? "Your post is on the list." : sp.added === "update" ? "Photo saved — it's on your card now." : "You're on the list! Now tell people where to find you."}
             </p>
-            {sp.added === "card" && me && (
+            {sp.added === "card" && me && !over && (
               <div className="flex flex-wrap gap-2">
                 <LinkButton href="/meet" size="sm" data-track="meet_after_signup">
                   📍 Check in to meet people now
@@ -98,7 +130,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
           </ScrollIntoView>
         )}
 
-        {!q && !filter && (
+        {!q && !filter && !over && (
           <section aria-labelledby="moments-h" className="mb-8">
             <div className="mb-3 flex items-end justify-between">
               <h2 id="moments-h" className="text-lg font-extrabold uppercase">
@@ -146,7 +178,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
           </section>
         )}
 
-        <form role="search" method="get" className="mb-4 flex gap-2">
+        <form role="search" method="get" className={cx("mb-4 flex gap-2", over && !q && !filter && "hidden")}>
           {filter && <input type="hidden" name="f" value={filter} />}
           {sp.sort && <input type="hidden" name="sort" value={sp.sort} />}
           <label className="relative flex-1">
@@ -163,9 +195,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
           <Link href={href({ f: undefined })} className={chip(!filter)} aria-current={!filter ? "page" : undefined}>
             All
           </Link>
+          {!over && (
           <Link href="/meet" className="shrink-0 rounded-full bg-sun px-3.5 py-1.5 text-sm font-semibold text-ink" data-track="meet_chip">
             📍 Around now <span className="text-ink/60">{checkins.length}</span>
           </Link>
+          )}
           {Object.entries(FILTERS).map(([key, def]) => (
             <Link key={key} href={href({ f: filter === key ? undefined : key })} className={chip(filter === key)} aria-current={filter === key ? "page" : undefined} data-track={`filter_${key}`}>
               {def.label} <span className={filter === key ? "text-white/70" : "text-muted"}>{counts[key]}</span>
@@ -217,9 +251,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
           q && looksLikeName ? (
             <Card className="p-6 text-center">
               <p className="text-lg font-bold">“{q}” isn&apos;t here yet</p>
-              <p className="mx-auto mt-1 max-w-md text-sm text-muted">Invite them, so you (and everyone else at Moonshot) can find them.</p>
+              <p className="mx-auto mt-1 max-w-md text-sm text-muted">{over ? "Invite them to add themselves, so you can find them here." : "Invite them, so you (and everyone else at Moonshot) can find them."}</p>
               <div className="mt-4 flex justify-center">
-                <ShareButtons track="invite" text={`${q}, I'm looking for you on Moonshot Connect. Add yourself so people at Moonshot can find you:`} url={`${origin}/card`} />
+                <ShareButtons track="invite" text={`${q}, I'm looking for you on Moonshot Connect. Add yourself so people ${over ? "you met at" : "at"} Moonshot can find you:`} url={`${origin}/card`} />
               </div>
             </Card>
           ) : (

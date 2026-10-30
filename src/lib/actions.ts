@@ -12,6 +12,7 @@ import { fetchOEmbed, fetchPostDetails } from "@/lib/social/providers";
 import { parseXPostUrl, snowflakeToDate } from "@/lib/social/x-url";
 import { parsePhoto } from "@/lib/photo";
 import { clientIp, visitorHash } from "@/lib/track";
+import { eventOver } from "@/lib/constants";
 
 export type Result = { ok: true; message?: string; data?: unknown } | { ok: false; error: string; fields?: Record<string, string> };
 
@@ -165,6 +166,7 @@ export async function checkinExpiry(choice: string, now = new Date()): Promise<D
 }
 
 export async function checkInAction(_: Result | null, form: FormData): Promise<Result> {
+  if (eventOver()) return { ok: false, error: "Moonshot is over, so Meet up has closed." };
   const fail = (error: string, fields: Record<string, string>): Result => ({ ok: false, error, fields });
   const place = String(form.get("place") ?? "").trim();
   const note = String(form.get("note") ?? "").trim();

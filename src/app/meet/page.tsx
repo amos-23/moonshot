@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { Clock, MapPin } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { getMe } from "@/lib/me";
+import { eventOver } from "@/lib/constants";
 import { listCheckins } from "@/lib/data";
 import { endCheckinAction } from "@/lib/actions";
 import { formatTime, timeAgo } from "@/lib/time";
@@ -15,6 +16,23 @@ export const metadata = { title: "Meet up", description: "Who's around at Moonsh
 
 export default async function MeetPage({ searchParams }: { searchParams: Promise<{ checked?: string }> }) {
   const { checked } = await searchParams;
+  if (eventOver()) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-8">
+        <PageTitle title="📍 Meet up" />
+        <Empty
+          title="Moonshot is over — thanks for coming!"
+          action={
+            <Link href="/" className="font-semibold text-flame-700 underline">
+              Find the people you met →
+            </Link>
+          }
+        >
+          Meet up was for finding each other during the event.
+        </Empty>
+      </div>
+    );
+  }
   const db = await getDb();
   const [me, checkins] = await Promise.all([getMe(), listCheckins(db)]);
   const myCheckinId = (await cookies()).get("mc_checkin")?.value;
