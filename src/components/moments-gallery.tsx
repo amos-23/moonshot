@@ -27,6 +27,72 @@ function Img({ m, i = 0, className, eager }: { m: MomentView; i?: number; classN
   );
 }
 
+/**
+ * Two rows of photos drifting in opposite directions under the title, slightly tilted. Each row is
+ * the list twice over, so sliding it by half loops seamlessly. Hover pauses; a tap opens the photo.
+ */
+function FilmStrip({ moments, onOpen }: { moments: MomentView[]; onOpen: (id: string) => void }) {
+  const pics = moments.filter((m) => m.images.length).slice(0, 16);
+  if (pics.length < 4) return null;
+  const half = Math.ceil(pics.length / 2);
+  const rows = [pics.slice(0, half), pics.slice(half).length >= 2 ? pics.slice(half) : [...pics].reverse()];
+  return (
+    <div aria-label="Moments in motion" className="film-strip relative -mx-4 mb-8 overflow-hidden py-3 [mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)] sm:mb-10">
+      <div className="-rotate-2 scale-[1.06] space-y-3">
+        {rows.map((row, r) => (
+          <div key={r} className={cx("film-row flex w-max gap-3", r === 1 && "film-row-reverse")} style={{ animationDuration: `${Math.max(28, row.length * 7)}s` }}>
+            {[...row, ...row].map((m, i) => {
+              const copy = i >= row.length; // the second copy is only there to make the loop seamless
+              return (
+                <button
+                  key={`${m.id}-${i}`}
+                  type="button"
+                  onClick={() => onOpen(m.id)}
+                  tabIndex={copy ? -1 : undefined}
+                  aria-hidden={copy || undefined}
+                  aria-label={copy ? undefined : label(m)}
+                  data-track="moments_strip_open"
+                  data-track-id={m.id}
+                  className={cx("group relative h-28 shrink-0 overflow-hidden rounded-2xl ring-1 ring-white/10 sm:h-40", i % 3 === 0 ? "aspect-[4/5]" : i % 3 === 1 ? "aspect-[3/2]" : "aspect-square")}
+                >
+                  <Img m={m} className="h-full w-full object-cover transition duration-500 group-hover:scale-110" />
+                  {m.video && <span aria-hidden className="absolute bottom-1.5 right-1.5 grid h-6 w-6 place-items-center rounded-full bg-black/50 text-white"><Play size={11} fill="currentColor" /></span>}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Tiles rise into place as they scroll into view (those already on screen show straight away). */
+function useReveal<T extends HTMLElement>(deps: unknown) {
+  const root = useRef<T>(null);
+  useEffect(() => {
+    const el = root.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const items = Array.from(el.querySelectorAll<HTMLElement>("[data-reveal]:not(.in)"));
+    const io = new IntersectionObserver(
+      (entries) =>
+        entries.forEach((e) => {
+          if (!e.isIntersecting) return;
+          e.target.classList.add("in");
+          io.unobserve(e.target);
+        }),
+      { rootMargin: "0px 0px -8% 0px" },
+    );
+    for (const item of items) {
+      if (item.getBoundingClientRect().top < window.innerHeight) item.classList.add("in");
+      else io.observe(item);
+    }
+    el.classList.add("motion-ready");
+    return () => io.disconnect();
+  }, [deps]);
+  return root;
+}
+
 function PlayBadge({ gif, big }: { gif: boolean; big?: boolean }) {
   if (gif) return null;
   return (
@@ -108,6 +174,9 @@ export function MomentsGallery({ moments, featured, myName, shareOpen, posted, t
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const wallRef = useReveal<HTMLUListElement>(wall);
+  const openById = (id: string) => show(ordered.findIndex((m) => m.id === id));
+
   return (
     <>
       <section className="relative overflow-hidden">
@@ -125,6 +194,7 @@ export function MomentsGallery({ moments, featured, myName, shareOpen, posted, t
             <Plus size={18} aria-hidden /> Add your moment
           </button>
         </div>
+        <FilmStrip moments={ordered} onOpen={openById} />
       </section>
 
       <div className="mx-auto max-w-6xl px-4 pb-24">
@@ -138,7 +208,7 @@ export function MomentsGallery({ moments, featured, myName, shareOpen, posted, t
             className="moment-rise group relative mb-4 block overflow-hidden rounded-[28px] bg-white/5 ring-1 ring-white/10 sm:mb-6"
           >
             {featured.images.length ? (
-              <Img m={featured} eager className="aspect-[4/5] w-full object-cover transition duration-700 group-hover:scale-[1.03] sm:aspect-[21/9]" />
+              <Img m={featured} eager className="ken-burns aspect-[4/5] w-full object-cover sm:aspect-[21/9]" />
             ) : (
               // A pinned words-only moment: a big warm quote card instead of a photo.
               <span aria-hidden className="block aspect-[4/5] w-full bg-gradient-to-br from-flame via-[#ef6a2c] to-sun sm:aspect-[21/9]" />
@@ -162,9 +232,9 @@ export function MomentsGallery({ moments, featured, myName, shareOpen, posted, t
             <p className="mt-1 text-white/60">Be the first to share a photo or highlight from Moonshot.</p>
           </div>
         ) : (
-          <ul className="columns-2 gap-3 sm:gap-4 md:columns-3 lg:columns-4 [&>li]:mb-3 [&>li]:break-inside-avoid sm:[&>li]:mb-4">
+          <ul ref={wallRef} className="columns-2 gap-3 sm:gap-4 md:columns-3 lg:columns-4 [&>li]:mb-3 [&>li]:break-inside-avoid sm:[&>li]:mb-4">
             {wall.map((m, i) => (
-              <li key={m.id} id={`m-${m.id}`} className="moment-rise" style={{ animationDelay: `${Math.min(i, 12) * 50}ms` }}>
+              <li key={m.id} id={`m-${m.id}`} data-reveal style={{ transitionDelay: `${(i % 4) * 70}ms` }}>
                 <a
                   href={`#m-${m.id}`}
                   onClick={(e) => (e.preventDefault(), show(featured ? i + 1 : i))}

@@ -82,3 +82,51 @@ body:has([data-dark-page]) > footer {
 body:has([data-dark-page]) > footer p {
   border-color: rgb(255 255 255 / 0.08);
 }
+
+/* Moments in motion: a drifting film strip, a slow pan on the featured photo, tiles rising in on scroll. */
+@keyframes film-drift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes ken-burns {
+  from {
+    transform: scale(1.02) translate(0, 0);
+  }
+  to {
+    transform: scale(1.14) translate(-2%, -3%);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .film-row {
+    animation: film-drift 40s linear infinite;
+  }
+  .film-row-reverse {
+    animation-direction: reverse;
+  }
+  .film-strip:hover .film-row,
+  .film-strip:focus-within .film-row {
+    animation-play-state: paused;
+  }
+  .ken-burns {
+    animation: ken-burns 22s ease-in-out infinite alternate;
+  }
+  [data-reveal] {
+    transition:
+      opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+      transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .motion-ready > [data-reveal]:not(.in) {
+    opacity: 0;
+    transform: translateY(28px) scale(0.97);
+  }
+}
+/* Without motion the strip is a plain row people can swipe through. */
+@media (prefers-reduced-motion: reduce) {
+  .film-strip {
+    overflow-x: auto;
+  }
+}
