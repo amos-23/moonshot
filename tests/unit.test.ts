@@ -176,12 +176,18 @@ describe("parseSyndication: engagement and video", () => {
 });
 
 describe("Featured scoring", () => {
-  const m = (o: Partial<{ xLikes: number; xReplies: number; xVerified: boolean; xAuthorHandle: string | null; xHandle: string | null }> = {}) => ({ xLikes: 0, xReplies: 0, xVerified: false, xAuthorHandle: null, xHandle: null, ...o });
+  const NOW = Date.parse("2026-11-10T12:00:00Z");
+  const old = new Date(NOW - 10 * 86_400_000);
+  const m = (o: Partial<{ xLikes: number; xReplies: number; xVerified: boolean; xAuthorHandle: string | null; xHandle: string | null; createdAt: Date }> = {}) => ({ xLikes: 0, xReplies: 0, xVerified: false, xAuthorHandle: null, xHandle: null, createdAt: old, ...o });
   it("weighs likes, replies and opens here, and boosts your top accounts most", () => {
-    expect(momentScore(m({ xLikes: 10, xReplies: 2 }), 1, new Set())).toBe(10 + 4 + 5 + 1);
-    expect(momentScore(m({ xLikes: 10, xAuthorHandle: "TechCabal" }), 0, new Set(["techcabal"]))).toBe(11 * 4);
-    expect(momentScore(m({ xLikes: 10, xVerified: true }), 0, new Set())).toBeCloseTo(11 * 1.25);
-    expect(momentScore(m(), 3, new Set())).toBe(16); // an uploaded photo competes on opens
+    expect(momentScore(m({ xLikes: 10, xReplies: 2 }), 1, new Set(), NOW)).toBe(10 + 4 + 5 + 1);
+    expect(momentScore(m({ xLikes: 10, xAuthorHandle: "TechCabal" }), 0, new Set(["techcabal"]), NOW)).toBe(11 * 4);
+    expect(momentScore(m({ xLikes: 10, xVerified: true }), 0, new Set(), NOW)).toBeCloseTo(11 * 1.25);
+    expect(momentScore(m(), 3, new Set(), NOW)).toBe(16); // an uploaded photo competes on opens
+  });
+  it("counts moments added in the last 48 hours double", () => {
+    expect(momentScore(m({ xLikes: 9, createdAt: new Date(NOW - 47 * 3600_000) }), 0, new Set(), NOW)).toBe(20);
+    expect(momentScore(m({ xLikes: 9, createdAt: new Date(NOW - 49 * 3600_000) }), 0, new Set(), NOW)).toBe(10);
   });
   it("reads handles from any list", () => {
     expect(parseHandles("@TechCabal, ada\n@Ada  bola_x")).toEqual(["techcabal", "ada", "bola_x"]);
@@ -189,7 +195,7 @@ describe("Featured scoring", () => {
   it("rotates every 30 minutes, the same for everyone in a window", () => {
     const t = 1_800_000_000_000;
     expect(rotationIndex(5, t)).toBe(rotationIndex(5, t + 1000));
-    const picks = new Set(Array.from({ length: 20 }, (_, i) => rotationIndex(5, t + i * ROTATE_MS)));
+    const picks = new Set(Array.from({ length: 20 }, (_, i) => rotationIndex(10, t + i * ROTATE_MS)));
     expect(picks.size).toBeGreaterThan(2);
     expect(rotationIndex(1, t)).toBe(0);
   });

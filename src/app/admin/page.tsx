@@ -101,7 +101,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             {featured.reason === "pinned" ? (
               <span className="font-semibold text-flame-700">pinned by you (unpin it in the Moments list below)</span>
             ) : (
-              <span className="text-muted">auto: rotates every 30 minutes among the top {featured.candidates} by likes, replies and opens</span>
+              <span className="text-muted">auto: rotates every 30 minutes among the top {featured.candidates} by likes, replies and opens (anything added in the last 48 hours counts double)</span>
             )}
           </p>
         ) : (

@@ -176,14 +176,15 @@ describe("Featured", () => {
     const popular = await add({ xPostUrl: "https://x.com/a/status/10", xAuthorHandle: "a", xMedia: ["https://pbs.twimg.com/media/a.jpg"], xLikes: 500 });
     const official = await add({ xPostUrl: "https://x.com/TechCabal/status/11", xAuthorHandle: "TechCabal", xMedia: ["https://pbs.twimg.com/media/b.jpg"], xLikes: 200 });
     const photo = await add({ hasPhoto: true, photoCount: 1 });
-    for (let i = 0; i < 6; i++) await add({ xPostUrl: `https://x.com/q/status/${20 + i}`, xAuthorHandle: "q", xMedia: ["https://pbs.twimg.com/media/q.jpg"], xLikes: i });
+    for (let i = 0; i < 12; i++) await add({ xPostUrl: `https://x.com/q/status/${20 + i}`, xAuthorHandle: "q", xMedia: ["https://pbs.twimg.com/media/q.jpg"], xLikes: i });
 
-    // Only the top 5 rotate; text-only moments never feature.
+    // Only the top 10 rotate; text-only moments never feature.
     const seen = new Set<string>();
     for (let k = 0; k < 40; k++) seen.add((await pickFeatured(db, Date.now() + k * 30 * 60_000))!.item.moment.id);
     expect(seen.has(textOnly.id)).toBe(false);
     expect(seen.has(popular.id)).toBe(true);
-    expect(seen.size).toBeLessThanOrEqual(5);
+    expect(seen.size).toBeLessThanOrEqual(10);
+    expect(seen.size).toBeGreaterThan(5);
 
     // Opens on the site lift an uploaded photo into the top 5.
     await db.insert(schema.events).values(Array.from({ length: 60 }, () => ({ type: "click", path: "/moments", visitor: "v", target: "moment_open", targetId: photo.id })));

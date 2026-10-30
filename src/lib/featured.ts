@@ -3,12 +3,14 @@ import type { DB } from "@/lib/db";
 import * as s from "@/lib/db/schema";
 import { listMoments, type MomentItem } from "@/lib/data";
 
-// Featured on Moments: an admin's pin wins; otherwise one of the top 5 moments by engagement,
+// Featured on Moments: an admin's pin wins; otherwise one of the top 10 moments by engagement,
 // rotating every 30 minutes (everyone sees the same one at the same time).
 
 export const TOP_ACCOUNTS_KEY = "top_accounts";
 export const ROTATE_MS = 30 * 60_000;
-const TOP_N = 5;
+const TOP_N = 10;
+// Moments added in the last 48 hours count double, so new recaps get a turn without burying the classics.
+export const FRESH_MS = 48 * 3600_000;
 
 /** "@a, b\nc" → ["a", "b", "c"] (lowercase, valid X handles only, no repeats). */
 export function parseHandles(text: string): string[] {
@@ -26,12 +28,13 @@ const hasImage = (m: s.Moment) => m.photoCount > 0 || m.hasPhoto || m.xMedia.len
 /**
  * How much a moment deserves the spotlight: likes and replies on X, plus how often people opened it
  * here (so uploaded photos can compete). Posts from your top accounts get a strong boost; verified
- * accounts a small one.
+ * accounts a small one; anything added in the last 48 hours counts double.
  */
-export function momentScore(m: Pick<s.Moment, "xLikes" | "xReplies" | "xVerified" | "xAuthorHandle" | "xHandle">, opens: number, top: Set<string>): number {
+export function momentScore(m: Pick<s.Moment, "xLikes" | "xReplies" | "xVerified" | "xAuthorHandle" | "xHandle" | "createdAt">, opens: number, top: Set<string>, now = Date.now()): number {
   const handle = (m.xAuthorHandle ?? m.xHandle ?? "").toLowerCase();
   const boost = handle && top.has(handle) ? 4 : m.xVerified ? 1.25 : 1;
-  return (m.xLikes + 2 * m.xReplies + 5 * opens + 1) * boost;
+  const fresh = now - m.createdAt.getTime() < FRESH_MS ? 2 : 1;
+  return (m.xLikes + 2 * m.xReplies + 5 * opens + 1) * boost * fresh;
 }
 
 /** Same pick for everyone within a 30-minute window; a different one (when there's a choice) the next. */
@@ -56,7 +59,7 @@ export async function pickFeatured(db: DB, now = Date.now()): Promise<FeaturedPi
   const [top, opens] = await Promise.all([getTopAccounts(db), momentOpens(db, withImages.map((i) => i.moment.id), now)]);
   const topSet = new Set(top);
   const ranked = withImages
-    .map((i) => ({ i, score: momentScore(i.moment, opens.get(i.moment.id) ?? 0, topSet) }))
+    .map((i) => ({ i, score: momentScore(i.moment, opens.get(i.moment.id) ?? 0, topSet, now) }))
     // Ties go to the newer moment.
     .sort((a, b) => b.score - a.score || b.i.moment.createdAt.getTime() - a.i.moment.createdAt.getTime())
     .slice(0, TOP_N);
