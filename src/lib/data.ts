@@ -131,6 +131,48 @@ export async function listMoments(db: DB, opts: { limit?: number; before?: Date 
     .map((r) => ({ moment: r.moment, author: r.aid ? { id: r.aid, name: r.aname!, headline: r.aheadline!, xHandle: r.ax } : null }));
 }
 
+export type MomentPerson = { key: string; name: string; q: string };
+
+/**
+ * The people a moment is about, so a photo leads to someone you can follow up with: who posted it on X
+ * and anyone it @mentions, when they have a card (or a "From X" card) on the site. Up to 4 each.
+ */
+export async function momentPeople(db: DB, items: MomentItem[]): Promise<Map<string, MomentPerson[]>> {
+  const handlesOf = (m: s.Moment, author: MomentItem["author"]) => {
+    const found = [m.xAuthorHandle, m.xHandle, author?.xHandle, ...[...`${m.body} ${m.xText ?? ""}`.matchAll(/@([A-Za-z0-9_]{1,15})/g)].map((x) => x[1])];
+    return Array.from(new Set(found.filter((h): h is string => Boolean(h)).map((h) => h.toLowerCase())));
+  };
+  const all = Array.from(new Set(items.flatMap((i) => handlesOf(i.moment, i.author))));
+  const [people, posts] = all.length
+    ? await Promise.all([
+        db
+          .select({ id: s.people.id, name: s.people.name, x: s.people.xHandle })
+          .from(s.people)
+          .where(and(eq(s.people.hidden, false), inArray(sql`lower(${s.people.xHandle})`, all))),
+        db
+          .select({ name: s.socialPosts.authorName, x: s.socialPosts.authorHandle })
+          .from(s.socialPosts)
+          .where(and(eq(s.socialPosts.hidden, false), inArray(sql`lower(${s.socialPosts.authorHandle})`, all))),
+      ])
+    : [[], []];
+  const byHandle = new Map<string, MomentPerson>();
+  for (const p of posts) if (p.x) byHandle.set(p.x.toLowerCase(), { key: `x:${p.x.toLowerCase()}`, name: p.name ?? `@${p.x}`, q: p.x });
+  // A real card wins over a "From X" card for the same handle.
+  for (const p of people) if (p.x) byHandle.set(p.x.toLowerCase(), { key: p.id, name: p.name, q: p.x });
+
+  const out = new Map<string, MomentPerson[]>();
+  for (const { moment, author } of items) {
+    // A card holder's own name already links to their card, so they aren't repeated here.
+    const list: MomentPerson[] = [];
+    for (const h of handlesOf(moment, author)) {
+      const p = byHandle.get(h);
+      if (p && p.key !== author?.id && !list.some((x) => x.key === p.key)) list.push(p);
+    }
+    if (list.length) out.set(moment.id, list.slice(0, 4));
+  }
+  return out;
+}
+
 /** Active "Meet up" check-ins (not expired or ended), newest first. */
 export async function listCheckins(db: DB, now = new Date()) {
   const rows = await db

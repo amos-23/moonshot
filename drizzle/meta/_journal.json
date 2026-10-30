@@ -64,6 +64,13 @@
       "when": 1793223024791,
       "tag": "0008_moment_x_posts",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793329137000,
+      "tag": "0009_moment_photos_multi",
+      "breakpoints": true
     }
   ]
 }

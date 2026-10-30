@@ -5,7 +5,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/lib/db/schema";
 import type { DB } from "@/lib/db";
-import { backfillDetails, commentsFor, importPosts, listMoments, listPeople, listXCards } from "@/lib/data";
+import { backfillDetails, commentsFor, importPosts, listMoments, listPeople, listXCards, momentPeople } from "@/lib/data";
 import { siteStats } from "@/lib/stats";
 
 let db: DB;
@@ -135,5 +135,31 @@ describe("moments", () => {
     expect(items[1].author?.name).toBe("Moment Maker");
     expect(items[2].author).toBeNull();
     await expect(db.insert(schema.moments).values({ body: "", hasPhoto: false, visitor: "v" })).rejects.toThrow();
+  });
+});
+
+describe("moments and people", () => {
+  it("links a moment to its poster and the people it @mentions who are on the site", async () => {
+    const tola = await person({ name: "Tola Card", xHandle: "TolaC" });
+    await person({ name: "Hidden Mention", xHandle: "hidem", hidden: true });
+    await importPosts(db, [{ url: "https://x.com/kunle_x/status/1853000000000000000", content: "Moonshot!" }]);
+    const [m] = await db
+      .insert(schema.moments)
+      .values({ xPostUrl: "https://x.com/someone/status/2", xAuthorHandle: "someone", xText: "Great day with @tolac, @Kunle_X, @hidem and @nobody", visitor: "v", photoCount: 0 })
+      .returning();
+    await db.insert(schema.moments).values({ body: "two photos", hasPhoto: true, photoCount: 2, visitor: "v" });
+    const items = await listMoments(db);
+    const ppl = await momentPeople(db, items);
+    expect(ppl.get(m.id)?.map((p) => p.name)).toEqual(["Tola Card", "@kunle_x"]);
+    expect(ppl.get(m.id)?.[0]).toMatchObject({ key: tola.id, q: "TolaC" });
+  });
+
+  it("stores several photos per moment, in order", async () => {
+    const [m] = await db.insert(schema.moments).values({ body: "gallery", hasPhoto: true, photoCount: 2, visitor: "v" }).returning();
+    await db.insert(schema.momentPhotos).values([
+      { momentId: m.id, position: 0, mime: "image/jpeg", data: "AA==" },
+      { momentId: m.id, position: 1, mime: "image/jpeg", data: "AQ==" },
+    ]);
+    await expect(db.insert(schema.momentPhotos).values({ momentId: m.id, position: 1, mime: "image/jpeg", data: "Ag==" })).rejects.toThrow();
   });
 });

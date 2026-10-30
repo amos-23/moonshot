@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { getMe } from "@/lib/me";
-import { commentsFor, feed, listCheckins, listMoments } from "@/lib/data";
+import { commentsFor, feed, listCheckins, listMoments, type MomentItem } from "@/lib/data";
 import { FILTERS, isFilter, searchWords } from "@/lib/search";
 import { after } from "next/server";
 import { backfillImages, refreshLive } from "@/lib/social/live";
@@ -32,7 +32,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
   const { items, gaps, counts } = await feed(db, me, { q, filter, sort });
   const [comments, moments, checkins] = await Promise.all([
     commentsFor(db, items.flatMap((i) => (i.kind === "x" ? [i.post.id] : []))),
-    q || filter || over ? Promise.resolve([]) : listMoments(db, { limit: 12 }),
+    q || filter ? Promise.resolve([]) : listMoments(db, { limit: over ? 40 : 12 }),
     over ? Promise.resolve([]) : listCheckins(db),
   ]);
   if (q) await recordSearch(q, items.length);
@@ -128,6 +128,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
             )}
           </div>
           </ScrollIntoView>
+        )}
+
+        {!q && !filter && over && (
+          <Highlights moments={moments} />
         )}
 
         {!q && !filter && !over && (
@@ -278,5 +282,57 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
         )}
       </div>
     </div>
+  );
+}
+
+/** After Moonshot: a grid of the best-looking moments (photos first), right under "Find the people you met". */
+function Highlights({ moments }: { moments: MomentItem[] }) {
+  const withImages = moments.filter((m) => momentImage(m));
+  const tiles = [...withImages, ...moments.filter((m) => !momentImage(m))].slice(0, 8);
+  return (
+    <section aria-labelledby="highlights-h" className="mb-10">
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <h2 id="highlights-h" className="text-lg font-extrabold uppercase">
+          📸 Highlights
+        </h2>
+        <span className="flex shrink-0 gap-3 text-sm font-semibold">
+          <Link href="/moments?share=1" className="text-muted hover:text-ink" data-track="highlights_add">
+            ＋ Add yours
+          </Link>
+          {moments.length > 0 && (
+            <Link href="/moments" className="text-flame-700 hover:underline" data-track="highlights_all">
+              See all →
+            </Link>
+          )}
+        </span>
+      </div>
+      {tiles.length === 0 ? (
+        <Link href="/moments?share=1" className="block rounded-3xl border border-dashed border-line bg-white p-6 text-center text-sm text-muted hover:border-ink/30" data-track="highlights_empty">
+          Share your photos and highlights from Moonshot →
+        </Link>
+      ) : (
+        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {tiles.map((item) => {
+            const img = momentImage(item);
+            return (
+              <li key={item.moment.id}>
+                <Link href={`/moments#m-${item.moment.id}`} data-track="highlights_tile" data-track-id={item.moment.id} className="relative block aspect-square overflow-hidden rounded-2xl bg-ink text-white">
+                  {img ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={img} alt={(item.moment.body || item.moment.xText || "").slice(0, 100)} loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-cover transition-transform hover:scale-105" />
+                  ) : (
+                    <span className="line-clamp-6 p-3 text-sm font-medium">{item.moment.body || item.moment.xText}</span>
+                  )}
+                  <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/70 to-transparent px-2.5 pb-2 pt-6 text-xs font-semibold">
+                    {item.moment.xPostUrl ? "𝕏 " : ""}
+                    {momentWho(item)}
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }

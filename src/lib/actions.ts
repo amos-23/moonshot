@@ -7,12 +7,12 @@ import { and, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { cardSchema, fieldErrors, parseContact, type Contact } from "@/lib/validation";
 import { clearCardCookie, getMe, hashToken, isAdmin, isAdminKey, newToken, rateLimit, setCardCookie } from "@/lib/me";
-import { UserError, attachDetails, importPosts, parseImport } from "@/lib/data";
+import { UserError, attachDetails, importPosts, parseImport, type ImportResult } from "@/lib/data";
 import { fetchOEmbed, fetchPostDetails } from "@/lib/social/providers";
 import { parseXPostUrl, snowflakeToDate } from "@/lib/social/x-url";
 import { parsePhoto } from "@/lib/photo";
 import { clientIp, visitorHash } from "@/lib/track";
-import { eventOver } from "@/lib/constants";
+import { MAX_MOMENT_PHOTOS, eventOver } from "@/lib/constants";
 
 export type Result = { ok: true; message?: string; data?: unknown } | { ok: false; error: string; fields?: Record<string, string> };
 
@@ -89,20 +89,81 @@ export async function saveUpdateAction(_: Result | null, form: FormData): Promis
   return result;
 }
 
-/** Moments: anyone can post a photo and/or a short update. A card is optional. */
+/** Copies an X post's text, images and author from X (it must be public). Null when it can't be loaded. */
+async function xMomentFields(xPost: NonNullable<ReturnType<typeof parseXPostUrl>>) {
+  const [embed, details] = await Promise.all([fetchOEmbed(xPost.url), fetchPostDetails(xPost.id)]);
+  if (!embed?.text && !details?.media.length) return null;
+  return {
+    xPostUrl: xPost.url,
+    xAuthorHandle: xPost.handle,
+    xAuthorName: embed?.authorName ?? null,
+    xText: embed?.text?.slice(0, 1000) ?? null,
+    xMedia: details?.media ?? [],
+    xAvatarUrl: details?.avatarUrl ?? null,
+    xPostedAt: snowflakeToDate(xPost.id),
+  };
+}
+
+/** Admin: add many X posts as moments at once (one link per line). Posts already in Moments are skipped. */
+export async function importMomentsAction(_: Result | null, form: FormData): Promise<Result> {
+  return guard(async () => {
+    const db = await requireAdmin();
+    const lines = Array.from(new Set(String(form.get("links") ?? "").split(/[\s,]+/).map((l) => l.trim()).filter(Boolean))).slice(0, 50);
+    if (!lines.length) return { ok: false, error: "Paste at least one X post link." };
+    const existing = new Set((await db.select({ url: schema.moments.xPostUrl }).from(schema.moments).where(sql`${schema.moments.xPostUrl} is not null`)).map((r) => r.url));
+    const results: ImportResult[] = [];
+    const h = await headers();
+    const visitor = visitorHash(clientIp(h), h.get("user-agent") ?? "");
+    // A few at a time, oldest first, so the newest post ends up on top of Moments.
+    const todo: { input: string; post: NonNullable<ReturnType<typeof parseXPostUrl>> }[] = [];
+    for (const input of lines) {
+      const post = parseXPostUrl(input);
+      if (!post) results.push({ input, status: "invalid", message: "Not an X post link" });
+      else if (existing.has(post.url)) results.push({ input, status: "duplicate" });
+      else {
+        existing.add(post.url);
+        todo.push({ input, post });
+      }
+    }
+    todo.sort((a, b) => (BigInt(a.post.id) < BigInt(b.post.id) ? -1 : 1));
+    for (let i = 0; i < todo.length; i += 4) {
+      const batch = todo.slice(i, i + 4);
+      const fetched = await Promise.all(batch.map((t) => xMomentFields(t.post)));
+      for (const [j, t] of batch.entries()) {
+        const fields = fetched[j];
+        if (!fields) {
+          results.push({ input: t.input, status: "invalid", message: "Couldn't load it (is it public?)" });
+          continue;
+        }
+        await db.insert(schema.moments).values({ ...fields, body: "", visitor });
+        results.push({ input: t.input, status: "added" });
+      }
+    }
+    const n = (st: string) => results.filter((r) => r.status === st).length;
+    refresh();
+    return { ok: true, message: `${n("added")} added, ${n("duplicate")} already there, ${n("invalid")} couldn't be added.`, data: results };
+  });
+}
+
+/** Moments: anyone can post photos and/or a short update. A card is optional. */
 export async function postMomentAction(_: Result | null, form: FormData): Promise<Result> {
   const body = String(form.get("body") ?? "").trim();
   const place = String(form.get("place") ?? "").trim();
   const rawName = String(form.get("name") ?? "").trim();
-  const rawPhoto = String(form.get("photo") ?? "");
   if (body.length > 280) return { ok: false, error: "Keep it under 280 characters.", fields: { body: "Keep it under 280 characters." } };
   if (place.length > 100) return { ok: false, error: "Keep the place short.", fields: { place: "Keep it under 100 characters." } };
-  const photo = rawPhoto ? parsePhoto(rawPhoto) : null;
-  if (photo && "error" in photo) return { ok: false, error: photo.error, fields: { photo: photo.error } };
+  const rawPhotos = form.getAll("photo").map(String).filter(Boolean);
+  if (rawPhotos.length > MAX_MOMENT_PHOTOS) return { ok: false, error: `Up to ${MAX_MOMENT_PHOTOS} photos.`, fields: { photo: `Up to ${MAX_MOMENT_PHOTOS} photos.` } };
+  const photos: { mime: string; data: string }[] = [];
+  for (const raw of rawPhotos) {
+    const photo = parsePhoto(raw);
+    if ("error" in photo) return { ok: false, error: photo.error, fields: { photo: photo.error } };
+    photos.push(photo);
+  }
   const rawX = String(form.get("xUrl") ?? "").trim();
   const xPost = rawX ? parseXPostUrl(rawX) : null;
   if (rawX && !xPost) return { ok: false, error: "That isn't an X post link.", fields: { xUrl: "Paste a link like x.com/name/status/123…" } };
-  if (!photo && !body && !xPost) return { ok: false, error: "Add a photo, an X post link, or write something." };
+  if (!photos.length && !body && !xPost) return { ok: false, error: "Add a photo, an X post link, or write something." };
   // "@handle" credits an X account; anything else is shown as a plain name.
   const handle = rawName.match(/^@?([A-Za-z0-9_]{1,15})$/) && rawName.startsWith("@") ? rawName.slice(1) : null;
   const name = handle ? null : rawName.slice(0, 40) || null;
@@ -119,17 +180,9 @@ export async function postMomentAction(_: Result | null, form: FormData): Promis
     // An X post moment copies the post's text, images and author from X (it must be public).
     let x = {};
     if (xPost) {
-      const [embed, details] = await Promise.all([fetchOEmbed(xPost.url), fetchPostDetails(xPost.id)]);
-      if (!embed?.text && !details?.media.length) return { ok: false, error: "We couldn't load that X post. Is it public?", fields: { xUrl: "We couldn't load that post." } };
-      x = {
-        xPostUrl: xPost.url,
-        xAuthorHandle: xPost.handle,
-        xAuthorName: embed?.authorName ?? null,
-        xText: embed?.text?.slice(0, 1000) ?? null,
-        xMedia: details?.media ?? [],
-        xAvatarUrl: details?.avatarUrl ?? null,
-        xPostedAt: snowflakeToDate(xPost.id),
-      };
+      const fields = await xMomentFields(xPost);
+      if (!fields) return { ok: false, error: "We couldn't load that X post. Is it public?", fields: { xUrl: "We couldn't load that post." } };
+      x = fields;
     }
     const [m] = await db
       .insert(schema.moments)
@@ -140,11 +193,12 @@ export async function postMomentAction(_: Result | null, form: FormData): Promis
         xHandle: me ? null : handle,
         body,
         place: place || null,
-        hasPhoto: Boolean(photo),
+        hasPhoto: photos.length > 0,
+        photoCount: photos.length,
         visitor: visitorHash(clientIp(h), h.get("user-agent") ?? ""),
       })
       .returning({ id: schema.moments.id });
-    if (photo) await db.insert(schema.momentPhotos).values({ momentId: m.id, ...photo });
+    if (photos.length) await db.insert(schema.momentPhotos).values(photos.map((p, position) => ({ momentId: m.id, position, ...p })));
   });
   refresh();
   if (result.ok) redirect(form.get("from") === "admin" ? "/admin?moment=1" : "/moments?posted=1");

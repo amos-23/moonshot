@@ -202,6 +202,77 @@ export function MultiSelect({ id, name, options, initial = [], max, placeholder 
   );
 }
 
+/** Shrinks a photo on the phone before upload (JPEG, longest side ≤ maxSide, ≈600 KB at most). */
+async function shrinkPhoto(file: File, maxSide: number) {
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  let url = canvas.toDataURL("image/jpeg", 0.82);
+  // Keep uploads small enough for the server (≈600 KB): retry at lower quality if needed.
+  for (const q of [0.7, 0.55]) if (url.length > 760_000) url = canvas.toDataURL("image/jpeg", q);
+  return url;
+}
+
+/** Up to `max` photos, each shrunk on the phone first. Each goes into its own hidden "photo" field. */
+export function MultiPhotoPicker({ max, maxSide = 1080, error }: { max: number; maxSide?: number; error?: string }) {
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  const pick = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setBusy(true);
+    setProblem(null);
+    const room = max - photos.length;
+    const added: string[] = [];
+    for (const file of Array.from(files).slice(0, room)) {
+      try {
+        added.push(await shrinkPhoto(file, maxSide));
+      } catch {
+        setProblem("One photo couldn't be opened. Try a JPEG or PNG.");
+      }
+    }
+    if (files.length > room) setProblem(`Up to ${max} photos.`);
+    setPhotos((p) => [...p, ...added].slice(0, max));
+    setBusy(false);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {photos.map((src, i) => (
+          <span key={i} className="relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={src} alt={`Your photo ${i + 1}`} className="h-24 w-24 rounded-2xl object-cover" />
+            <button type="button" onClick={() => setPhotos((p) => p.filter((_, j) => j !== i))} aria-label={`Remove photo ${i + 1}`} className="absolute -right-1.5 -top-1.5 grid h-6 w-6 place-items-center rounded-full bg-ink text-xs text-white">
+              ✕
+            </button>
+            <input type="hidden" name="photo" value={src} />
+          </span>
+        ))}
+        {photos.length < max && (
+          <label className={cx("flex h-24 w-24 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-2xl border border-dashed border-line text-center text-xs font-semibold text-muted hover:border-ink/30", busy && "opacity-50")}>
+            <input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => (pick(e.target.files), (e.target.value = ""))} data-track="photo_pick" aria-label="Add photos" />
+            <span className="text-2xl" aria-hidden>
+              📸
+            </span>
+            {busy ? "Preparing…" : photos.length ? "Add more" : `Add photos`}
+          </label>
+        )}
+      </div>
+      <p className="text-xs text-muted">Up to {max} photos.</p>
+      {(problem || error) && (
+        <p role="alert" className="text-xs text-red-600">
+          {problem ?? error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
  * Photo picker that shrinks the picture on the phone before upload (≤ 720px JPEG), so it's
  * quick on venue Wi-Fi. The result goes into a hidden "photo" field as a data URL.
@@ -218,15 +289,7 @@ export function PhotoPicker({ current, error, maxSide = 720, addLabel = "Add a p
     setBusy(true);
     setProblem(null);
     try {
-      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-      const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(bitmap.width * scale);
-      canvas.height = Math.round(bitmap.height * scale);
-      canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-      let url = canvas.toDataURL("image/jpeg", 0.82);
-      // Keep uploads small enough for the server (≈600 KB): retry at lower quality if needed.
-      for (const q of [0.7, 0.55]) if (url.length > 760_000) url = canvas.toDataURL("image/jpeg", q);
+      const url = await shrinkPhoto(file, maxSide);
       setData(url);
       setPreview(url);
       setRemove(false);

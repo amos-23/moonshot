@@ -184,6 +184,7 @@ export const moments = mc.table(
     body: text("body").notNull().default(""),
     place: text("place"), // optional "where are you?"
     hasPhoto: boolean("has_photo").notNull().default(false),
+    photoCount: integer("photo_count").notNull().default(0), // up to 4 photos, stored in moment_photos by position
     // A moment can be a shared X post: its details are copied from X when the link is added.
     xPostUrl: text("x_post_url"),
     xAuthorName: text("x_author_name"),
@@ -203,13 +204,18 @@ export const moments = mc.table(
   ],
 );
 
-export const momentPhotos = mc.table("moment_photos", {
-  momentId: uuid("moment_id")
-    .primaryKey()
-    .references(() => moments.id, { onDelete: "cascade" }),
-  mime: text("mime").notNull(),
-  data: text("data").notNull(),
-});
+export const momentPhotos = mc.table(
+  "moment_photos",
+  {
+    momentId: uuid("moment_id")
+      .notNull()
+      .references(() => moments.id, { onDelete: "cascade" }),
+    position: integer("position").notNull().default(0),
+    mime: text("mime").notNull(),
+    data: text("data").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.momentId, t.position] })],
+);
 
 export type Moment = typeof moments.$inferSelect;
 

@@ -6,13 +6,13 @@ A minimal, no-sign-up list of who's at **Moonshot by TechCabal** (National Theat
 - **Or add your X post.** Paste a link to a public post about Moonshot and it shows up as a "From X" card. The card uses only what the post says publicly, links back to the original, and lists who the author says they want to meet.
 - **Filters and two views:** Here now, Investors, Hiring, Founders, Engineers, Marketing, Design and From X; "For you" (best fit) or "Newest" (a fresh feed).
 - **📍 Meet up** (`/meet`): anyone checks in with where they are, what they're up for and for how long (1, 2 or 4 hours, or the rest of the day). A live board shows who's around now with a one-tap WhatsApp/X/LinkedIn button. Check-ins expire on their own; "I've left" ends one early. Card holders check in with one tap, and their card shows "Catch me at…" while they're checked in.
-- **📸 Moments** (`/moments`): anyone (no card needed) can post a photo, a short update, or an X post link (shown with its text and images and a link back to X). Admins can add moments from the admin page. Moments and check-ins hide automatically after 3 reports; admins can hide or restore them.
+- **📸 Moments** (`/moments`): anyone (no card needed) can post up to 4 photos, a short update, or an X post link (shown with its text and images and a link back to X). Tag people with @handle: a moment shows "👋 Follow up" links to the cards of the people it mentions (and the X author), so a photo leads to someone you can reach. Admins can paste many X post links at once (recaps, highlights) to add them as moments. Moments and check-ins hide automatically after 3 reports; admins can hide or restore them.
 - **X posts are used in two places, each added on purpose:** as people ("From X" cards, via "Add yourself" or admin's "Add people from X posts") and as moments (via the Moments form or admin's "Add a moment").
 - **Card photo:** card holders can add a photo of themselves from today (resized on the phone before upload) from My card.
 - **Search** checks every word against names, roles, companies and tags (so "hiring" or "investors" work). A name that isn't found gets an "invite them" prompt.
 - **Best fits first,** with a one-line reason, e.g. "You want investors — Val offers investment".
 
-- **After Moonshot** (from midnight in Lagos after day 2) the homepage becomes "Find the people you met": a name search up top, Meet up is closed and hidden, and Moments stay in the header. Set `EVENT_MODE=live` or `EVENT_MODE=after` to override the date.
+- **After Moonshot** (from midnight in Lagos after day 2) the homepage becomes "Find the people you met": a name search up top, then a "📸 Highlights" photo grid from Moments. Meet up is closed and hidden. Set `EVENT_MODE=live` or `EVENT_MODE=after` to override the date.
 
 This is an independent, community-made tool. It isn't run or endorsed by TechCabal, and it uses no TechCabal logos.
 

@@ -191,23 +191,32 @@ try {
   assert.match(decodeURIComponent(await anon.page.getByRole("link", { name: "Share on X" }).getAttribute("href")), /\/card/);
   await shot(anon.page, "07-invite");
 
-  step("Moments: anyone can post a photo or update; card holders post as themselves");
+  step("Moments: anyone can post photos or an update and tag people; card holders post as themselves");
   await anon.page.goto(BASE);
   await anon.page.getByRole("link", { name: "📸 Moments" }).click();
   await anon.page.waitForURL(/\/moments/);
   await openShare(anon.page);
   await anon.page.getByRole("button", { name: "Post", exact: true }).click();
   await anon.page.getByText("Add a photo, an X post link, or write something.").waitFor();
-  await anon.page.getByLabel(/what's happening/i).fill(`The fintech panel is packed ${run}`);
+  await anon.page.getByLabel(/what's happening/i).fill(`The fintech panel is packed ${run} with @bola_grows`);
   await anon.page.getByLabel(/your name or @handle/i).fill("@moment_fan");
-  await anon.page.locator('input[type="file"]').setInputFiles({ name: "m.png", mimeType: "image/png", buffer: makePng(64, 40) });
-  await anon.page.getByRole("img", { name: "Your photo" }).waitFor();
+  await anon.page.locator('input[type="file"]').setInputFiles([
+    { name: "m.png", mimeType: "image/png", buffer: makePng(64, 40) },
+    { name: "m2.png", mimeType: "image/png", buffer: makePng(40, 64) },
+  ]);
+  await anon.page.getByRole("img", { name: "Your photo 2" }).waitFor();
   await anon.page.getByRole("button", { name: "Post", exact: true }).click();
   await anon.page.waitForURL(/posted=1/);
   const mine = anon.page.locator("li", { hasText: `The fintech panel is packed ${run}` });
-  assert.equal(await mine.getByRole("link", { name: "@moment_fan" }).getAttribute("href"), "https://x.com/moment_fan");
-  const msrc = await mine.getByRole("img").first().getAttribute("src");
-  assert.equal((await anon.page.request.get(`${BASE}${msrc}`)).headers()["content-type"], "image/jpeg");
+  assert.equal(await mine.getByRole("link", { name: "@moment_fan", exact: true }).getAttribute("href"), "https://x.com/moment_fan");
+  const msrcs = await mine.locator("img[src^='/moment-photo/']").evaluateAll((els) => els.map((e) => e.getAttribute("src")));
+  assert.equal(msrcs.length, 2, "both photos show");
+  assert.match(msrcs[1], /\?n=1$/);
+  for (const src of msrcs) assert.equal((await anon.page.request.get(`${BASE}${src}`)).headers()["content-type"], "image/jpeg");
+  // Tagging @bola_grows links the moment to Bola's card.
+  await mine.getByText("Follow up:").waitFor();
+  const follow = mine.getByRole("link", { name: /Bola/ });
+  assert.equal(await follow.getAttribute("href"), "/?q=bola_grows");
 
   await bola.page.goto(`${BASE}/moments`);
   assert.equal(await bola.page.getByLabel(/what's happening/i).isVisible(), false, "once there are moments, the form is folded into one line");
@@ -350,26 +359,28 @@ try {
   for (let i = 0; i < 5; i++) await anon.page.goto(`${BASE}/?q=${nothing}`);
   await anon.page.getByText(/no one matches|isn't here yet/i).waitFor();
 
-  step("admin adds a moment from just an X link, or an update with no credit");
+  step("admin adds moments from many X links at once, or an update with no credit");
   await admin.page.goto(`${BASE}/admin`);
+  await admin.page.getByLabel("X post links for Moments").fill(`https://example.com/nope\n${SAMPLE_POST}`);
+  await admin.page.getByRole("button", { name: "Add", exact: true }).click();
+  await admin.page.getByText(/couldn't be added\./).waitFor();
+  assert.ok((await admin.page.getByText("Not an X post link").count()) > 0, "bad link is reported");
+  // The sample post may already be a moment (shared above); either way it's in Moments now, unless X is unreachable.
+  const xIn = (await admin.page.getByText(/^(1 added, 0|0 added, 1) already there/).count()) > 0;
+  if (!xIn) console.log("  (X embed unreachable, skipped the X-link moment)");
+  // The same link again is skipped.
+  await admin.page.getByLabel("X post links for Moments").fill(SAMPLE_POST);
+  await admin.page.getByRole("button", { name: "Add", exact: true }).click();
+  if (xIn) await admin.page.getByText(/^0 added, 1 already there, 0/).waitFor();
   const adminMoment = admin.page.locator("form", { has: admin.page.locator('input[name="from"][value="admin"]') });
-  await adminMoment.getByLabel("X post link").fill("https://example.com/nope");
-  await adminMoment.getByRole("button", { name: "Add", exact: true }).click();
-  await adminMoment.getByText("That isn't an X post link.").waitFor();
-  await adminMoment.getByText("Or add a photo or update instead").click();
-  await adminMoment.getByLabel("X post link").fill("");
+  await admin.page.getByText("Or add a photo or update instead").click();
   await adminMoment.getByLabel(/what's happening/i).fill(`Doors open for day 2 ${run}`);
-  await adminMoment.getByRole("button", { name: "Add", exact: true }).click();
+  await adminMoment.getByRole("button", { name: "Post", exact: true }).click();
   await admin.page.waitForURL(/moment=1/);
   await anon.page.goto(`${BASE}/moments`);
   const am = anon.page.locator("li", { hasText: `Doors open for day 2 ${run}` });
   await am.getByText("Someone at Moonshot").waitFor();
   assert.equal(await am.getByText("Moonshot Connect").count(), 0, "no default credit");
-  await admin.page.goto(`${BASE}/admin`);
-  await adminMoment.getByLabel("X post link").fill(SAMPLE_POST);
-  await adminMoment.getByRole("button", { name: "Add", exact: true }).click();
-  const ax = await Promise.race([admin.page.waitForURL(/moment=1/).then(() => "added"), adminMoment.getByText(/couldn't load that x post/i).waitFor().then(() => "skipped")]);
-  if (ax === "skipped") console.log("  (X embed unreachable, skipped the X-link-only moment)");
 
   step("admin Stats shows visits, clicks and searches");
   await admin.page.goto(`${BASE}/admin/stats?days=1`);

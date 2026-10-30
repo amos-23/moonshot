@@ -113,7 +113,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         </Card>
         <Card className="p-5">
           <h2 className="font-bold">Add a moment</h2>
-          <p className="mb-3 text-xs text-muted">Paste an X post link: its text, images and author show in 📸 Moments.</p>
+          <p className="mb-3 text-xs text-muted">Paste X post links (recaps, photos, highlights): their text, images and author show in 📸 Moments.</p>
           <AdminMomentForm />
         </Card>
       </div>

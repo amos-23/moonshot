@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronDown, Plus } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { getMe } from "@/lib/me";
-import { listMoments } from "@/lib/data";
+import { listMoments, momentPeople } from "@/lib/data";
 import { MomentForm } from "@/components/forms";
 import { MomentCard } from "@/components/moment";
 import { Disclosure } from "@/components/client";
@@ -10,16 +10,17 @@ import { Empty, Notice, PageTitle } from "@/components/ui";
 
 export const metadata = { title: "Moments", description: "Photos and updates from Moonshot 2026, shared by the people there." };
 
-export default async function MomentsPage({ searchParams }: { searchParams: Promise<{ posted?: string; before?: string }> }) {
+export default async function MomentsPage({ searchParams }: { searchParams: Promise<{ posted?: string; before?: string; share?: string }> }) {
   const sp = await searchParams;
   const before = sp.before && !Number.isNaN(Date.parse(sp.before)) ? new Date(sp.before) : undefined;
   const db = await getDb();
   const [me, items] = await Promise.all([getMe(), listMoments(db, { limit: 60, before })]);
+  const people = await momentPeople(db, items);
   const last = items.at(-1);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <PageTitle title="📸 Moments" sub="Photos, updates and X posts from the people at Moonshot." />
+      <PageTitle title="📸 Moments" sub="Photos and highlights from Moonshot 2026, shared by the people who were there." />
       {sp.posted && (
         <div className="mb-4">
           <Notice tone="success">Posted! Thanks for sharing.</Notice>
@@ -27,7 +28,7 @@ export default async function MomentsPage({ searchParams }: { searchParams: Prom
       )}
       {!before && (
         <Disclosure
-          initialOpen={items.length === 0}
+          initialOpen={items.length === 0 || Boolean(sp.share)}
           className="group mb-6 rounded-3xl border border-line bg-surface open:p-5 sm:open:p-6"
           summaryClassName="flex cursor-pointer list-none items-center gap-2 rounded-3xl px-4 py-3 font-semibold group-open:mb-4 group-open:p-0 [&::-webkit-details-marker]:hidden"
           summary={
@@ -49,8 +50,8 @@ export default async function MomentsPage({ searchParams }: { searchParams: Prom
         <>
           <ul className="columns-1 gap-4 sm:columns-2 lg:columns-3 [&>li]:mb-4 [&>li]:break-inside-avoid">
             {items.map((item) => (
-              <li key={item.moment.id}>
-                <MomentCard item={item} />
+              <li key={item.moment.id} id={`m-${item.moment.id}`} className="scroll-mt-20">
+                <MomentCard item={item} people={people.get(item.moment.id)} />
               </li>
             ))}
           </ul>

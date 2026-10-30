@@ -110,3 +110,6 @@ export function labelFor(options: Option[], value: string | null | undefined): s
 }
 
 export const values = (options: Option[]) => options.map((o) => o.value) as [string, ...string[]];
+
+/** Photos per moment. */
+export const MAX_MOMENT_PHOTOS = 4;

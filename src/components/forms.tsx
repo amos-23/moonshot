@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { addCommentAction, addXPostAction, adminLoginAction, checkInAction, importPostsAction, postMomentAction, saveCardAction, saveUpdateAction } from "@/lib/actions";
+import { addCommentAction, addXPostAction, adminLoginAction, checkInAction, importMomentsAction, importPostsAction, postMomentAction, saveCardAction, saveUpdateAction } from "@/lib/actions";
 import type { Person } from "@/lib/db/schema";
-import { OFFERS, WANTS } from "@/lib/constants";
+import { MAX_MOMENT_PHOTOS, OFFERS, WANTS } from "@/lib/constants";
 import type { ImportResult } from "@/lib/data";
-import { MultiSelect, PhotoPicker, Status, Submit, useForm } from "./client";
+import { MultiPhotoPicker, MultiSelect, PhotoPicker, Status, Submit, useForm } from "./client";
 import { Field, Tag, cx, inputClass } from "./ui";
 
 const contactOf = (p: Person | null) => (p ? (p.xHandle ? `@${p.xHandle}` : p.whatsapp ?? p.email ?? p.linkedinUrl ?? p.websiteUrl ?? "") : "");
@@ -98,17 +98,7 @@ export function ImportForm() {
         </Submit>
         <Status state={state} />
       </div>
-      {rows.length > 0 && (
-        <ul className="space-y-1 text-xs">
-          {rows.map((r, i) => (
-            <li key={i} className="flex gap-2">
-              <Tag tone={r.status === "added" ? "green" : r.status === "invalid" ? "flame" : "neutral"}>{r.status}</Tag>
-              <span className="break-all">{r.input}</span>
-              {r.message && <span className="text-red-600">{r.message}</span>}
-            </li>
-          ))}
-        </ul>
-      )}
+      <ImportResults rows={rows} />
     </form>
   );
 }
@@ -166,12 +156,12 @@ export function MomentForm({ myName }: { myName: string | null }) {
   const { state, pending, onSubmit, err } = useForm(postMomentAction);
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-4">
-      <PhotoPicker current={null} maxSide={1080} addLabel="Add a photo" wide error={err("photo")} />
+      <MultiPhotoPicker max={MAX_MOMENT_PHOTOS} error={err("photo")} />
       <Field label="…or share an X post" htmlFor="xUrl" optional error={err("xUrl")} hint="Paste a link to a public post. Its text and images are shown with a link back to X.">
         <input id="xUrl" name="xUrl" inputMode="url" placeholder="x.com/name/status/…" className={inputClass} />
       </Field>
       <Field label="What's happening?" htmlFor="body" optional error={err("body")}>
-        <textarea id="body" name="body" rows={2} maxLength={280} placeholder="The fintech panel is packed 🔥" className={inputClass} />
+        <textarea id="body" name="body" rows={2} maxLength={280} placeholder="Best moment of Moonshot for me… (tag people with @handle)" className={inputClass} />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Where?" htmlFor="place" optional error={err("place")}>
@@ -199,25 +189,47 @@ export function MomentForm({ myName }: { myName: string | null }) {
   );
 }
 
-/** Admin: an X post link is all it takes. A photo or written update sits under "more options". */
+function ImportResults({ rows }: { rows: ImportResult[] }) {
+  if (!rows.length) return null;
+  return (
+    <ul className="space-y-1 text-xs">
+      {rows.map((r, i) => (
+        <li key={i} className="flex gap-2">
+          <Tag tone={r.status === "added" ? "green" : r.status === "invalid" ? "flame" : "neutral"}>{r.status}</Tag>
+          <span className="break-all">{r.input}</span>
+          {r.message && <span className="text-red-600">{r.message}</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Admin: X post links are all it takes, many at once. A photo or written update sits under "Or add…". */
 export function AdminMomentForm() {
+  const links = useForm(importMomentsAction, { refresh: true });
   const { state, pending, onSubmit, err } = useForm(postMomentAction);
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-3">
-      <input type="hidden" name="from" value="admin" />
-      <div className="flex gap-2">
-        <input name="xUrl" inputMode="url" aria-label="X post link" placeholder="Paste an X post link" aria-invalid={!!err("xUrl")} className={cx(inputClass, "min-w-0 flex-1")} />
-        <Submit pending={pending} className="shrink-0" data-track="admin_post_moment">
-          Add
-        </Submit>
-      </div>
-      <div className="text-sm">
-        <Status state={state} />
-      </div>
+    <div className="space-y-3">
+      <form onSubmit={links.onSubmit} noValidate className="space-y-2">
+        <label htmlFor="admin-links" className="sr-only">
+          X post links for Moments
+        </label>
+        <textarea id="admin-links" name="links" rows={3} placeholder={"Paste X post links, one per line\nhttps://x.com/someone/status/…"} className={cx(inputClass, "font-mono text-xs")} />
+        <div className="flex items-center gap-3">
+          <Submit pending={links.pending} className="shrink-0" data-track="admin_import_moments">
+            Add
+          </Submit>
+          <div className="min-w-0 text-sm">
+            <Status state={links.state} />
+          </div>
+        </div>
+        <ImportResults rows={links.state?.ok ? (links.state.data as ImportResult[]) : []} />
+      </form>
       <details className="text-sm">
         <summary className="cursor-pointer text-muted">Or add a photo or update instead</summary>
-        <div className="mt-3 space-y-3">
-          <PhotoPicker current={null} maxSide={1080} addLabel="Add a photo" wide error={err("photo")} />
+        <form onSubmit={onSubmit} noValidate className="mt-3 space-y-3">
+          <input type="hidden" name="from" value="admin" />
+          <MultiPhotoPicker max={MAX_MOMENT_PHOTOS} error={err("photo")} />
           <Field label="What's happening?" htmlFor="admin-body" optional error={err("body")}>
             <textarea id="admin-body" name="body" rows={2} maxLength={280} className={inputClass} />
           </Field>
@@ -229,9 +241,17 @@ export function AdminMomentForm() {
               <input id="admin-mname" name="name" maxLength={40} autoCapitalize="none" className={inputClass} />
             </Field>
           </div>
-        </div>
+          <div className="flex items-center gap-3">
+            <Submit pending={pending} className="shrink-0" data-track="admin_post_moment">
+              Post
+            </Submit>
+            <div className="min-w-0 text-sm">
+              <Status state={state} />
+            </div>
+          </div>
+        </form>
       </details>
-    </form>
+    </div>
   );
 }
 
