@@ -4,7 +4,7 @@ import { after } from "next/server";
 import { eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { getMe } from "@/lib/me";
-import { listMoments, momentPeople } from "@/lib/data";
+import { listMoments, momentPeople, reactionCounts } from "@/lib/data";
 import { pickFeatured } from "@/lib/featured";
 import { refreshMoments } from "@/lib/social/live";
 import { toMomentView } from "@/components/moment";
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 
 const PAGE = 60;
 
-export default async function MomentsPage({ searchParams }: { searchParams: Promise<{ posted?: string; before?: string; share?: string; m?: string }> }) {
+export default async function MomentsPage({ searchParams }: { searchParams: Promise<{ posted?: string; before?: string; share?: string; m?: string; story?: string }> }) {
   const sp = await searchParams;
   const before = sp.before && !Number.isNaN(Date.parse(sp.before)) ? new Date(sp.before) : undefined;
   const db = await getDb();
@@ -38,7 +38,8 @@ export default async function MomentsPage({ searchParams }: { searchParams: Prom
   // Keep likes and replies fresh for Featured, after the page has been sent.
   after(() => refreshMoments(db).catch((err) => console.error("moment stats refresh failed", err)));
   const origin = await siteOrigin();
-  const people = await momentPeople(db, featured ? [...featured.list, ...items] : items);
+  const shown = featured ? [...featured.list, ...items] : items;
+  const [people, reacts] = await Promise.all([momentPeople(db, shown), reactionCounts(db, shown.map((i) => i.moment.id))]);
   const last = items.at(-1);
 
   return (
@@ -53,7 +54,7 @@ export default async function MomentsPage({ searchParams }: { searchParams: Prom
           )}
         </div>
       )}
-      <MomentsGallery moments={items.map((i) => toMomentView(i, people.get(i.moment.id)))} featured={featured ? featured.list.map((i) => toMomentView(i, people.get(i.moment.id))) : []} myName={me?.name ?? null} shareOpen={Boolean(sp.share) || (!before && items.length === 0)} posted={sp.posted} total={total} origin={origin} />
+      <MomentsGallery moments={items.map((i) => toMomentView(i, people.get(i.moment.id)))} featured={featured ? featured.list.map((i) => toMomentView(i, people.get(i.moment.id))) : []} myName={me?.name ?? null} shareOpen={Boolean(sp.share) || (!before && items.length === 0)} posted={sp.posted} total={total} origin={origin} storyOpen={Boolean(sp.story)} reactionCounts={Object.fromEntries(reacts)} />
       {items.length === PAGE && last && (
         <div className="-mt-16 pb-16 text-center">
           <Link href={`/moments?before=${encodeURIComponent(last.moment.createdAt.toISOString())}`} className="inline-flex h-11 items-center rounded-full bg-white/10 px-6 font-semibold text-white hover:bg-white/20">

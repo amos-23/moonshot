@@ -18,7 +18,7 @@ export const MOMENT_OPEN = ["moment_open", "moments_featured", "highlights_tile"
 
 const list = (xs: string[]) => sql.join(xs.map((x) => sql`${x}`), sql`, `);
 /** Visits that arrived on a link shared with the site's own share buttons (their campaign names). */
-export const SHARE_CAMPAIGNS = ["moment", "moments", "posted", "card", "home", "invite"];
+export const SHARE_CAMPAIGNS = ["moment", "moments", "posted", "card", "home", "invite", "story"];
 const FROM_SHARE = sql`split_part(${s.events.campaign}, '/', 2) in (${list(SHARE_CAMPAIGNS)})`;
 
 /** 1, 7, 30 or 90 days, or 0 for all time. */
@@ -150,6 +150,8 @@ export async function siteStats(db: DB, days: Range, now = new Date()) {
         plays: sql<number>`count(*) filter (where ${s.events.type} = 'click' and ${s.events.target} in ('video_play', 'gif_play'))::int`,
         followUps: sql<number>`count(distinct ${s.events.visitor}) filter (where ${s.events.type} = 'click' and ${s.events.target} in ('moment_person', 'moment_author'))::int`,
         toX: sql<number>`count(distinct ${s.events.visitor}) filter (where ${s.events.type} = 'click' and ${s.events.target} = 'moment_x_open')::int`,
+        storyViewers: sql<number>`count(distinct ${s.events.visitor}) filter (where ${s.events.type} = 'click' and ${s.events.target} = 'story_open')::int`,
+        storyFinishers: sql<number>`count(distinct ${s.events.visitor}) filter (where ${s.events.type} = 'click' and ${s.events.target} = 'story_end')::int`,
         avgMs: sql<number>`coalesce(sum(${s.events.ms}) filter (where ${s.events.type} = 'leave' and ${s.events.path} = '/moments') / nullif(count(distinct ${s.events.visitor}) filter (where ${s.events.type} = 'leave' and ${s.events.path} = '/moments'), 0), 0)::float8`,
       })
       .from(s.events)
@@ -202,13 +204,18 @@ export async function siteStats(db: DB, days: Range, now = new Date()) {
     ]);
     return { cards, posts, comments, moments, momentPhotos, signups };
   };
-  const [addedInRange, addedTotal, formVisitors] = await Promise.all([
+  const [addedInRange, addedTotal, formVisitors, reactionsInRange] = await Promise.all([
     added(from),
     added(null),
     db
       .select({ n: sql<number>`count(distinct ${s.events.visitor})::int` })
       .from(s.events)
       .where(and(views, eq(s.events.path, "/card")))
+      .then((r) => r[0].n),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(s.reactions)
+      .where(gte(s.reactions.createdAt, from))
       .then((r) => r[0].n),
   ]);
 
@@ -222,7 +229,7 @@ export async function siteStats(db: DB, days: Range, now = new Date()) {
     chart,
     hours: Array.from({ length: 24 }, (_, h) => ({ hour: h, n: byHour.get(h) ?? 0 })),
     funnel: { visitors: cur.visitors, formVisitors, cards: addedInRange.cards, contacters: cur.contacters, contactClicks: cur.contactClicks },
-    momentFunnel,
+    momentFunnel: { ...momentFunnel, reactions: reactionsInRange },
     topMoments,
     pages,
     referrers,

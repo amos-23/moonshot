@@ -251,6 +251,44 @@ try {
   assert.match(anon.page.url(), /#m-/);
   await anon.page.keyboard.press("Escape");
   await mine.waitFor({ state: "detached" });
+  // Reactions: one tap, no sign-up; the browser remembers it, and a second tap takes it back.
+  let viewer = await openMoment(anon.page, `The fintech panel is packed ${run}`);
+  const fire = () => anon.page.getByRole("dialog").getByRole("button", { name: /^🔥/ });
+  await fire().click();
+  await anon.page.waitForFunction(() => document.querySelector('[role=dialog] button[aria-pressed="true"]')?.getAttribute("aria-label")?.startsWith("🔥 1"));
+  await anon.page.reload();
+  viewer = anon.page.getByRole("dialog");
+  await viewer.waitFor();
+  assert.equal(await fire().getAttribute("aria-pressed"), "true", "the reaction is remembered");
+  assert.match(await fire().getAttribute("aria-label"), /^🔥 1/);
+  const tileBadge = anon.page.locator(`li[id="m-${momentId}"]`);
+  await fire().click();
+  await anon.page.waitForFunction(() => document.querySelector('[role=dialog] button[aria-label^="🔥"]')?.getAttribute("aria-pressed") === "false");
+  assert.match(await fire().getAttribute("aria-label"), /^🔥 0/);
+  await fire().click(); // leave one 🔥 for the stats
+  await anon.page.waitForFunction(() => document.querySelector('[role=dialog] button[aria-label^="🔥"]')?.getAttribute("aria-pressed") === "true");
+  await anon.page.keyboard.press("Escape");
+  await viewer.waitFor({ state: "detached" });
+  assert.match(await tileBadge.innerText(), /🔥\s*1/, "the tile shows the reaction");
+
+  // "Watch the highlights": full-screen story; arrows move, Esc closes; ?story=1 opens it.
+  await anon.page.getByRole("button", { name: "Watch the highlights" }).click();
+  const story = anon.page.getByRole("dialog", { name: "Moonshot highlights" });
+  await story.waitFor();
+  // Each finished slide fills its bar; the arrow key moves on one.
+  await story.getByRole("button", { name: /^🔥 1/ }).waitFor(); // reactions sit on each slide
+  const filled = () => story.locator(".h-1 > .w-full").count();
+  assert.equal(await filled(), 0);
+  await anon.page.keyboard.press("ArrowRight");
+  await anon.page.waitForFunction(() => document.querySelectorAll('[aria-label="Moonshot highlights"] .h-1 > .w-full').length >= 1);
+  await anon.page.keyboard.press("Escape");
+  await story.waitFor({ state: "detached" });
+  await anon.page.goto(`${BASE}/moments?story=1&utm_source=x&utm_campaign=story`);
+  await story.waitFor();
+  for (let k = 0; k < 40 && !(await story.getByText("Moonshot 2026 ✨").isVisible()); k++) await anon.page.keyboard.press("ArrowRight");
+  await story.getByRole("link", { name: "Share the highlights on X" }).waitFor();
+  await anon.page.keyboard.press("Escape");
+
   // A shared moment link: the photo is its preview on X, and opening it goes straight to the moment.
   const mHtml = await (await anon.page.request.get(`${BASE}/m/${momentId}`)).text();
   assert.match(mHtml, new RegExp(`<meta property="og:image" content="[^"]*/og/moment/${momentId}"`));

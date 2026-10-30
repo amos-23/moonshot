@@ -65,6 +65,14 @@ const CLICK_LABELS: Record<string, string> = {
   highlights_all: "Highlights: see all (home)",
   highlights_add: "Highlights: add yours (home)",
   highlights_empty: "Highlights: share yours (home, empty)",
+  story_open_hero: "▶ Watch the highlights (Moments)",
+  home_story: "▶ Watch (home)",
+  story_open: "Started the highlights",
+  story_end: "Watched the highlights to the end",
+  story_share_x: "Shared the highlights on X",
+  react_fire: "Reacted 🔥",
+  react_love: "Reacted ❤️",
+  react_clap: "Reacted 👏",
   moment_share_x: "Shared a moment on X",
   moment_share_native: "Shared a moment (phone share)",
   moment_share_copy: "Copied a moment's link",
@@ -314,7 +322,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
         />
         <Funnel
           title="📸 Moments"
-          sub={`What people do on Moments.${st.momentFunnel.avgMs ? ` Avg. time there: ${duration(st.momentFunnel.avgMs)}.` : ""} ${plural(st.momentFunnel.plays, "video play")}.`}
+          sub={`What people do on Moments.${st.momentFunnel.avgMs ? ` Avg. time there: ${duration(st.momentFunnel.avgMs)}.` : ""} ${plural(st.momentFunnel.storyViewers, "person")} watched the highlights (${st.momentFunnel.storyFinishers} to the end) · ${plural(st.momentFunnel.reactions, "reaction")} · ${plural(st.momentFunnel.plays, "video play")}.`}
           base={st.momentFunnel.visitors}
           steps={[
             { label: "Visited Moments", n: st.momentFunnel.visitors },

@@ -6,7 +6,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/lib/db/schema";
 import type { DB } from "@/lib/db";
-import { backfillDetails, commentsFor, importPosts, listMoments, listPeople, listXCards, momentPeople, refreshMomentStats } from "@/lib/data";
+import { backfillDetails, commentsFor, importPosts, listMoments, listPeople, listXCards, momentPeople, reactionCounts, refreshMomentStats } from "@/lib/data";
 import { pickFeatured, TOP_ACCOUNTS_KEY } from "@/lib/featured";
 import { siteStats } from "@/lib/stats";
 
@@ -261,5 +261,20 @@ describe("Featured", () => {
     const before = calls.length;
     await refreshMomentStats(db, fake, 50);
     expect(calls.length).toBe(before); // not due again for 3 hours
+  });
+});
+
+describe("reactions", () => {
+  it("counts 🔥 ❤️ 👏 per moment, once per browser per kind", async () => {
+    const [m] = await db.insert(schema.moments).values({ body: "react to me", visitor: "v", hidden: true }).returning();
+    await db.insert(schema.reactions).values([
+      { momentId: m.id, kind: "fire", reactor: "a" },
+      { momentId: m.id, kind: "fire", reactor: "b" },
+      { momentId: m.id, kind: "love", reactor: "a" },
+    ]);
+    await expect(db.insert(schema.reactions).values({ momentId: m.id, kind: "fire", reactor: "a" })).rejects.toThrow();
+    await expect(db.insert(schema.reactions).values({ momentId: m.id, kind: "angry", reactor: "c" })).rejects.toThrow();
+    expect((await reactionCounts(db, [m.id])).get(m.id)).toEqual({ fire: 2, love: 1, clap: 0 });
+    expect((await reactionCounts(db, [])).size).toBe(0);
   });
 });

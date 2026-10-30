@@ -7,7 +7,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { cardSchema, fieldErrors, parseContact, signupSchema, type Contact } from "@/lib/validation";
 import { clearCardCookie, getMe, hashToken, isAdmin, isAdminKey, newToken, rateLimit, setCardCookie } from "@/lib/me";
-import { UserError, attachDetails, importPosts, momentDetailFields, parseImport, type ImportResult } from "@/lib/data";
+import { REACTIONS, UserError, attachDetails, importPosts, momentDetailFields, noReactions, parseImport, reactionCounts, type ImportResult, type ReactionCounts } from "@/lib/data";
 import { fetchOEmbed, fetchPostDetails } from "@/lib/social/providers";
 import { parseXPostUrl, snowflakeToDate } from "@/lib/social/x-url";
 import { parsePhoto } from "@/lib/photo";
@@ -420,6 +420,27 @@ export async function importPostsAction(_: Result | null, form: FormData): Promi
     refresh();
     return { ok: true, message: `${n("added")} added, ${n("duplicate")} already there, ${n("invalid")} invalid.`, data: results };
   });
+}
+
+/**
+ * 🔥 ❤️ 👏 on a moment. Tapping again takes it back. The browser's random id is only stored hashed,
+ * so a reaction can't be traced to anyone.
+ */
+export async function reactAction(momentId: string, kind: string, reactorId: string): Promise<Result & { counts?: ReactionCounts; on?: boolean }> {
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID.test(momentId) || !UUID.test(reactorId) || !(REACTIONS as readonly string[]).includes(kind)) return { ok: false, error: "That didn't work." };
+  const result = await guard(async () => {
+    if (!(await rateLimit("react", 300, 60))) return { ok: false, error: "Slow down a little 🙂" };
+    const db = await getDb();
+    const [m] = await db.select({ id: schema.moments.id }).from(schema.moments).where(and(eq(schema.moments.id, momentId), eq(schema.moments.hidden, false))).limit(1);
+    if (!m) return { ok: false, error: "That moment isn't here any more." };
+    const key = { momentId, kind, reactor: hashToken(`reaction:${reactorId}`) };
+    const added = await db.insert(schema.reactions).values(key).onConflictDoNothing().returning({ kind: schema.reactions.kind });
+    if (!added.length) await db.delete(schema.reactions).where(and(eq(schema.reactions.momentId, momentId), eq(schema.reactions.kind, kind), eq(schema.reactions.reactor, key.reactor)));
+    const counts = (await reactionCounts(db, [momentId])).get(momentId) ?? noReactions();
+    return { ok: true, counts, on: added.length > 0 } as Result;
+  });
+  return result as Result & { counts?: ReactionCounts; on?: boolean };
 }
 
 /** Admin: pin a moment as Featured (one at a time), or unpin it so Featured rotates by engagement again. */

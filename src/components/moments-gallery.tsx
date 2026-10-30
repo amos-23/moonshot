@@ -8,6 +8,9 @@ import type { MomentView } from "./moment";
 import { ReportLink } from "./client";
 import { MomentForm } from "./forms";
 import { track } from "./tracker";
+import { MomentsStory } from "./moments-story";
+import { REACTION_EMOJI, ReactionBar, totalReactions, useReactions, type Reactions } from "./reactions";
+import type { ReactionCounts } from "@/lib/data";
 import { XLogo } from "./share";
 import { Avatar, cx } from "./ui";
 
@@ -255,13 +258,46 @@ function MomentVideo({ m }: { m: MomentView }) {
   );
 }
 
+/** The most-used reaction and the total, e.g. "🔥 12", on a tile. */
+function ReactionBadge({ c, dark }: { c: ReactionCounts | undefined; dark?: boolean }) {
+  const n = totalReactions(c);
+  if (!c || !n) return null;
+  const top = (Object.keys(c) as (keyof ReactionCounts)[]).sort((a, b) => c[b] - c[a])[0];
+  return (
+    <span className={cx("inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] tabular-nums", dark ? "bg-black/10" : "bg-black/40 backdrop-blur")}>
+      <span aria-hidden>{REACTION_EMOJI[top]}</span> {n}
+    </span>
+  );
+}
+
 const label = (m: MomentView) => {
   const words = m.note ?? m.text;
   return `Open moment from ${m.who}${words ? `: ${words.slice(0, 80)}` : ""}`;
 };
 
 /** The whole Moments experience: featured moment, photo wall, full-screen viewer and the share sheet. */
-export function MomentsGallery({ moments, featured, myName, shareOpen, posted, total, origin }: { moments: MomentView[]; featured: MomentView[]; myName: string | null; shareOpen: boolean; posted?: string; total: number; origin: string }) {
+export function MomentsGallery({
+  moments,
+  featured,
+  myName,
+  shareOpen,
+  storyOpen,
+  posted,
+  total,
+  origin,
+  reactionCounts,
+}: {
+  moments: MomentView[];
+  featured: MomentView[];
+  myName: string | null;
+  shareOpen: boolean;
+  storyOpen: boolean;
+  posted?: string;
+  total: number;
+  origin: string;
+  reactionCounts: Record<string, ReactionCounts>;
+}) {
+  const reactions = useReactions(reactionCounts);
   // The wall shows every moment; the slideshow re-shows the best of them up top. The viewer walks
   // through the wall in order (featured moments from older pages are added in front).
   const { wall, ordered } = useMemo(() => {
@@ -272,6 +308,15 @@ export function MomentsGallery({ moments, featured, myName, shareOpen, posted, t
   const [openId, setOpenId] = useState<string | null>(null);
   const open = openId ? ordered.findIndex((m) => m.id === openId) : -1;
   const [sharing, setSharing] = useState(shareOpen);
+  // "Watch the highlights": the Featured moments first, then everything else.
+  const [watching, setWatching] = useState(false);
+  const story = useMemo(() => {
+    const first = new Set(featured.map((f) => f.id));
+    return [...featured, ...moments.filter((m) => !first.has(m.id))];
+  }, [featured, moments]);
+  useEffect(() => {
+    if (storyOpen || location.hash === "#story") setWatching(true);
+  }, [storyOpen]);
   // Each post comes back with a new ?posted=…, which closes the sheet.
   useEffect(() => {
     if (posted) setSharing(false);
@@ -320,9 +365,16 @@ export function MomentsGallery({ moments, featured, myName, shareOpen, posted, t
               {total} moment{total === 1 ? "" : "s"} shared
             </p>
           )}
-          <button ref={heroCta} type="button" onClick={() => setSharing(true)} data-track="moments_share_open" className="mt-6 inline-flex h-12 items-center gap-2 rounded-full bg-sun px-6 font-bold text-ink shadow-[0_8px_30px_rgba(246,168,33,0.35)] transition hover:-translate-y-0.5 hover:bg-[#ffb93d]">
-            <Plus size={18} aria-hidden /> Add your moment
-          </button>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <button ref={heroCta} type="button" onClick={() => setSharing(true)} data-track="moments_share_open" className="inline-flex h-12 items-center gap-2 rounded-full bg-sun px-6 font-bold text-ink shadow-[0_8px_30px_rgba(246,168,33,0.35)] transition hover:-translate-y-0.5 hover:bg-[#ffb93d]">
+              <Plus size={18} aria-hidden /> Add your moment
+            </button>
+            {story.length > 0 && (
+              <button type="button" onClick={() => setWatching(true)} data-track="story_open_hero" className="inline-flex h-12 items-center gap-2 rounded-full bg-white/10 px-6 font-bold text-white ring-1 ring-white/20 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/20">
+                <Play size={16} fill="currentColor" aria-hidden /> Watch the highlights
+              </button>
+            )}
+          </div>
           <p className="mt-4">
             <a
               href={xIntent(`Photos and highlights from ${HASHTAG}, shared by the people who were there 📸`, withUtm(`${origin}/moments`, "x", "moments"))}
@@ -339,7 +391,7 @@ export function MomentsGallery({ moments, featured, myName, shareOpen, posted, t
       </section>
 
       <div className="mx-auto max-w-6xl px-4 pb-24">
-        {featured.length > 0 && <FeaturedShow slides={featured} onOpen={openById} paused={open >= 0 || sharing} />}
+        {featured.length > 0 && <FeaturedShow slides={featured} onOpen={openById} paused={open >= 0 || sharing || watching} />}
 
         {moments.length === 0 ? (
           <div className="rounded-[28px] border border-dashed border-white/15 px-6 py-16 text-center">
@@ -378,16 +430,22 @@ export function MomentsGallery({ moments, featured, myName, shareOpen, posted, t
                       </span>
                       <span className="absolute inset-x-0 bottom-0 p-3 text-left">
                         {m.text && <span className="mb-1 line-clamp-2 block max-h-0 overflow-hidden text-sm leading-snug text-white/90 opacity-0 transition-all duration-300 group-hover:max-h-12 group-hover:opacity-100">{m.text}</span>}
-                        <span className="block truncate text-xs font-semibold text-white">{m.who}</span>
+                        <span className="flex items-center justify-between gap-2 text-xs font-semibold text-white">
+                          <span className="truncate">{m.who}</span>
+                          <ReactionBadge c={reactions.counts[m.id]} />
+                        </span>
                       </span>
                     </>
                   ) : (
                     <span className={cx("flex min-h-44 flex-col justify-between gap-6 p-5 text-left", QUOTE_TONES[i % QUOTE_TONES.length])}>
                       <span aria-hidden className="font-serif text-5xl leading-none opacity-50">“</span>
                       <span className="line-clamp-6 text-lg font-semibold leading-snug">{m.text}</span>
-                      <span className="truncate text-xs font-semibold opacity-80">
-                        {m.xUrl ? "𝕏 " : ""}
-                        {m.who} · {m.ago}
+                      <span className="flex items-center justify-between gap-2 text-xs font-semibold">
+                        <span className="truncate opacity-80">
+                          {m.xUrl ? "𝕏 " : ""}
+                          {m.who} · {m.ago}
+                        </span>
+                        <ReactionBadge c={reactions.counts[m.id]} dark />
                       </span>
                     </span>
                   )}
@@ -404,14 +462,26 @@ export function MomentsGallery({ moments, featured, myName, shareOpen, posted, t
         </button>
       )}
 
-      {open >= 0 && <Viewer moments={ordered} index={open} onIndex={show} origin={origin} />}
+      {open >= 0 && <Viewer moments={ordered} index={open} onIndex={show} origin={origin} reactions={reactions} />}
+      {watching && (
+        <MomentsStory
+          slides={story}
+          origin={origin}
+          reactions={reactions}
+          onClose={() => setWatching(false)}
+          onAdd={() => {
+            setWatching(false);
+            setSharing(true);
+          }}
+        />
+      )}
       {sharing && <ShareSheet myName={myName} onClose={() => setSharing(false)} />}
     </>
   );
 }
 
 /** Full-screen viewer: swipe or use the arrow keys to move through photos and moments. */
-function Viewer({ moments, index, onIndex, origin }: { moments: MomentView[]; index: number; onIndex: (i: number | null) => void; origin: string }) {
+function Viewer({ moments, index, onIndex, origin, reactions }: { moments: MomentView[]; index: number; onIndex: (i: number | null) => void; origin: string; reactions: Reactions }) {
   const m = moments[index];
   const [photo, setPhoto] = useState(0);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -545,6 +615,7 @@ function Viewer({ moments, index, onIndex, origin }: { moments: MomentView[]; in
             ))}
           </div>
         )}
+        <ReactionBar id={m.id} reactions={reactions} />
         <MomentShare m={m} origin={origin} />
         <div className="flex items-center justify-between gap-3 pt-1 [&>button]:text-white/50">
           {m.xUrl ? (

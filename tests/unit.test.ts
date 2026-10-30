@@ -185,6 +185,7 @@ describe("Featured scoring", () => {
     expect(momentScore(m({ xLikes: 10, xAuthorHandle: "TechCabal" }), 0, new Set(["techcabal"]), NOW)).toBe(11 * 4);
     expect(momentScore(m({ xLikes: 10, xVerified: true }), 0, new Set(), NOW)).toBeCloseTo(11 * 1.25);
     expect(momentScore(m(), 3, new Set(), NOW)).toBe(16); // an uploaded photo competes on opens
+    expect(momentScore(m(), 0, new Set(), NOW, 5)).toBe(16); // and on reactions
   });
   it("counts moments added in the last 48 hours double", () => {
     expect(momentScore(m({ xLikes: 9, createdAt: new Date(NOW - 47 * 3600_000) }), 0, new Set(), NOW)).toBe(20);

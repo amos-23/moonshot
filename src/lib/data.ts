@@ -165,6 +165,28 @@ export async function listMoments(db: DB, opts: { limit?: number; before?: Date 
     .map((r) => ({ moment: r.moment, author: r.aid ? { id: r.aid, name: r.aname!, headline: r.aheadline!, xHandle: r.ax } : null }));
 }
 
+export const REACTIONS = ["fire", "love", "clap"] as const;
+export type ReactionKind = (typeof REACTIONS)[number];
+export type ReactionCounts = Record<ReactionKind, number>;
+export const noReactions = (): ReactionCounts => ({ fire: 0, love: 0, clap: 0 });
+
+/** 🔥 ❤️ 👏 counts for each moment. */
+export async function reactionCounts(db: DB, ids: string[]): Promise<Map<string, ReactionCounts>> {
+  const out = new Map<string, ReactionCounts>();
+  if (!ids.length) return out;
+  const rows = await db
+    .select({ id: s.reactions.momentId, kind: s.reactions.kind, n: sql<number>`count(*)::int` })
+    .from(s.reactions)
+    .where(inArray(s.reactions.momentId, ids))
+    .groupBy(s.reactions.momentId, s.reactions.kind);
+  for (const r of rows) {
+    const c = out.get(r.id) ?? noReactions();
+    if ((REACTIONS as readonly string[]).includes(r.kind)) c[r.kind as ReactionKind] = r.n;
+    out.set(r.id, c);
+  }
+  return out;
+}
+
 export type MomentPerson = { key: string; name: string; q: string };
 
 /**

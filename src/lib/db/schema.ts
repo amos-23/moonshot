@@ -271,3 +271,18 @@ export const signups = mc.table("signups", {
 });
 
 export type Signup = typeof signups.$inferSelect;
+
+// One-tap reactions on moments (🔥 ❤️ 👏). No sign-up: each browser keeps a random id for itself,
+// and only its hash is stored, so a person can react once per kind and take it back.
+export const reactions = mc.table(
+  "reactions",
+  {
+    momentId: uuid("moment_id")
+      .notNull()
+      .references(() => moments.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    reactor: text("reactor").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.momentId, t.kind, t.reactor] }), index("reactions_created_idx").on(t.createdAt), check("reactions_kind_check", sql`${t.kind} in ('fire','love','clap')`)],
+);

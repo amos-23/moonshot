@@ -313,6 +313,11 @@ function Highlights({ moments, featured }: { moments: MomentItem[]; featured: Mo
           📸 Highlights
         </h2>
         <span className="flex shrink-0 gap-3 text-sm font-semibold">
+          {moments.length > 0 && (
+            <Link href="/moments?story=1" className="text-ink hover:underline" data-track="home_story">
+              ▶ Watch
+            </Link>
+          )}
           <Link href="/moments?share=1" className="text-muted hover:text-ink" data-track="highlights_add">
             ＋ Add yours
           </Link>
