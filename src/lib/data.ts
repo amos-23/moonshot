@@ -1,10 +1,10 @@
-import { and, asc, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import type { DB } from "@/lib/db";
 import * as s from "@/lib/db/schema";
 import type { Person } from "@/lib/db/schema";
 import { scoreMatch } from "@/lib/matching";
 import { FILTERS, isHereNow, matches, personText, postText, searchWords, type FilterKey } from "@/lib/search";
-import { detectThemes, parseXPostUrl, snowflakeToDate } from "@/lib/social/x-url";
+import { detectThemes, parseXPostUrl, snowflakeToDate, type PostDetails } from "@/lib/social/x-url";
 
 export type FeedItem =
   | { kind: "person"; at: Date; person: Person; score: number; reasons: string[] }
@@ -89,7 +89,7 @@ export async function commentsFor(db: DB, postIds: string[]) {
   return map;
 }
 
-type DetailsFetcher = (externalId: string) => Promise<{ media: string[]; avatarUrl: string | null } | null>;
+type DetailsFetcher = (externalId: string) => Promise<PostDetails | null>;
 
 /** Looks up a post's images once and stores them (or notes that there were none). */
 export async function attachDetails(db: DB, post: { id: string; externalId: string }, fetchDetails: DetailsFetcher) {
@@ -110,6 +110,40 @@ export async function backfillDetails(db: DB, fetchDetails: DetailsFetcher, limi
     .limit(limit);
   for (const p of pending) await attachDetails(db, p, fetchDetails);
   return pending.length;
+}
+
+/** What a moment copies from an X post's details: engagement, and its video if it has one. */
+export function momentDetailFields(d: PostDetails, now = new Date()) {
+  return {
+    xLikes: d.likes ?? 0,
+    xReplies: d.replies ?? 0,
+    xVerified: d.verified ?? false,
+    xStatsAt: now,
+    xVideo: d.video?.src ?? null,
+    xVideoSmall: d.video?.small ?? null,
+    xVideoGif: d.video?.gif ?? false,
+  };
+}
+
+/**
+ * Keeps likes and replies on X moments fresh (they keep growing after the event), so Featured follows
+ * what people actually loved. Up to `limit` moments, those not checked for 3 hours first.
+ */
+export async function refreshMomentStats(db: DB, fetchDetails: DetailsFetcher, limit = 10, now = new Date()) {
+  const due = await db
+    .select({ id: s.moments.id, url: s.moments.xPostUrl, media: s.moments.xMedia })
+    .from(s.moments)
+    .where(and(eq(s.moments.hidden, false), sql`${s.moments.xPostUrl} is not null`, or(isNull(s.moments.xStatsAt), lt(s.moments.xStatsAt, new Date(now.getTime() - 3 * 3600_000)))))
+    .orderBy(sql`${s.moments.xStatsAt} asc nulls first`)
+    .limit(limit);
+  for (const m of due) {
+    const post = parseXPostUrl(m.url!);
+    const d = post ? await fetchDetails(post.id) : null;
+    // A failed fetch still waits 3 hours before the next try, so a deleted post isn't retried forever.
+    const fields = d ? { ...momentDetailFields(d, now), ...(m.media.length ? {} : { xMedia: d.media }) } : { xStatsAt: now };
+    await db.update(s.moments).set(fields).where(eq(s.moments.id, m.id));
+  }
+  return due.length;
 }
 
 export type MomentItem = {

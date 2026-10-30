@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
-import { ChevronLeft, ChevronRight, ExternalLink, Images, MapPin, Plus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink, Heart, Images, MapPin, MessageCircle, Play, Plus, X } from "lucide-react";
 import type { MomentView } from "./moment";
 import { ReportLink } from "./client";
 import { MomentForm } from "./forms";
@@ -27,19 +27,51 @@ function Img({ m, i = 0, className, eager }: { m: MomentView; i?: number; classN
   );
 }
 
+function PlayBadge({ gif, big }: { gif: boolean; big?: boolean }) {
+  if (gif) return null;
+  return (
+    <span aria-hidden className={cx("absolute left-1/2 top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white ring-1 ring-white/30 backdrop-blur-md transition group-hover:scale-110", big ? "h-20 w-20" : "h-12 w-12")}>
+      <Play size={big ? 30 : 20} fill="currentColor" className="translate-x-0.5" />
+    </span>
+  );
+}
+
+/** An X video in the viewer: starts muted (browsers only autoplay muted), tap for sound. Falls back to the still. */
+function MomentVideo({ m }: { m: MomentView }) {
+  const [failed, setFailed] = useState(false);
+  const v = m.video!;
+  if (failed) return <Img m={m} eager className="moment-fade max-h-full max-w-full rounded-2xl object-contain" />;
+  const small = typeof window !== "undefined" && window.innerWidth < 640;
+  return (
+    <video
+      key={m.id}
+      src={small ? v.small : v.src}
+      poster={m.images[0]}
+      autoPlay
+      muted
+      playsInline
+      loop={v.gif}
+      controls={!v.gif}
+      preload="metadata"
+      onError={() => setFailed(true)}
+      aria-label={v.gif ? `GIF from ${m.who}` : `Video from ${m.who}`}
+      className="moment-fade max-h-full max-w-full rounded-2xl bg-black shadow-[0_30px_80px_rgba(0,0,0,0.6)]"
+    />
+  );
+}
+
 const label = (m: MomentView) => {
   const words = m.note ?? m.text;
   return `Open moment from ${m.who}${words ? `: ${words.slice(0, 80)}` : ""}`;
 };
 
 /** The whole Moments experience: featured moment, photo wall, full-screen viewer and the share sheet. */
-export function MomentsGallery({ moments, myName, shareOpen, posted, total }: { moments: MomentView[]; myName: string | null; shareOpen: boolean; posted?: string; total: number }) {
-  const { featured, wall, ordered } = useMemo(() => {
-    const featured = moments.find((m) => m.images.length) ?? null;
+export function MomentsGallery({ moments, featured, myName, shareOpen, posted, total }: { moments: MomentView[]; featured: MomentView | null; myName: string | null; shareOpen: boolean; posted?: string; total: number }) {
+  const { wall, ordered } = useMemo(() => {
     const wall = featured ? moments.filter((m) => m.id !== featured.id) : moments;
     // The viewer walks through moments in the order they appear on the page.
-    return { featured, wall, ordered: featured ? [featured, ...wall] : wall };
-  }, [moments]);
+    return { wall, ordered: featured ? [featured, ...wall] : wall };
+  }, [moments, featured]);
   // Tracked by id, so a refreshed list (e.g. after a report hides a moment) never shows the wrong one.
   const [openId, setOpenId] = useState<string | null>(null);
   const open = openId ? ordered.findIndex((m) => m.id === openId) : -1;
@@ -105,8 +137,14 @@ export function MomentsGallery({ moments, myName, shareOpen, posted, total }: { 
             aria-label={label(featured)}
             className="moment-rise group relative mb-4 block overflow-hidden rounded-[28px] bg-white/5 ring-1 ring-white/10 sm:mb-6"
           >
-            <Img m={featured} eager className="aspect-[4/5] w-full object-cover transition duration-700 group-hover:scale-[1.03] sm:aspect-[21/9]" />
+            {featured.images.length ? (
+              <Img m={featured} eager className="aspect-[4/5] w-full object-cover transition duration-700 group-hover:scale-[1.03] sm:aspect-[21/9]" />
+            ) : (
+              // A pinned words-only moment: a big warm quote card instead of a photo.
+              <span aria-hidden className="block aspect-[4/5] w-full bg-gradient-to-br from-flame via-[#ef6a2c] to-sun sm:aspect-[21/9]" />
+            )}
             <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+            {featured.video && <PlayBadge gif={featured.video.gif} big />}
             <span className="absolute inset-x-0 bottom-0 p-5 text-left sm:p-8">
               <span className="mb-2 inline-block rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-white backdrop-blur">Featured</span>
               {featured.text && <span className="line-clamp-3 block max-w-2xl text-lg font-semibold leading-snug text-white sm:text-2xl">{featured.text}</span>}
@@ -139,7 +177,13 @@ export function MomentsGallery({ moments, myName, shareOpen, posted, total }: { 
                     <>
                       <Img m={m} className={cx("w-full bg-white/5 object-cover transition duration-700 group-hover:scale-105", SHAPES[i % SHAPES.length])} />
                       <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent opacity-90" />
+                      {m.video && <PlayBadge gif={m.video.gif} />}
                       <span className="absolute right-2.5 top-2.5 flex gap-1.5">
+                        {m.video && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-black/45 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur">
+                            {m.video.gif ? "GIF" : <><Play size={11} fill="currentColor" aria-hidden /> Video</>}
+                          </span>
+                        )}
                         {m.images.length > 1 && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-black/45 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur">
                             <Images size={12} aria-hidden /> {m.images.length}
@@ -247,7 +291,9 @@ function Viewer({ moments, index, onIndex }: { moments: MomentView[]; index: num
       </div>
 
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-2 sm:px-16" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-        {m.images.length ? (
+        {m.video && photo === 0 ? (
+          <MomentVideo m={m} />
+        ) : m.images.length ? (
           <Img key={`${m.id}-${photo}`} m={m} i={photo} eager className="moment-fade max-h-full max-w-full rounded-2xl object-contain shadow-[0_30px_80px_rgba(0,0,0,0.6)]" />
         ) : (
           <blockquote key={m.id} className="moment-fade max-w-2xl px-4 text-center text-2xl font-semibold leading-snug sm:text-4xl">
@@ -309,9 +355,21 @@ function Viewer({ moments, index, onIndex }: { moments: MomentView[]; index: num
         )}
         <div className="flex items-center justify-between gap-3 pt-1 [&_button]:text-white/50">
           {m.xUrl ? (
-            <a href={m.xUrl} target="_blank" rel="noopener noreferrer nofollow" data-track="moment_x_open" data-track-id={m.id} className="inline-flex items-center gap-1 text-sm font-semibold text-sun hover:underline">
-              View on X <ExternalLink size={13} aria-hidden />
-            </a>
+            <span className="flex items-center gap-4">
+              <a href={m.xUrl} target="_blank" rel="noopener noreferrer nofollow" data-track="moment_x_open" data-track-id={m.id} className="inline-flex items-center gap-1 text-sm font-semibold text-sun hover:underline">
+                View on X <ExternalLink size={13} aria-hidden />
+              </a>
+              {(m.likes > 0 || m.replies > 0) && (
+                <span className="flex items-center gap-3 text-xs text-white/50" aria-label={`${m.likes} likes and ${m.replies} replies on X`}>
+                  <span className="inline-flex items-center gap-1">
+                    <Heart size={13} aria-hidden /> {m.likes.toLocaleString()}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <MessageCircle size={13} aria-hidden /> {m.replies.toLocaleString()}
+                  </span>
+                </span>
+              )}
+            </span>
           ) : (
             <span />
           )}

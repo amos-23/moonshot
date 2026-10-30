@@ -2,9 +2,11 @@ import Link from "next/link";
 import { desc, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { isAdmin } from "@/lib/me";
-import { adminLogoutAction, removePhotoAction, resolveReportAction, setHiddenAction } from "@/lib/actions";
+import { adminLogoutAction, removePhotoAction, resolveReportAction, setFeaturedAction, setHiddenAction } from "@/lib/actions";
 import { formatTime, timeAgo } from "@/lib/time";
-import { AdminLogin, AdminMomentForm, ImportForm } from "@/components/forms";
+import { AdminLogin, AdminMomentForm, ImportForm, TopAccountsForm } from "@/components/forms";
+import { momentWho } from "@/components/moment";
+import { getTopAccounts, pickFeatured } from "@/lib/featured";
 import { ActionButton } from "@/components/client";
 import { Button, Card, Notice, PageTitle, Tag } from "@/components/ui";
 
@@ -21,7 +23,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     );
   }
   const db = await getDb();
-  const [reports, people, posts, comments, momentRows, liveCheckins, signups] = await Promise.all([
+  const [reports, people, posts, comments, momentRows, liveCheckins, signups, featured, topAccounts] = await Promise.all([
     db.select().from(schema.reports).where(eq(schema.reports.resolved, false)).orderBy(desc(schema.reports.createdAt)).limit(100),
     db.select().from(schema.people).orderBy(desc(schema.people.createdAt)).limit(500),
     db.select().from(schema.socialPosts).orderBy(desc(schema.socialPosts.importedAt)).limit(500),
@@ -29,6 +31,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     db.select().from(schema.moments).orderBy(desc(schema.moments.createdAt)).limit(300),
     db.select().from(schema.checkins).where(sql`${schema.checkins.endedAt} is null and ${schema.checkins.expiresAt} > now()`).orderBy(desc(schema.checkins.createdAt)).limit(300),
     db.select().from(schema.signups).orderBy(desc(schema.signups.createdAt)),
+    pickFeatured(db),
+    getTopAccounts(db),
   ]);
   const label = new Map<string, string>([
     ...people.map((p) => [p.id, p.name] as const),
@@ -38,7 +42,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     ...liveCheckins.map((c) => [c.id, `Check-in: ${c.name} at ${c.place}`] as const),
   ]);
 
-  const Row = ({ kind, id, title, sub, hidden, photo }: { kind: "person" | "post" | "comment" | "moment" | "checkin"; id: string; title: string; sub: string; hidden: boolean; photo?: string | null }) => (
+  const Row = ({ kind, id, title, sub, hidden, photo, extra }: { kind: "person" | "post" | "comment" | "moment" | "checkin"; id: string; title: string; sub: string; hidden: boolean; photo?: string | null; extra?: React.ReactNode }) => (
     <li>
       <Card className="flex flex-wrap items-center gap-3 p-3 text-sm">
         {photo && (
@@ -51,6 +55,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <span className="font-semibold">{title}</span> <span className="text-muted">{sub}</span>
         </span>
         {hidden && <Tag>hidden</Tag>}
+        {extra}
         {photo && kind === "person" && (
           <ActionButton action={removePhotoAction.bind(null, id)} variant="ghost" confirm="Remove this photo?">
             Remove photo
@@ -86,6 +91,25 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         <h2 className="text-lg font-bold">📸 Add moments</h2>
         <p className="mb-3 text-sm text-muted">Paste an X post link (a recap, photos, a highlight) and it&apos;s added straight away. Keep pasting: one after another, or many at once.</p>
         <AdminMomentForm />
+      </Card>
+      <Card className="p-5 sm:p-6">
+        <h2 className="text-lg font-bold">★ Featured on Moments</h2>
+        {featured ? (
+          <p className="mt-1 text-sm">
+            <span className="font-semibold">Now: {momentWho(featured.item)}</span>
+            <span className="text-muted"> — “{(featured.item.moment.body || featured.item.moment.xText || "photo").slice(0, 80)}” · </span>
+            {featured.reason === "pinned" ? (
+              <span className="font-semibold text-flame-700">pinned by you (unpin it in the Moments list below)</span>
+            ) : (
+              <span className="text-muted">auto: rotates every 30 minutes among the top {featured.candidates} by likes, replies and opens</span>
+            )}
+          </p>
+        ) : (
+          <p className="mt-1 text-sm text-muted">Nothing yet. Featured picks from moments with a photo.</p>
+        )}
+        <div className="mt-4">
+          <TopAccountsForm current={topAccounts.map((h) => `@${h}`).join(" ")} />
+        </div>
       </Card>
       <section>
         <h2 className="mb-3 font-bold">Reports ({reports.length})</h2>
@@ -172,10 +196,20 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               key={m.id}
               kind="moment"
               id={m.id}
-              title={m.name ?? (m.xHandle ? `@${m.xHandle}` : m.personId ? (label.get(m.personId) ?? "Card holder") : "Anonymous")}
-              sub={`${m.xPostUrl ? "𝕏 " : ""}${(m.body || m.xText || "").slice(0, 100)}${m.place ? ` · 📍 ${m.place}` : ""} · ${timeAgo(m.createdAt)}`}
+              title={m.xPostUrl ? (m.xAuthorName ?? `@${m.xAuthorHandle}`) : (m.name ?? (m.xHandle ? `@${m.xHandle}` : m.personId ? (label.get(m.personId) ?? "Card holder") : "Anonymous"))}
+              sub={`${m.xPostUrl ? `𝕏 ❤ ${m.xLikes} · 💬 ${m.xReplies}${m.xVideo ? " · ▶ video" : ""} · ` : ""}${(m.body || m.xText || "").slice(0, 100)}${m.place ? ` · 📍 ${m.place}` : ""} · ${timeAgo(m.createdAt)}`}
               hidden={m.hidden}
               photo={m.hasPhoto ? `/admin/moment-photo/${m.id}` : (m.xMedia[0] ?? null)}
+              extra={
+                m.hidden ? null : (
+                  <>
+                    {m.featuredAt && <Tag tone="sun">★ Featured</Tag>}
+                    <ActionButton action={setFeaturedAction.bind(null, m.id, !m.featuredAt)} variant={m.featuredAt ? "secondary" : "ghost"}>
+                      {m.featuredAt ? "Unpin" : "Feature this"}
+                    </ActionButton>
+                  </>
+                )
+              }
             />
           ))}
         </ul>

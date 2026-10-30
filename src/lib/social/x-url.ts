@@ -87,10 +87,27 @@ export function detectMentions(text: string | null | undefined): string[] {
 
 // ─── Post images ─────────────────────────────────────────────────────────────
 
-export type PostDetails = { media: string[]; avatarUrl: string | null };
+export type PostVideo = { src: string; small: string; gif: boolean };
+export type PostDetails = { media: string[]; avatarUrl: string | null; likes?: number; replies?: number; verified?: boolean; video?: PostVideo | null };
 
 const X_IMAGE = /^https:\/\/pbs\.twimg\.com\/[A-Za-z0-9_\-./?=&%]+$/;
 const safeImage = (u: unknown): string | null => (typeof u === "string" && X_IMAGE.test(u) ? u : null);
+const X_VIDEO = /^https:\/\/video\.twimg\.com\/[A-Za-z0-9_\-./?=&%]+$/;
+const count = (n: unknown) => (typeof n === "number" && Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
+
+type SyndicationMedia = { media_url_https?: string; type?: string; video_info?: { variants?: { bitrate?: number; content_type?: string; url?: string }[] } };
+
+/** A post's first video or GIF as MP4s hosted by X: the best up to ~2.5 Mbps, and a lighter one for phones. */
+function pickVideo(media: SyndicationMedia[]): PostVideo | null {
+  const v = media.find((m) => m.type === "video" || m.type === "animated_gif");
+  const mp4s = (v?.video_info?.variants ?? [])
+    .filter((x) => x.content_type === "video/mp4" && typeof x.url === "string" && X_VIDEO.test(x.url))
+    .sort((a, b) => (a.bitrate ?? 0) - (b.bitrate ?? 0));
+  if (!v || !mp4s.length) return null;
+  const best = [...mp4s].reverse().find((x) => (x.bitrate ?? 0) <= 2_500_000) ?? mp4s[0];
+  const small = mp4s.find((x) => (x.bitrate ?? 0) >= 600_000) ?? mp4s[0];
+  return { src: best.url!, small: small.url!, gif: v.type === "animated_gif" };
+}
 
 /** Token X's embed widget sends with a post ID when loading its details. */
 export function syndicationToken(id: string): string {
@@ -98,14 +115,17 @@ export function syndicationToken(id: string): string {
 }
 
 /**
- * Picks the images a post shows: attached photos (or video/GIF stills), else its link-preview
- * image, plus the author's profile picture. Only images hosted by X are kept.
+ * Picks what a post shows: attached photos (or video/GIF stills), else its link-preview image, the
+ * author's profile picture, its first video/GIF, and its likes, replies and verified badge.
+ * Only images and videos hosted by X are kept.
  */
 export function parseSyndication(data: unknown): PostDetails {
   const d = (data ?? {}) as {
-    mediaDetails?: { media_url_https?: string }[];
+    mediaDetails?: SyndicationMedia[];
     card?: { binding_values?: Record<string, { image_value?: { url?: string } }> };
-    user?: { profile_image_url_https?: string };
+    user?: { profile_image_url_https?: string; verified?: boolean; is_blue_verified?: boolean };
+    favorite_count?: number;
+    conversation_count?: number;
   };
   let media = (d.mediaDetails ?? []).map((m) => safeImage(m.media_url_https)).filter((u): u is string => Boolean(u));
   if (!media.length && d.card?.binding_values) {
@@ -115,5 +135,12 @@ export function parseSyndication(data: unknown): PostDetails {
   }
   // "_normal" avatars are 48px; "_bigger" is 73px and still small.
   const avatar = safeImage(d.user?.profile_image_url_https?.replace("_normal.", "_bigger."));
-  return { media: media.slice(0, 4), avatarUrl: avatar };
+  return {
+    media: media.slice(0, 4),
+    avatarUrl: avatar,
+    likes: count(d.favorite_count),
+    replies: count(d.conversation_count),
+    verified: Boolean(d.user?.verified || d.user?.is_blue_verified),
+    video: pickVideo(d.mediaDetails ?? []),
+  };
 }

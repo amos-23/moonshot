@@ -193,6 +193,16 @@ export const moments = mc.table(
     xMedia: text("x_media").array().notNull().default(sql`'{}'::text[]`),
     xAvatarUrl: text("x_avatar_url"),
     xPostedAt: timestamp("x_posted_at", { withTimezone: true }),
+    // Engagement on X (from the public embed data), refreshed in the background. Used to pick Featured.
+    xLikes: integer("x_likes").notNull().default(0),
+    xReplies: integer("x_replies").notNull().default(0),
+    xVerified: boolean("x_verified").notNull().default(false),
+    xStatsAt: timestamp("x_stats_at", { withTimezone: true }),
+    // A video or GIF in the X post: MP4s hosted by X (a smaller one for phones).
+    xVideo: text("x_video"),
+    xVideoSmall: text("x_video_small"),
+    xVideoGif: boolean("x_video_gif").notNull().default(false),
+    featuredAt: timestamp("featured_at", { withTimezone: true }), // pinned by an admin as Featured
     hidden: boolean("hidden").notNull().default(false),
     visitor: text("visitor").notNull(), // anonymous daily hash, for rate limits and report counting
     createdAt: createdAt(),

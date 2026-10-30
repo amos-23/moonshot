@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { eventOver } from "@/lib/constants";
+import { momentScore, parseHandles, rotationIndex, ROTATE_MS } from "@/lib/featured";
 import { scoreMatch, type MatchCard } from "@/lib/matching";
 import { cardSchema, signupSchema } from "@/lib/validation";
 import { detectMentions, parseXPostUrl, snowflakeToDate } from "@/lib/social/x-url";
@@ -108,12 +109,12 @@ describe("X post images", () => {
         mediaDetails: [{ media_url_https: "https://pbs.twimg.com/media/A.jpg" }, { media_url_https: "https://evil.example/x.jpg" }],
         user: { profile_image_url_https: "https://pbs.twimg.com/profile_images/1/me_normal.jpg" },
       }),
-    ).toEqual({ media: ["https://pbs.twimg.com/media/A.jpg"], avatarUrl: "https://pbs.twimg.com/profile_images/1/me_bigger.jpg" });
+    ).toMatchObject({ media: ["https://pbs.twimg.com/media/A.jpg"], avatarUrl: "https://pbs.twimg.com/profile_images/1/me_bigger.jpg" });
     expect(
       parseSyndication({ card: { binding_values: { photo_image_full_size_large: { image_value: { url: "https://pbs.twimg.com/card_img/2/x?format=jpg&name=800x419" } } } } }).media,
     ).toEqual(["https://pbs.twimg.com/card_img/2/x?format=jpg&name=800x419"]);
-    expect(parseSyndication({ user: { profile_image_url_https: "javascript:alert(1)" } })).toEqual({ media: [], avatarUrl: null });
-    expect(parseSyndication(null)).toEqual({ media: [], avatarUrl: null });
+    expect(parseSyndication({ user: { profile_image_url_https: "javascript:alert(1)" } })).toMatchObject({ media: [], avatarUrl: null });
+    expect(parseSyndication(null)).toEqual({ media: [], avatarUrl: null, likes: 0, replies: 0, verified: false, video: null });
   });
   it("computes the embed token like X's widget", () => {
     expect(syndicationToken("2114706863631572995")).toMatch(/^[0-9a-z]+$/);
@@ -140,5 +141,56 @@ describe("signupSchema", () => {
     expect(signupSchema.parse({ email: "  Ada@Example.COM ", name: "", about: "" })).toEqual({ email: "ada@example.com", name: null, about: null });
     expect(signupSchema.safeParse({ email: "nope", name: "", about: "" }).success).toBe(false);
     expect(signupSchema.safeParse({ email: "a@b.co", name: "x".repeat(61), about: "" }).success).toBe(false);
+  });
+});
+
+describe("parseSyndication: engagement and video", () => {
+  it("reads likes, replies, the verified badge and picks safe MP4s", () => {
+    const d = parseSyndication({
+      favorite_count: 51,
+      conversation_count: 8,
+      user: { is_blue_verified: true },
+      mediaDetails: [
+        {
+          type: "video",
+          media_url_https: "https://pbs.twimg.com/ext_tw_video_thumb/1/pu/img/a.jpg",
+          video_info: {
+            variants: [
+              { content_type: "application/x-mpegURL", url: "https://video.twimg.com/ext_tw_video/1/pu/pl/a.m3u8" },
+              { bitrate: 256000, content_type: "video/mp4", url: "https://video.twimg.com/ext_tw_video/1/pu/vid/320x568/a.mp4" },
+              { bitrate: 832000, content_type: "video/mp4", url: "https://video.twimg.com/ext_tw_video/1/pu/vid/480x852/a.mp4" },
+              { bitrate: 2176000, content_type: "video/mp4", url: "https://video.twimg.com/ext_tw_video/1/pu/vid/720x1280/a.mp4" },
+              { bitrate: 10368000, content_type: "video/mp4", url: "https://video.twimg.com/ext_tw_video/1/pu/vid/1080x1920/a.mp4" },
+              { bitrate: 900000, content_type: "video/mp4", url: "https://evil.example/a.mp4" },
+            ],
+          },
+        },
+      ],
+    });
+    expect(d).toMatchObject({ likes: 51, replies: 8, verified: true, media: ["https://pbs.twimg.com/ext_tw_video_thumb/1/pu/img/a.jpg"] });
+    expect(d.video).toEqual({ src: "https://video.twimg.com/ext_tw_video/1/pu/vid/720x1280/a.mp4", small: "https://video.twimg.com/ext_tw_video/1/pu/vid/480x852/a.mp4", gif: false });
+    const gif = parseSyndication({ mediaDetails: [{ type: "animated_gif", video_info: { variants: [{ bitrate: 0, content_type: "video/mp4", url: "https://video.twimg.com/tweet_video/a.mp4" }] } }] });
+    expect(gif.video).toEqual({ src: "https://video.twimg.com/tweet_video/a.mp4", small: "https://video.twimg.com/tweet_video/a.mp4", gif: true });
+    expect(parseSyndication({ favorite_count: -3, conversation_count: "9" })).toMatchObject({ likes: 0, replies: 0 });
+  });
+});
+
+describe("Featured scoring", () => {
+  const m = (o: Partial<{ xLikes: number; xReplies: number; xVerified: boolean; xAuthorHandle: string | null; xHandle: string | null }> = {}) => ({ xLikes: 0, xReplies: 0, xVerified: false, xAuthorHandle: null, xHandle: null, ...o });
+  it("weighs likes, replies and opens here, and boosts your top accounts most", () => {
+    expect(momentScore(m({ xLikes: 10, xReplies: 2 }), 1, new Set())).toBe(10 + 4 + 5 + 1);
+    expect(momentScore(m({ xLikes: 10, xAuthorHandle: "TechCabal" }), 0, new Set(["techcabal"]))).toBe(11 * 4);
+    expect(momentScore(m({ xLikes: 10, xVerified: true }), 0, new Set())).toBeCloseTo(11 * 1.25);
+    expect(momentScore(m(), 3, new Set())).toBe(16); // an uploaded photo competes on opens
+  });
+  it("reads handles from any list", () => {
+    expect(parseHandles("@TechCabal, ada\n@Ada  bola_x")).toEqual(["techcabal", "ada", "bola_x"]);
+  });
+  it("rotates every 30 minutes, the same for everyone in a window", () => {
+    const t = 1_800_000_000_000;
+    expect(rotationIndex(5, t)).toBe(rotationIndex(5, t + 1000));
+    const picks = new Set(Array.from({ length: 20 }, (_, i) => rotationIndex(5, t + i * ROTATE_MS)));
+    expect(picks.size).toBeGreaterThan(2);
+    expect(rotationIndex(1, t)).toBe(0);
   });
 });

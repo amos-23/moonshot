@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { addCommentAction, addXPostAction, adminLoginAction, checkInAction, importMomentsAction, importPostsAction, postMomentAction, signUpAction, saveCardAction, saveUpdateAction } from "@/lib/actions";
+import { addCommentAction, addXPostAction, adminLoginAction, checkInAction, importMomentsAction, importPostsAction, postMomentAction, saveTopAccountsAction, signUpAction, saveCardAction, saveUpdateAction } from "@/lib/actions";
 import type { Person } from "@/lib/db/schema";
 import { MAX_MOMENT_PHOTOS, OFFERS, WANTS } from "@/lib/constants";
 import type { ImportResult } from "@/lib/data";
@@ -385,6 +385,23 @@ export function SignupForm({ name, about }: { name: string; about: string }) {
         <div className="min-w-0 text-sm">
           <Status state={state} />
         </div>
+      </div>
+    </form>
+  );
+}
+
+export function TopAccountsForm({ current }: { current: string }) {
+  const { state, pending, onSubmit } = useForm(saveTopAccountsAction, { refresh: true });
+  return (
+    <form onSubmit={onSubmit} className="space-y-2">
+      <Field label="Top accounts" htmlFor="top-accounts" hint="X handles whose posts get a strong boost for Featured (e.g. organisers, speakers, well-known founders). Separate with spaces or new lines.">
+        <textarea id="top-accounts" name="handles" rows={2} defaultValue={current} placeholder="@techcabal @someone" className={cx(inputClass, "font-mono text-xs")} />
+      </Field>
+      <div className="flex items-center gap-3">
+        <Submit pending={pending} variant="secondary" size="sm">
+          Save
+        </Submit>
+        <Status state={state} />
       </div>
     </form>
   );

@@ -32,6 +32,9 @@ export type MomentView = {
   place: string | null;
   ago: string;
   people: MomentPerson[];
+  video: { src: string; small: string; gif: boolean } | null; // an X post's video/GIF (plays over the first image)
+  likes: number; // on X
+  replies: number;
 };
 
 export function toMomentView(item: MomentItem, people: MomentPerson[] = []): MomentView {
@@ -51,5 +54,8 @@ export function toMomentView(item: MomentItem, people: MomentPerson[] = []): Mom
     place: m.place,
     ago: timeAgo(m.xPostedAt ?? m.createdAt),
     people,
+    video: !uploaded.length && m.xVideo ? { src: m.xVideo, small: m.xVideoSmall ?? m.xVideo, gif: m.xVideoGif } : null,
+    likes: fromX ? m.xLikes : 0,
+    replies: fromX ? m.xReplies : 0,
   };
 }

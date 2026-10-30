@@ -1,11 +1,13 @@
 import path from "path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
+import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/lib/db/schema";
 import type { DB } from "@/lib/db";
-import { backfillDetails, commentsFor, importPosts, listMoments, listPeople, listXCards, momentPeople } from "@/lib/data";
+import { backfillDetails, commentsFor, importPosts, listMoments, listPeople, listXCards, momentPeople, refreshMomentStats } from "@/lib/data";
+import { pickFeatured, TOP_ACCOUNTS_KEY } from "@/lib/featured";
 import { siteStats } from "@/lib/stats";
 
 let db: DB;
@@ -161,5 +163,61 @@ describe("moments and people", () => {
       { momentId: m.id, position: 1, mime: "image/jpeg", data: "AQ==" },
     ]);
     await expect(db.insert(schema.momentPhotos).values({ momentId: m.id, position: 1, mime: "image/jpeg", data: "Ag==" })).rejects.toThrow();
+  });
+});
+
+describe("Featured", () => {
+  it("picks among the most engaging moments with images, boosts top accounts, and lets a pin win", async () => {
+    // Fresh state for this test: hide everything from earlier tests.
+    await db.update(schema.moments).set({ hidden: true });
+    const add = async (o: Partial<typeof schema.moments.$inferInsert>) =>
+      (await db.insert(schema.moments).values({ body: "m", visitor: "v", ...o }).returning())[0];
+    const textOnly = await add({ body: "loved but no photo", xLikes: 9999 });
+    const popular = await add({ xPostUrl: "https://x.com/a/status/10", xAuthorHandle: "a", xMedia: ["https://pbs.twimg.com/media/a.jpg"], xLikes: 500 });
+    const official = await add({ xPostUrl: "https://x.com/TechCabal/status/11", xAuthorHandle: "TechCabal", xMedia: ["https://pbs.twimg.com/media/b.jpg"], xLikes: 200 });
+    const photo = await add({ hasPhoto: true, photoCount: 1 });
+    for (let i = 0; i < 6; i++) await add({ xPostUrl: `https://x.com/q/status/${20 + i}`, xAuthorHandle: "q", xMedia: ["https://pbs.twimg.com/media/q.jpg"], xLikes: i });
+
+    // Only the top 5 rotate; text-only moments never feature.
+    const seen = new Set<string>();
+    for (let k = 0; k < 40; k++) seen.add((await pickFeatured(db, Date.now() + k * 30 * 60_000))!.item.moment.id);
+    expect(seen.has(textOnly.id)).toBe(false);
+    expect(seen.has(popular.id)).toBe(true);
+    expect(seen.size).toBeLessThanOrEqual(5);
+
+    // Opens on the site lift an uploaded photo into the top 5.
+    await db.insert(schema.events).values(Array.from({ length: 60 }, () => ({ type: "click", path: "/moments", visitor: "v", target: "moment_open", targetId: photo.id })));
+    const seen2 = new Set<string>();
+    for (let k = 0; k < 40; k++) seen2.add((await pickFeatured(db, Date.now() + k * 30 * 60_000))!.item.moment.id);
+    expect(seen2.has(photo.id)).toBe(true);
+
+    // A top account outranks a more-liked post from anyone else.
+    await db.insert(schema.settings).values({ key: TOP_ACCOUNTS_KEY, value: "techcabal" }).onConflictDoUpdate({ target: schema.settings.key, set: { value: "techcabal" } });
+    await db.update(schema.moments).set({ hidden: true }).where(sql`${schema.moments.xAuthorHandle} = 'q'`);
+    await db.update(schema.moments).set({ hidden: true }).where(eq(schema.moments.id, photo.id));
+    // With two candidates left, both rotate, but the official one scores higher: 201*4 vs 501.
+    const picked = await pickFeatured(db);
+    expect([official.id, popular.id]).toContain(picked!.item.moment.id);
+
+    // An admin's pin always wins.
+    await db.update(schema.moments).set({ featuredAt: new Date() }).where(eq(schema.moments.id, textOnly.id));
+    const pinned = await pickFeatured(db);
+    expect(pinned).toMatchObject({ reason: "pinned" });
+    expect(pinned!.item.moment.id).toBe(textOnly.id);
+  });
+
+  it("refreshes likes, replies and video for X moments that are due", async () => {
+    const [m] = await db.insert(schema.moments).values({ xPostUrl: "https://x.com/v/status/1860000000000000000", xAuthorHandle: "v", visitor: "v" }).returning();
+    const calls: string[] = [];
+    const fake = async (id: string) => {
+      calls.push(id);
+      return { media: ["https://pbs.twimg.com/ext_tw_video_thumb/1/a.jpg"], avatarUrl: null, likes: 42, replies: 7, verified: true, video: { src: "https://video.twimg.com/a.mp4", small: "https://video.twimg.com/s.mp4", gif: false } };
+    };
+    await refreshMomentStats(db, fake, 50);
+    const [after] = await db.select().from(schema.moments).where(eq(schema.moments.id, m.id));
+    expect(after).toMatchObject({ xLikes: 42, xReplies: 7, xVerified: true, xVideo: "https://video.twimg.com/a.mp4", xVideoSmall: "https://video.twimg.com/s.mp4", xMedia: ["https://pbs.twimg.com/ext_tw_video_thumb/1/a.jpg"] });
+    const before = calls.length;
+    await refreshMomentStats(db, fake, 50);
+    expect(calls.length).toBe(before); // not due again for 3 hours
   });
 });

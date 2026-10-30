@@ -425,6 +425,24 @@ try {
   await am.getByText("Someone at Moonshot").waitFor();
   assert.equal(await am.getByText("Moonshot Connect").count(), 0, "no default credit");
 
+  step("admin pins a moment as Featured, sets top accounts, then unpins");
+  await admin.page.goto(`${BASE}/admin`);
+  const pinRow = admin.page.locator("li", { hasText: `Doors open for day 2 ${run}` });
+  await pinRow.getByRole("button", { name: "Feature this" }).click();
+  await pinRow.getByRole("button", { name: "Unpin" }).waitFor();
+  await admin.page.getByText(/pinned by you/).waitFor();
+  await anon.page.goto(`${BASE}/moments`);
+  const featuredTile = anon.page.locator('a[data-track="moments_featured"]');
+  assert.match(await featuredTile.getAttribute("aria-label"), new RegExp(`Doors open for day 2 ${run}`), "the pinned moment is Featured");
+  await admin.page.getByLabel("Top accounts").fill("@TechCabal, someone_else");
+  await admin.page.getByRole("button", { name: "Save", exact: true }).click();
+  await admin.page.getByText("Saved 2 accounts.").waitFor();
+  await pinRow.getByRole("button", { name: "Unpin" }).click();
+  await pinRow.getByRole("button", { name: "Feature this" }).waitFor();
+  await admin.page.goto(`${BASE}/admin`);
+  assert.equal(await admin.page.getByLabel("Top accounts").inputValue(), "@techcabal @someone_else");
+  await admin.page.getByText(/auto: rotates every 30 minutes/).waitFor();
+
   step("admin Stats shows visits, clicks and searches");
   await admin.page.goto(`${BASE}/admin/stats?days=1`);
   const tile = async (label) => Number((await admin.page.getByText(label, { exact: true }).locator("xpath=preceding-sibling::p[1]").innerText()).replace(/,/g, ""));

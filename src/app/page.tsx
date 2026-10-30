@@ -9,6 +9,7 @@ import { backfillImages, refreshLive } from "@/lib/social/live";
 import { recordSearch } from "@/lib/track";
 import { siteOrigin } from "@/lib/site";
 import { EVENT, eventOver } from "@/lib/constants";
+import { pickFeatured } from "@/lib/featured";
 import { PersonCard, XCard } from "@/components/person";
 import { momentImage, momentWho } from "@/components/moment";
 import { ShareButtons } from "@/components/share";
@@ -30,10 +31,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
   // Fill in images for older X posts after the page has been sent, so it never slows it down.
   after(() => backfillImages(db).catch((err) => console.error("image backfill failed", err)));
   const { items, gaps, counts } = await feed(db, me, { q, filter, sort });
-  const [comments, moments, checkins] = await Promise.all([
+  const [comments, moments, checkins, featured] = await Promise.all([
     commentsFor(db, items.flatMap((i) => (i.kind === "x" ? [i.post.id] : []))),
     q || filter ? Promise.resolve([]) : listMoments(db, { limit: over ? 40 : 12 }),
     over ? Promise.resolve([]) : listCheckins(db),
+    over && !q && !filter ? pickFeatured(db) : Promise.resolve(null),
   ]);
   if (q) await recordSearch(q, items.length);
   const origin = await siteOrigin();
@@ -131,7 +133,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
         )}
 
         {!q && !filter && over && (
-          <Highlights moments={moments} />
+          <Highlights moments={moments} featured={featured?.item ?? null} />
         )}
 
         {!q && !filter && !over && (
@@ -286,9 +288,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
 }
 
 /** After Moonshot: a grid of the best-looking moments (photos first), right under "Find the people you met". */
-function Highlights({ moments }: { moments: MomentItem[] }) {
-  const withImages = moments.filter((m) => momentImage(m));
-  const tiles = [...withImages, ...moments.filter((m) => !momentImage(m))].slice(0, 8);
+function Highlights({ moments, featured }: { moments: MomentItem[]; featured: MomentItem | null }) {
+  // The current Featured moment leads, then the newest with photos.
+  const rest = moments.filter((m) => m.moment.id !== featured?.moment.id);
+  const withImages = rest.filter((m) => momentImage(m));
+  const tiles = [...(featured ? [featured] : []), ...withImages, ...rest.filter((m) => !momentImage(m))].slice(0, 8);
   return (
     <section aria-labelledby="highlights-h" className="mb-10">
       <div className="mb-3 flex items-end justify-between gap-3">

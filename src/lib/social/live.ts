@@ -5,7 +5,7 @@ import * as s from "@/lib/db/schema";
 import { SEARCH_PHRASES } from "@/lib/constants";
 import { detectThemes } from "./x-url";
 import { activeSearchProvider, fetchPostDetails } from "./providers";
-import { backfillDetails } from "@/lib/data";
+import { backfillDetails, refreshMomentStats } from "@/lib/data";
 
 const KEY = "x_last_refresh";
 const MIN_INTERVAL_MS = 15 * 60_000;
@@ -46,4 +46,17 @@ export async function backfillImages(db: DB) {
     .values({ key: BACKFILL_KEY, value: String(Date.now()) })
     .onConflictDoUpdate({ target: s.settings.key, set: { value: String(Date.now()) } });
   await backfillDetails(db, fetchPostDetails, 10);
+}
+
+const MOMENT_STATS_KEY = "moment_stats_refresh";
+
+/** Refreshes likes/replies for up to 10 X moments, at most once a minute. Call after the response. */
+export async function refreshMoments(db: DB) {
+  const last = await db.query.settings.findFirst({ where: eq(s.settings.key, MOMENT_STATS_KEY) });
+  if (last && Date.now() - Number(last.value) < 60_000) return;
+  await db
+    .insert(s.settings)
+    .values({ key: MOMENT_STATS_KEY, value: String(Date.now()) })
+    .onConflictDoUpdate({ target: s.settings.key, set: { value: String(Date.now()) } });
+  await refreshMomentStats(db, fetchPostDetails, 10);
 }

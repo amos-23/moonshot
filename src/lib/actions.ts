@@ -7,12 +7,13 @@ import { and, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { cardSchema, fieldErrors, parseContact, signupSchema, type Contact } from "@/lib/validation";
 import { clearCardCookie, getMe, hashToken, isAdmin, isAdminKey, newToken, rateLimit, setCardCookie } from "@/lib/me";
-import { UserError, attachDetails, importPosts, parseImport, type ImportResult } from "@/lib/data";
+import { UserError, attachDetails, importPosts, momentDetailFields, parseImport, type ImportResult } from "@/lib/data";
 import { fetchOEmbed, fetchPostDetails } from "@/lib/social/providers";
 import { parseXPostUrl, snowflakeToDate } from "@/lib/social/x-url";
 import { parsePhoto } from "@/lib/photo";
 import { clientIp, visitorHash } from "@/lib/track";
 import { MAX_MOMENT_PHOTOS, SIGNUP_COOKIE, eventOver } from "@/lib/constants";
+import { TOP_ACCOUNTS_KEY, parseHandles } from "@/lib/featured";
 
 export type Result = { ok: true; message?: string; data?: unknown } | { ok: false; error: string; fields?: Record<string, string> };
 
@@ -101,6 +102,7 @@ async function xMomentFields(xPost: NonNullable<ReturnType<typeof parseXPostUrl>
     xMedia: details?.media ?? [],
     xAvatarUrl: details?.avatarUrl ?? null,
     xPostedAt: snowflakeToDate(xPost.id),
+    ...(details ? momentDetailFields(details) : {}),
   };
 }
 
@@ -414,6 +416,31 @@ export async function importPostsAction(_: Result | null, form: FormData): Promi
     const n = (st: string) => results.filter((r) => r.status === st).length;
     refresh();
     return { ok: true, message: `${n("added")} added, ${n("duplicate")} already there, ${n("invalid")} invalid.`, data: results };
+  });
+}
+
+/** Admin: pin a moment as Featured (one at a time), or unpin it so Featured rotates by engagement again. */
+export async function setFeaturedAction(id: string, on: boolean): Promise<Result> {
+  return guard(async () => {
+    const db = await requireAdmin();
+    await db.update(schema.moments).set({ featuredAt: null }).where(sql`${schema.moments.featuredAt} is not null`);
+    if (on) await db.update(schema.moments).set({ featuredAt: new Date() }).where(eq(schema.moments.id, id));
+    refresh();
+    return { ok: true, message: on ? "Pinned as Featured." : "Unpinned." };
+  });
+}
+
+/** Admin: the X accounts whose posts get a strong boost for Featured. */
+export async function saveTopAccountsAction(_: Result | null, form: FormData): Promise<Result> {
+  return guard(async () => {
+    const db = await requireAdmin();
+    const handles = parseHandles(String(form.get("handles") ?? "").slice(0, 5000));
+    await db
+      .insert(schema.settings)
+      .values({ key: TOP_ACCOUNTS_KEY, value: handles.join(" ") })
+      .onConflictDoUpdate({ target: schema.settings.key, set: { value: handles.join(" ") } });
+    refresh();
+    return { ok: true, message: handles.length ? `Saved ${handles.length} account${handles.length === 1 ? "" : "s"}.` : "Cleared." };
   });
 }
 
