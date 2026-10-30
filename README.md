@@ -25,9 +25,16 @@ When you add yourself, your browser keeps a private edit token in a cookie. **My
 
 ## Stats
 
-`/admin/stats` shows a funnel (visited → opened the form → made a card → contacted someone), visits, unique visitors, button clicks (WhatsApp, X, LinkedIn, View post, comments, Add me…), the most-clicked people and posts, top searches (and searches that found nothing), the top pages and the referring sites, for the last 24 hours, 7 days or 30 days.
+`/admin/stats` (24 hours, 7, 30 or 90 days, or all time; arrows compare with the period before):
 
-Tracking is built in and cookie-free. Each visitor is counted with an anonymous hash that changes daily. Bots and admin pages are not counted.
+- **Headline numbers:** visitors, visits, people who contacted someone (and the contact rate), average time on the site, pages per visitor, returning visitors, clicks and searches, plus how many people are on the site right now.
+- **Visits per hour or per day,** and the busiest hours of the day (Lagos time).
+- **Two funnels:** visit → opened the form → made a card → contacted someone; and on Moments: visited → opened a moment → followed up with someone → went to the post on X (with average time there and video plays).
+- **Top moments** (opens, video plays, follow-ups, likes on X), devices (phone/tablet/computer), campaign links (`?utm_source=…&utm_campaign=…` or `?ref=…`), referring sites, top pages, time on each page, every button's clicks, the most-clicked people/posts/moments, top searches and searches that found nothing.
+- **What's on the site:** cards, X cards, moments, photo moments, comments and sign-ups, added in the period and in total.
+- **Download CSV:** one row per day for spreadsheets.
+
+Tracking is built in and cookie-free. Each visitor is counted with an anonymous hash that changes daily; "returning" is only a yes/no the browser keeps for itself. Time on a page counts only while it's on screen. Bots and admin pages are not counted.
 
 ## Getting X posts in
 

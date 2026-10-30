@@ -27,7 +27,7 @@ export default async function MomentsPage({ searchParams }: { searchParams: Prom
   ]);
   // Keep likes and replies fresh for Featured, after the page has been sent.
   after(() => refreshMoments(db).catch((err) => console.error("moment stats refresh failed", err)));
-  const people = await momentPeople(db, featured ? [featured.item, ...items] : items);
+  const people = await momentPeople(db, featured ? [...featured.list, ...items] : items);
   const last = items.at(-1);
 
   return (
@@ -37,7 +37,7 @@ export default async function MomentsPage({ searchParams }: { searchParams: Prom
           Posted — thanks for sharing ✨
         </p>
       )}
-      <MomentsGallery moments={items.map((i) => toMomentView(i, people.get(i.moment.id)))} featured={featured ? toMomentView(featured.item, people.get(featured.item.moment.id)) : null} myName={me?.name ?? null} shareOpen={Boolean(sp.share) || (!before && items.length === 0)} posted={sp.posted} total={total} />
+      <MomentsGallery moments={items.map((i) => toMomentView(i, people.get(i.moment.id)))} featured={featured ? featured.list.map((i) => toMomentView(i, people.get(i.moment.id))) : []} myName={me?.name ?? null} shareOpen={Boolean(sp.share) || (!before && items.length === 0)} posted={sp.posted} total={total} />
       {items.length === PAGE && last && (
         <div className="-mt-16 pb-16 text-center">
           <Link href={`/moments?before=${encodeURIComponent(last.moment.createdAt.toISOString())}`} className="inline-flex h-11 items-center rounded-full bg-white/10 px-6 font-semibold text-white hover:bg-white/20">

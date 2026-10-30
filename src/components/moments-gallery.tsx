@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, ExternalLink, Heart, Images, MapPin, Message
 import type { MomentView } from "./moment";
 import { ReportLink } from "./client";
 import { MomentForm } from "./forms";
+import { track } from "./tracker";
 import { Avatar, cx } from "./ui";
 
 // Rhythm for the photo wall: varied shapes so it reads like a contact sheet, not a grid of squares.
@@ -67,6 +68,126 @@ function FilmStrip({ moments, onOpen }: { moments: MomentView[]; onOpen: (id: st
   );
 }
 
+const SLIDE_MS = 7000;
+
+/**
+ * Featured as a slideshow: each top moment crossfades in with a slow pan-and-zoom, story-style
+ * progress bars on top. Swipe or tap a bar to jump; hovering, an open viewer or a hidden tab pauses
+ * it; with reduced motion it only moves when asked.
+ */
+function FeaturedShow({ slides, onOpen, paused }: { slides: MomentView[]; onOpen: (id: string) => void; paused: boolean }) {
+  const [i, setI] = useState(0);
+  const [hold, setHold] = useState(false);
+  const [still, setStill] = useState(false);
+  const touch = useRef<number | null>(null);
+  const n = slides.length;
+  const go = useCallback((to: number) => setI(((to % n) + n) % n), [n]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onVis = () => setStill(mq.matches || document.visibilityState === "hidden");
+    onVis();
+    mq.addEventListener("change", onVis);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      mq.removeEventListener("change", onVis);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+  const running = n > 1 && !paused && !hold && !still;
+  useEffect(() => {
+    if (!running) return;
+    const t = window.setTimeout(() => go(i + 1), SLIDE_MS);
+    return () => window.clearTimeout(t);
+  }, [running, i, go]);
+
+  const m = slides[i];
+  return (
+    <section
+      aria-roledescription="carousel"
+      aria-label="Featured moments"
+      className="moment-rise relative mb-4 overflow-hidden rounded-[28px] bg-white/5 ring-1 ring-white/10 sm:mb-6"
+      onMouseEnter={() => setHold(true)}
+      onMouseLeave={() => setHold(false)}
+      onFocus={() => setHold(true)}
+      onBlur={() => setHold(false)}
+      onTouchStart={(e) => (touch.current = e.touches[0].clientX)}
+      onTouchEnd={(e) => {
+        if (touch.current === null) return;
+        const dx = e.changedTouches[0].clientX - touch.current;
+        touch.current = null;
+        if (Math.abs(dx) > 50) go(i + (dx < 0 ? 1 : -1));
+      }}
+    >
+      <div className="relative aspect-[4/5] sm:aspect-[21/9]">
+        {slides.map((s, k) => (
+          <a
+            key={s.id}
+            href={`#m-${s.id}`}
+            onClick={(e) => (e.preventDefault(), onOpen(s.id))}
+            data-track="moments_featured"
+            data-track-id={s.id}
+            aria-label={label(s)}
+            aria-hidden={k !== i || undefined}
+            tabIndex={k === i ? undefined : -1}
+            className={cx("group absolute inset-0 block transition-opacity duration-[1200ms] ease-out", k === i ? "z-[1] opacity-100" : "pointer-events-none opacity-0")}
+          >
+            {s.images.length ? (
+              // Re-keyed when it becomes the current slide, so the pan-and-zoom starts fresh each time.
+              <Img key={k === i ? `on-${i}` : "off"} m={s} eager={k === 0} className={cx("h-full w-full object-cover", k === i && "ken-burns")} />
+            ) : (
+              // A pinned words-only moment: a big warm quote card instead of a photo.
+              <span aria-hidden className="block h-full w-full bg-gradient-to-br from-flame via-[#ef6a2c] to-sun" />
+            )}
+            <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+            {s.video && <PlayBadge gif={s.video.gif} big />}
+          </a>
+        ))}
+      </div>
+
+      {n > 1 && (
+        <div className="absolute inset-x-4 top-4 z-[2] flex gap-1.5 sm:inset-x-8 sm:top-6">
+          {slides.map((s, k) => (
+            <button key={s.id} type="button" onClick={() => go(k)} aria-label={`Show featured moment ${k + 1} of ${n}`} aria-current={k === i || undefined} className="group h-6 flex-1 py-2.5">
+              <span className="block h-1 overflow-hidden rounded-full bg-white/25">
+                <span
+                  key={k === i ? `run-${i}` : "idle"}
+                  className={cx("block h-full rounded-full bg-white", k < i && "w-full", k > i && "w-0", k === i && (running ? "featured-progress" : "w-full opacity-70"))}
+                  style={k === i ? { animationDuration: `${SLIDE_MS}ms` } : undefined}
+                />
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* The caption sits outside the links so screen readers hear it once, for the current slide. */}
+      <div key={m.id} aria-live={running ? "off" : "polite"} className="moment-fade pointer-events-none absolute inset-x-0 bottom-0 z-[2] p-5 text-left sm:p-8">
+        <span className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-white backdrop-blur">
+          Featured{n > 1 && <span className="font-semibold tracking-normal text-white/70">{i + 1}/{n}</span>}
+        </span>
+        {m.text && <span className="line-clamp-3 block max-w-2xl text-lg font-semibold leading-snug text-white sm:text-2xl">{m.text}</span>}
+        <span className="mt-2 block text-sm text-white/70">
+          {m.xUrl ? "𝕏 " : ""}
+          {m.who} · {m.ago}
+          {m.likes > 0 && ` · ♥ ${m.likes.toLocaleString()}`}
+        </span>
+      </div>
+
+      {n > 1 && (
+        <>
+          <button type="button" onClick={() => go(i - 1)} aria-label="Previous featured moment" className="absolute left-3 top-1/2 z-[2] hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/35 text-white backdrop-blur hover:bg-black/55 sm:grid">
+            <ChevronLeft size={22} aria-hidden />
+          </button>
+          <button type="button" onClick={() => go(i + 1)} aria-label="Next featured moment" className="absolute right-3 top-1/2 z-[2] hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/35 text-white backdrop-blur hover:bg-black/55 sm:grid">
+            <ChevronRight size={22} aria-hidden />
+          </button>
+        </>
+      )}
+    </section>
+  );
+}
+
 /** Tiles rise into place as they scroll into view (those already on screen show straight away). */
 function useReveal<T extends HTMLElement>(deps: unknown) {
   const root = useRef<T>(null);
@@ -105,6 +226,7 @@ function PlayBadge({ gif, big }: { gif: boolean; big?: boolean }) {
 /** An X video in the viewer: starts muted (browsers only autoplay muted), tap for sound. Falls back to the still. */
 function MomentVideo({ m }: { m: MomentView }) {
   const [failed, setFailed] = useState(false);
+  const played = useRef(false);
   const v = m.video!;
   if (failed) return <Img m={m} eager className="moment-fade max-h-full max-w-full rounded-2xl object-contain" />;
   const small = typeof window !== "undefined" && window.innerWidth < 640;
@@ -120,6 +242,11 @@ function MomentVideo({ m }: { m: MomentView }) {
       controls={!v.gif}
       preload="metadata"
       onError={() => setFailed(true)}
+      onPlaying={() => {
+        if (played.current) return;
+        played.current = true;
+        track(v.gif ? "gif_play" : "video_play", m.id);
+      }}
       aria-label={v.gif ? `GIF from ${m.who}` : `Video from ${m.who}`}
       className="moment-fade max-h-full max-w-full rounded-2xl bg-black shadow-[0_30px_80px_rgba(0,0,0,0.6)]"
     />
@@ -132,11 +259,12 @@ const label = (m: MomentView) => {
 };
 
 /** The whole Moments experience: featured moment, photo wall, full-screen viewer and the share sheet. */
-export function MomentsGallery({ moments, featured, myName, shareOpen, posted, total }: { moments: MomentView[]; featured: MomentView | null; myName: string | null; shareOpen: boolean; posted?: string; total: number }) {
+export function MomentsGallery({ moments, featured, myName, shareOpen, posted, total }: { moments: MomentView[]; featured: MomentView[]; myName: string | null; shareOpen: boolean; posted?: string; total: number }) {
+  // The wall shows every moment; the slideshow re-shows the best of them up top. The viewer walks
+  // through the wall in order (featured moments from older pages are added in front).
   const { wall, ordered } = useMemo(() => {
-    const wall = featured ? moments.filter((m) => m.id !== featured.id) : moments;
-    // The viewer walks through moments in the order they appear on the page.
-    return { wall, ordered: featured ? [featured, ...wall] : wall };
+    const onWall = new Set(moments.map((m) => m.id));
+    return { wall: moments, ordered: [...featured.filter((f) => !onWall.has(f.id)), ...moments] };
   }, [moments, featured]);
   // Tracked by id, so a refreshed list (e.g. after a report hides a moment) never shows the wrong one.
   const [openId, setOpenId] = useState<string | null>(null);
@@ -198,33 +326,7 @@ export function MomentsGallery({ moments, featured, myName, shareOpen, posted, t
       </section>
 
       <div className="mx-auto max-w-6xl px-4 pb-24">
-        {featured && (
-          <a
-            href={`#m-${featured.id}`}
-            onClick={(e) => (e.preventDefault(), show(0))}
-            data-track="moments_featured"
-            data-track-id={featured.id}
-            aria-label={label(featured)}
-            className="moment-rise group relative mb-4 block overflow-hidden rounded-[28px] bg-white/5 ring-1 ring-white/10 sm:mb-6"
-          >
-            {featured.images.length ? (
-              <Img m={featured} eager className="ken-burns aspect-[4/5] w-full object-cover sm:aspect-[21/9]" />
-            ) : (
-              // A pinned words-only moment: a big warm quote card instead of a photo.
-              <span aria-hidden className="block aspect-[4/5] w-full bg-gradient-to-br from-flame via-[#ef6a2c] to-sun sm:aspect-[21/9]" />
-            )}
-            <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
-            {featured.video && <PlayBadge gif={featured.video.gif} big />}
-            <span className="absolute inset-x-0 bottom-0 p-5 text-left sm:p-8">
-              <span className="mb-2 inline-block rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-white backdrop-blur">Featured</span>
-              {featured.text && <span className="line-clamp-3 block max-w-2xl text-lg font-semibold leading-snug text-white sm:text-2xl">{featured.text}</span>}
-              <span className="mt-2 block text-sm text-white/70">
-                {featured.xUrl ? "𝕏 " : ""}
-                {featured.who} · {featured.ago}
-              </span>
-            </span>
-          </a>
-        )}
+        {featured.length > 0 && <FeaturedShow slides={featured} onOpen={openById} paused={open >= 0 || sharing} />}
 
         {moments.length === 0 ? (
           <div className="rounded-[28px] border border-dashed border-white/15 px-6 py-16 text-center">
@@ -237,7 +339,7 @@ export function MomentsGallery({ moments, featured, myName, shareOpen, posted, t
               <li key={m.id} id={`m-${m.id}`} data-reveal style={{ transitionDelay: `${(i % 4) * 70}ms` }}>
                 <a
                   href={`#m-${m.id}`}
-                  onClick={(e) => (e.preventDefault(), show(featured ? i + 1 : i))}
+                  onClick={(e) => (e.preventDefault(), openById(m.id))}
                   data-track="moment_open"
                   data-track-id={m.id}
                   aria-label={label(m)}
@@ -303,6 +405,13 @@ function Viewer({ moments, index, onIndex }: { moments: MomentView[]; index: num
   const touch = useRef<number | null>(null);
 
   useEffect(() => setPhoto(0), [index]);
+  // Moving on to another moment inside the viewer (the first one opened is already counted as a click).
+  const firstIndex = useRef(index);
+  useEffect(() => {
+    if (index !== firstIndex.current) track("moment_browse", moments[index].id);
+    // Only when the moment changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index]);
   useEffect(() => {
     closeRef.current?.focus();
     const prev = document.body.style.overflow;

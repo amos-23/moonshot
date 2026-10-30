@@ -47,15 +47,16 @@ export function rotationIndex(n: number, now: number): number {
   return ((x ^ (x >>> 16)) >>> 0) % n;
 }
 
-export type FeaturedPick = { item: MomentItem; reason: "pinned" | "top"; candidates: number };
+/** `item` leads; `list` is the slideshow (the lead, then the rest of the top moments). */
+export type FeaturedPick = { item: MomentItem; list: MomentItem[]; reason: "pinned" | "top"; candidates: number };
+const SLIDES = 6;
 
 export async function pickFeatured(db: DB, now = Date.now()): Promise<FeaturedPick | null> {
   const items = await listMoments(db, { limit: 300 });
   const pinned = items.filter((i) => i.moment.featuredAt).sort((a, b) => b.moment.featuredAt!.getTime() - a.moment.featuredAt!.getTime())[0];
-  if (pinned) return { item: pinned, reason: "pinned", candidates: 1 };
 
-  const withImages = items.filter((i) => hasImage(i.moment));
-  if (!withImages.length) return null;
+  const withImages = items.filter((i) => hasImage(i.moment) && i.moment.id !== pinned?.moment.id);
+  if (!withImages.length) return pinned ? { item: pinned, list: [pinned], reason: "pinned", candidates: 1 } : null;
   const [top, opens] = await Promise.all([getTopAccounts(db), momentOpens(db, withImages.map((i) => i.moment.id), now)]);
   const topSet = new Set(top);
   const ranked = withImages
@@ -63,7 +64,11 @@ export async function pickFeatured(db: DB, now = Date.now()): Promise<FeaturedPi
     // Ties go to the newer moment.
     .sort((a, b) => b.score - a.score || b.i.moment.createdAt.getTime() - a.i.moment.createdAt.getTime())
     .slice(0, TOP_N);
-  return { item: ranked[rotationIndex(ranked.length, now)].i, reason: "top", candidates: ranked.length };
+  // Start the slideshow at this window's pick, then carry on round the top list.
+  const start = rotationIndex(ranked.length, now);
+  const rotated = [...ranked.slice(start), ...ranked.slice(0, start)].map((r) => r.i);
+  if (pinned) return { item: pinned, list: [pinned, ...rotated].slice(0, SLIDES), reason: "pinned", candidates: 1 };
+  return { item: rotated[0], list: rotated.slice(0, SLIDES), reason: "top", candidates: ranked.length };
 }
 
 /** Times each moment was opened on the site in the last 30 days. */

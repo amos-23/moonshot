@@ -150,17 +150,21 @@ export const events = mc.table(
   "events",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    type: text("type").notNull(), // view | click | search
+    type: text("type").notNull(), // view | click | search | leave
     path: text("path").notNull(),
     target: text("target"), // what was clicked, e.g. "whatsapp", "view_post"
     targetId: uuid("target_id"), // the card or post it belongs to
     referrer: text("referrer"), // referring site's host
     query: text("query"), // search words (lowercased)
     results: integer("results"), // how many cards the search returned
+    device: text("device"), // mobile | tablet | desktop (from the browser's user agent)
+    campaign: text("campaign"), // utm_source/utm_campaign of the link someone arrived on
+    returning: boolean("returning"), // views: this browser has been here before (no id is kept)
+    ms: integer("ms"), // leave: how long the page was on screen
     visitor: text("visitor").notNull(),
     createdAt: createdAt(),
   },
-  (t) => [index("events_type_created_idx").on(t.type, t.createdAt), check("events_type_check", sql`${t.type} in ('view','click','search')`)],
+  (t) => [index("events_type_created_idx").on(t.type, t.createdAt), check("events_type_check", sql`${t.type} in ('view','click','search','leave')`)],
 );
 
 // Photos live apart from cards so listing people never loads image data.

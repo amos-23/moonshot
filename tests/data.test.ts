@@ -78,28 +78,60 @@ describe("comments", () => {
 });
 
 describe("stats", () => {
-  it("counts visits, unique visitors, clicks and the most-clicked cards", async () => {
+  it("counts visits, visitors, time, devices, campaigns, moments and compares with the period before", async () => {
     const p = await person({ name: "Clicky" });
+    const [m] = await db.insert(schema.moments).values({ body: "Stage view", hasPhoto: true, photoCount: 1, visitor: "v", hidden: true }).returning();
+    const ago = (days: number) => new Date(Date.now() - days * 86_400_000);
     await db.insert(schema.events).values([
-      { type: "view", path: "/", visitor: "a", referrer: "x.com" },
-      { type: "view", path: "/", visitor: "a" },
-      { type: "view", path: "/card", visitor: "b" },
+      { type: "view", path: "/", visitor: "a", referrer: "x.com", device: "mobile", campaign: "x/recap", returning: false },
+      { type: "view", path: "/", visitor: "a", device: "mobile", returning: true },
+      { type: "view", path: "/card", visitor: "b", device: "desktop", returning: true },
+      { type: "view", path: "/moments", visitor: "b", device: "desktop" },
       { type: "click", path: "/", visitor: "a", target: "whatsapp", targetId: p.id },
-      { type: "view", path: "/", visitor: "old", createdAt: new Date(Date.now() - 40 * 86_400_000) },
+      { type: "click", path: "/moments", visitor: "b", target: "moment_open", targetId: m.id },
+      { type: "click", path: "/moments", visitor: "b", target: "video_play", targetId: m.id },
+      { type: "click", path: "/moments", visitor: "b", target: "moment_person", targetId: m.id },
+      { type: "leave", path: "/", visitor: "a", ms: 60_000 },
+      { type: "leave", path: "/moments", visitor: "b", ms: 30_000 },
+      { type: "leave", path: "/moments", visitor: "b", ms: 30_000 },
       { type: "search", path: "/", visitor: "a", query: "fintech", results: 3 },
       { type: "search", path: "/", visitor: "b", query: "fintech", results: 3 },
       { type: "search", path: "/", visitor: "b", query: "drones", results: 0 },
+      // The week before: 1 visitor, 1 visit.
+      { type: "view", path: "/", visitor: "old", createdAt: ago(10) },
+      // Long ago: outside both periods.
+      { type: "view", path: "/", visitor: "older", createdAt: ago(40) },
     ]);
     const st = await siteStats(db, 7);
-    expect(st.totals).toEqual({ views: 3, visitors: 2, clicks: 1, searches: 3 });
+    expect(st.totals).toMatchObject({ views: 4, visitors: 2, returning: 2, clicks: 4, searches: 3, contacters: 1, contactClicks: 1 });
+    expect(st.totals.avgTimeMs).toBe(60_000); // (60s + 30s + 30s) over 2 visitors
+    expect(st.totals.pagesPerVisitor).toBe(2);
+    expect(st.prev).toMatchObject({ views: 1, visitors: 1 });
+    expect(st.live).toBe(2);
+    expect(st.devices).toHaveLength(2);
+    expect(st.devices).toEqual(expect.arrayContaining([{ key: "desktop", n: 1 }, { key: "mobile", n: 1 }]));
+    expect(st.campaigns).toEqual([{ key: "x/recap", n: 1 }]);
+    expect(st.timeByPage.find((r) => r.key === "/moments")).toMatchObject({ avgMs: 60_000, visitors: 1 });
+    expect(st.momentFunnel).toMatchObject({ visitors: 1, openers: 1, opens: 1, plays: 1, followUps: 1, toX: 0, avgMs: 60_000 });
+    expect(st.topMoments[0]).toMatchObject({ id: m.id, opens: 1, plays: 1, followUps: 1 });
     expect(st.searches[0]).toEqual({ key: "fintech", n: 2, results: 3 });
     expect(st.emptySearches).toEqual([{ key: "drones", n: 1, results: 0 }]);
     expect(st.pages[0]).toEqual({ key: "/", n: 2 });
     expect(st.referrers).toEqual([{ key: "x.com", n: 1 }]);
-    expect(st.topTargets[0]).toMatchObject({ name: "Clicky", n: 1 });
-    expect(st.funnel).toEqual({ formVisitors: 1, contacters: 1, contactClicks: 1 });
-    expect(st.series).toHaveLength(7);
-    expect(st.series.at(-1)!.views).toBe(3);
+    expect(st.topTargets.map((t) => t.name)).toContain("Clicky");
+    expect(st.funnel).toMatchObject({ visitors: 2, formVisitors: 1, contacters: 1, contactClicks: 1 });
+    expect(st.chart).toHaveLength(7);
+    expect(st.chart.at(-1)!.views).toBe(4);
+    expect(st.hours.reduce((a, h) => a + h.n, 0)).toBe(4);
+
+    const day = await siteStats(db, 1);
+    expect(day.hourly).toBe(true);
+    expect(day.chart).toHaveLength(24);
+    expect(day.chart.at(-1)!.views).toBe(4);
+
+    const all = await siteStats(db, 0);
+    expect(all.prev).toBeNull();
+    expect(all.totals.views).toBe(6);
   });
 });
 
@@ -185,6 +217,10 @@ describe("Featured", () => {
     expect(seen.has(popular.id)).toBe(true);
     expect(seen.size).toBeLessThanOrEqual(10);
     expect(seen.size).toBeGreaterThan(5);
+    const show = (await pickFeatured(db))!;
+    expect(show.list).toHaveLength(6);
+    expect(show.list[0]).toBe(show.item);
+    expect(new Set(show.list.map((i) => i.moment.id)).size).toBe(6);
 
     // Opens on the site lift an uploaded photo into the top 5.
     await db.insert(schema.events).values(Array.from({ length: 60 }, () => ({ type: "click", path: "/moments", visitor: "v", target: "moment_open", targetId: photo.id })));
@@ -205,6 +241,9 @@ describe("Featured", () => {
     const pinned = await pickFeatured(db);
     expect(pinned).toMatchObject({ reason: "pinned" });
     expect(pinned!.item.moment.id).toBe(textOnly.id);
+    // The slideshow: the pin first, then the top moments with images.
+    expect(pinned!.list.map((i) => i.moment.id)).toEqual([textOnly.id, ...pinned!.list.slice(1).map((i) => i.moment.id)]);
+    expect(pinned!.list.slice(1).map((i) => i.moment.id).sort()).toEqual([official.id, popular.id].sort());
   });
 
   it("refreshes likes, replies and video for X moments that are due", async () => {

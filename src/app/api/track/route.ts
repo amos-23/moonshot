@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getDb, schema } from "@/lib/db";
-import { BOT_UA, clientIp, visitorHash } from "@/lib/track";
+import { BOT_UA, clientIp, deviceOf, visitorHash } from "@/lib/track";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Records a page view or click. No cookies: visitors are counted with a hash of IP + browser
+// Records a page view, a click, or how long a page was on screen ("leave"). No cookies: visitors are counted with a hash of IP + browser
 // that changes every day, so nobody can be followed across days.
 export async function POST(req: NextRequest) {
   const ua = req.headers.get("user-agent") ?? "";
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   } catch {
     return new NextResponse(null, { status: 400 });
   }
-  const type = body.type === "click" ? "click" : body.type === "view" ? "view" : null;
+  const type = body.type === "click" || body.type === "view" || body.type === "leave" ? body.type : null;
   const path = typeof body.path === "string" ? body.path.split("?")[0].slice(0, 200) : null;
   if (!type || !path?.startsWith("/") || path.startsWith("/admin")) return new NextResponse(null, { status: 204 });
 
@@ -29,9 +29,20 @@ export async function POST(req: NextRequest) {
     } catch {}
   }
   const visitor = visitorHash(clientIp(req.headers), ua);
+  const extra =
+    type === "view"
+      ? {
+          device: deviceOf(ua),
+          returning: body.returning === true,
+          campaign: typeof body.campaign === "string" ? body.campaign.toLowerCase().replace(/[^a-z0-9_./-]/g, "").slice(0, 60) || null : null,
+        }
+      : type === "leave"
+        ? { ms: typeof body.ms === "number" && Number.isFinite(body.ms) ? Math.max(0, Math.min(Math.round(body.ms), 30 * 60_000)) : null }
+        : {};
+  if (type === "leave" && !extra.ms) return new NextResponse(null, { status: 204 });
 
   try {
-    await (await getDb()).insert(schema.events).values({ type, path, target, targetId, referrer, visitor });
+    await (await getDb()).insert(schema.events).values({ type, path, target, targetId, referrer, visitor, ...extra });
   } catch (err) {
     console.error("track failed", err);
   }

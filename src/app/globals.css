@@ -130,3 +130,16 @@ body:has([data-dark-page]) > footer p {
     overflow-x: auto;
   }
 }
+
+/* Featured slideshow: the bar for the current slide fills over its time on screen. */
+@keyframes featured-progress {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+.featured-progress {
+  animation: featured-progress linear both;
+}

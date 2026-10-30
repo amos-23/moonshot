@@ -283,6 +283,9 @@ try {
   step("search works");
   await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`Bola ${run}`)}`);
   assert.equal(await card(anon.page, `Bola ${run}`).getByRole("link", { name: "@bola_grows" }).getAttribute("href"), "https://x.com/bola_grows");
+  // Pressing a contact button counts as "contacted someone" (the X tab it opens is closed straight away).
+  const [xTab] = await Promise.all([anon.ctx.waitForEvent("page"), card(anon.page, `Bola ${run}`).getByRole("link", { name: "@bola_grows" }).click()]);
+  await xTab.close();
   assert.equal(await anon.page.locator("li", { hasText: `Ada ${run}` }).count(), 0);
 
   step("anyone can add a public X post; it shows as a 'From X' card");
@@ -432,8 +435,10 @@ try {
   await pinRow.getByRole("button", { name: "Unpin" }).waitFor();
   await admin.page.getByText(/pinned by you/).waitFor();
   await anon.page.goto(`${BASE}/moments`);
-  const featuredTile = anon.page.locator('a[data-track="moments_featured"]');
+  // The pinned moment leads the Featured slideshow.
+  const featuredTile = anon.page.locator('a[data-track="moments_featured"]').first();
   assert.match(await featuredTile.getAttribute("aria-label"), new RegExp(`Doors open for day 2 ${run}`), "the pinned moment is Featured");
+  await anon.page.getByText(/^Featured/).first().waitFor();
   await admin.page.getByLabel("Top accounts").fill("@TechCabal, someone_else");
   await admin.page.getByRole("button", { name: "Save", exact: true }).click();
   await admin.page.getByText("Saved 2 accounts.").waitFor();
@@ -443,18 +448,43 @@ try {
   assert.equal(await admin.page.getByLabel("Top accounts").inputValue(), "@techcabal @someone_else");
   await admin.page.getByText(/auto: rotates every 30 minutes/).waitFor();
 
-  step("admin Stats shows visits, clicks and searches");
+  // Time on page is sent when you move on: spend a little while on Moments, then tap back home.
+  await anon.page.goto(`${BASE}/moments`);
+  await anon.page.waitForTimeout(1600);
+  await anon.page.getByRole("link", { name: "Moonshot Connect home" }).click();
+  await anon.page.waitForURL((u) => new URL(u).pathname === "/");
+  await anon.page.waitForTimeout(300);
+
+  step("admin Stats: visits, clicks, searches, devices, Moments, time on site, CSV");
   await admin.page.goto(`${BASE}/admin/stats?days=1`);
-  const tile = async (label) => Number((await admin.page.getByText(label, { exact: true }).locator("xpath=preceding-sibling::p[1]").innerText()).replace(/,/g, ""));
+  const tile = async (label) => Number((await admin.page.getByText(label, { exact: true }).locator("xpath=preceding-sibling::div[1]/p[1]").innerText()).replace(/,/g, ""));
   assert.ok((await tile("Visits")) > 0, "visits recorded");
-  await admin.page.getByText("Clicks by button").waitFor();
-  assert.ok(await admin.page.getByText("Add me (card)").isVisible(), "click on 'Add me' recorded");
+  assert.ok((await tile("Visitors")) > 0, "visitors recorded");
+  assert.ok((await tile("Contacted someone")) > 0, "contacts recorded");
   assert.ok((await tile("Searches")) > 0, "searches recorded");
+  await admin.page.getByText("Visits per hour (Lagos time)").waitFor();
+  await admin.page.getByText(/on the site now/).waitFor();
+  await admin.page.getByText("Clicks by button").waitFor();
+  assert.ok((await admin.page.getByText("Add me (card)").count()) > 0, "click on 'Add me' recorded");
   const empty = admin.page.locator("div", { has: admin.page.getByRole("heading", { name: "Searches that found nothing" }) }).last();
   await empty.getByText(`“${nothing}”`).waitFor();
+  // New measures: devices, the Moments funnel and its top moments, time on pages.
+  await admin.page.getByText("📱 Phone").first().waitFor();
+  const momentsFunnel = admin.page.locator("div", { has: admin.page.getByRole("heading", { name: "📸 Moments" }) }).last();
+  assert.ok(Number((await momentsFunnel.locator("li").nth(1).locator("p").nth(1).innerText()).replace(/,/g, "")) > 0, "moment opens recorded");
+  await admin.page.getByRole("heading", { name: "Top moments" }).waitFor();
+  assert.ok((await admin.page.locator("table").filter({ hasText: "Opens" }).locator("tbody tr").count()) > 0, "top moments listed");
+  const timed = admin.page.locator("div", { has: admin.page.getByRole("heading", { name: "Time on page" }) }).last();
+  assert.ok((await timed.locator("li").count()) > 0, "time on page measured");
+  const statsCsv = await (await admin.page.request.get(`${BASE}/admin/stats.csv?days=7`)).text();
+  assert.match(statsCsv, /^day,visits,visitors,returning_visitors,clicks,contact_clicks,moment_opens,video_plays,searches,minutes_on_site\r\n\d{4}-\d{2}-\d{2},\d+/);
+  assert.equal((await anon.page.request.get(`${BASE}/admin/stats.csv`)).status(), 404, "stats CSV is admin-only");
+  for (const days of [7, 30, 90, 0]) {
+    await admin.page.goto(`${BASE}/admin/stats?days=${days}`);
+    await admin.page.getByText("From visit to connection").waitFor();
+  }
   await admin.page.goto(`${BASE}/admin/stats?days=7`);
   await admin.page.getByText("Visits per day").waitFor();
-  await admin.page.getByText("From visit to connection").waitFor();
   await shot(admin.page, "06-stats");
 
   step("Ada deletes her card");

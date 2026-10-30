@@ -29,3 +29,10 @@ export async function recordSearch(query: string, results: number) {
     console.error("recordSearch failed", err);
   }
 }
+
+/** "mobile", "tablet" or "desktop", from the browser's user agent. */
+export function deviceOf(ua: string): "mobile" | "tablet" | "desktop" {
+  if (/iPad|Tablet|PlayBook|Silk|(Android(?!.*Mobile))/i.test(ua)) return "tablet";
+  if (/Mobi|iPhone|iPod|Android|BlackBerry|Opera Mini|IEMobile/i.test(ua)) return "mobile";
+  return "desktop";
+}
