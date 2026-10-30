@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { eventOver } from "@/lib/constants";
-import { momentPost, withUtm, xIntent } from "@/lib/share";
+import { cleanPostText, momentPost, withUtm, xIntent } from "@/lib/share";
 import { momentScore, parseHandles, rotationIndex, ROTATE_MS } from "@/lib/featured";
 import { scoreMatch, type MatchCard } from "@/lib/matching";
 import { cardSchema, signupSchema } from "@/lib/validation";
@@ -214,5 +214,14 @@ describe("share links", () => {
     expect(momentPost({ text: "Great day", who: "@tola", fromX: true })).toBe("“Great day” — @tola from #Moonshot2026 📸");
     expect(momentPost({ text: null, who: "x", fromX: false })).toBe("A moment from #Moonshot2026 📸");
     expect(momentPost({ text: "x".repeat(200), who: "x", fromX: false }).length).toBeLessThan(170);
+  });
+});
+
+describe("cleanPostText", () => {
+  it("drops X's leftover photo and t.co links and tidies spacing", () => {
+    expect(cleanPostText("Building @vatarHQ.  AI: @Thedanieloreofe pic.twitter.com/Q9KnSTnwnG")).toBe("Building @vatarHQ. AI: @Thedanieloreofe");
+    expect(cleanPostText("Read this https://t.co/abc123 now\n\n\n\nok")).toBe("Read this now\n\nok");
+    expect(cleanPostText(null)).toBe("");
+    expect(cleanPostText("keep https://moonshot.techcabal.com links")).toBe("keep https://moonshot.techcabal.com links");
   });
 });

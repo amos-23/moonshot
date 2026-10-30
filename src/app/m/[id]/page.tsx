@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import { HASHTAG } from "@/lib/share";
+import { HASHTAG, cleanPostText } from "@/lib/share";
 import { clip } from "@/lib/og";
 import { GoTo } from "@/components/share-landing";
 
@@ -18,7 +18,7 @@ async function load(id: string) {
   if (!row) return null;
   const m = row.m;
   const who = (m.xPostUrl ? (m.xAuthorName ?? `@${m.xAuthorHandle}`) : (row.author ?? (m.xHandle ? `@${m.xHandle}` : m.name))) ?? "Someone at Moonshot";
-  return { m, who, text: m.body || m.xText || "" };
+  return { m, who, text: cleanPostText(m.body || m.xText) };
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {

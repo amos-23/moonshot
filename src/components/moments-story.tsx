@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import { Pause, Play, Plus, RotateCcw, Volume2, VolumeX, X } from "lucide-react";
-import type { MomentView } from "./moment";
+import { quoteSize, quoteText, type MomentView } from "./moment";
 import { ReactionBar, type Reactions } from "./reactions";
 import { XLogo } from "./share";
 import { track } from "./tracker";
@@ -201,9 +201,9 @@ export function MomentsStory({ slides, onClose, onAdd, reactions, origin }: { sl
           <img key={`i-${m.id}`} src={m.images[0]} alt={m.text?.slice(0, 120) ?? `Photo from ${m.who}`} referrerPolicy={m.fromXImages ? "no-referrer" : undefined} draggable={false} className={cx("moment-fade max-h-full max-w-full object-contain", !stopped && "ken-burns")} />
         )}
         {m && !m.images.length && (
-          <blockquote key={`t-${m.id}`} className="moment-rise max-w-2xl px-8 text-center text-3xl font-bold leading-snug sm:text-5xl">
+          <blockquote key={`t-${m.id}`} className={cx("moment-rise max-h-full max-w-2xl overflow-y-auto px-8 py-6 text-center font-bold leading-snug", quoteSize(m.text, "story"))}>
             <span aria-hidden className="mb-3 block font-serif text-7xl leading-none opacity-60">“</span>
-            {m.text}
+            {quoteText(m.text)}
           </blockquote>
         )}
         {done && (

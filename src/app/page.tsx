@@ -13,7 +13,7 @@ import { pickFeatured } from "@/lib/featured";
 import { PersonCard, XCard } from "@/components/person";
 import { momentImage, momentWho } from "@/components/moment";
 import { ShareButtons, XLogo } from "@/components/share";
-import { HASHTAG, withUtm, xIntent } from "@/lib/share";
+import { HASHTAG, cleanPostText, withUtm, xIntent } from "@/lib/share";
 import { ScrollIntoView } from "@/components/client";
 import { Button, Card, Empty, LinkButton, Notice, Sunburst, cx, inputClass } from "@/components/ui";
 
@@ -180,9 +180,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
                       <Link href="/moments" data-track="moments_strip" className="relative block h-40 w-28 overflow-hidden rounded-2xl bg-ink text-white">
                         {img ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={img} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
+                          <img src={img} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-cover object-[center_30%]" />
                         ) : (
-                          <span className="line-clamp-6 p-3 text-sm font-medium">{item.moment.body || item.moment.xText}</span>
+                          <span className="line-clamp-6 p-3 text-sm font-medium">{cleanPostText(item.moment.body || item.moment.xText)}</span>
                         )}
                         <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-4 text-xs font-semibold">
                           {item.moment.xPostUrl ? "𝕏 " : ""}
@@ -341,9 +341,9 @@ function Highlights({ moments, featured }: { moments: MomentItem[]; featured: Mo
                 <Link href={`/moments#m-${item.moment.id}`} data-track="highlights_tile" data-track-id={item.moment.id} className="relative block aspect-square overflow-hidden rounded-2xl bg-ink text-white">
                   {img ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={img} alt={(item.moment.body || item.moment.xText || "").slice(0, 100)} loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-cover transition-transform hover:scale-105" />
+                    <img src={img} alt={(item.moment.body || item.moment.xText || "").slice(0, 100)} loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-cover object-[center_30%] transition-transform hover:scale-105" />
                   ) : (
-                    <span className="line-clamp-6 p-3 text-sm font-medium">{item.moment.body || item.moment.xText}</span>
+                    <span className="line-clamp-6 p-3 text-sm font-medium">{cleanPostText(item.moment.body || item.moment.xText)}</span>
                   )}
                   <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/70 to-transparent px-2.5 pb-2 pt-6 text-xs font-semibold">
                     {item.moment.xPostUrl ? "𝕏 " : ""}

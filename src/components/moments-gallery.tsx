@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { ChevronLeft, ChevronRight, ExternalLink, Heart, Images, Link2, MapPin, MessageCircle, Play, Plus, Share2, X } from "lucide-react";
 import { HASHTAG, momentPost, withUtm, xIntent } from "@/lib/share";
-import type { MomentView } from "./moment";
+import { quoteSize, type MomentView } from "./moment";
 import { ReportLink } from "./client";
 import { MomentForm } from "./forms";
 import { track } from "./tracker";
@@ -14,8 +14,6 @@ import type { ReactionCounts } from "@/lib/data";
 import { XLogo } from "./share";
 import { Avatar, cx } from "./ui";
 
-// Rhythm for the photo wall: varied shapes so it reads like a contact sheet, not a grid of squares.
-const SHAPES = ["aspect-[4/5]", "aspect-square", "aspect-[3/4]", "aspect-[5/4]", "aspect-[4/5]", "aspect-[3/4]"];
 // Words-only moments get a warm card instead of a photo.
 const QUOTE_TONES = ["bg-gradient-to-br from-flame to-sun text-white", "bg-[#1f1d26] text-sun ring-1 ring-white/10", "bg-gradient-to-br from-sun to-[#ffcf73] text-ink"];
 
@@ -59,9 +57,10 @@ function FilmStrip({ moments, onOpen }: { moments: MomentView[]; onOpen: (id: st
                   aria-label={copy ? undefined : label(m)}
                   data-track="moments_strip_open"
                   data-track-id={m.id}
-                  className={cx("group relative h-28 shrink-0 overflow-hidden rounded-2xl ring-1 ring-white/10 sm:h-40", i % 3 === 0 ? "aspect-[4/5]" : i % 3 === 1 ? "aspect-[3/2]" : "aspect-square")}
+                  className="group relative h-28 shrink-0 overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 sm:h-40"
                 >
-                  <Img m={m} className="h-full w-full object-cover transition duration-500 group-hover:scale-110" />
+                  {/* Each photo keeps its own shape (within limits), so tall and wide shots both read well. */}
+                  <Img m={m} className="h-full w-auto min-w-[84px] max-w-[220px] object-cover object-[center_30%] transition duration-500 group-hover:scale-110 sm:max-w-[300px]" />
                   {m.video && <span aria-hidden className="absolute bottom-1.5 right-1.5 grid h-6 w-6 place-items-center rounded-full bg-black/50 text-white"><Play size={11} fill="currentColor" /></span>}
                 </button>
               );
@@ -74,6 +73,42 @@ function FilmStrip({ moments, onOpen }: { moments: MomentView[]; onOpen: (id: st
 }
 
 const SLIDE_MS = 7000;
+
+/**
+ * A Featured photo fills the frame when its shape is close to the frame's. A photo much taller or
+ * wider (a portrait in a wide banner, a panorama on a phone) is shown whole over a blurred fill of
+ * itself instead of being cropped.
+ */
+function FeaturedImage({ m, eager, moving }: { m: MomentView; eager: boolean; moving: boolean }) {
+  const [whole, setWhole] = useState(false);
+  const fit = (img: HTMLImageElement) => {
+    const frame = img.parentElement?.parentElement;
+    if (!frame || !img.naturalWidth || !img.naturalHeight) return;
+    const r = img.naturalWidth / img.naturalHeight / (frame.clientWidth / frame.clientHeight);
+    setWhole(r < 0.7 || r > 1.6);
+  };
+  return (
+    <span className="absolute inset-0 block overflow-hidden">
+      {whole && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={m.images[0]} alt="" aria-hidden referrerPolicy={m.fromXImages ? "no-referrer" : undefined} className="absolute inset-0 h-full w-full scale-110 object-cover opacity-70 blur-2xl" />
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={m.images[0]}
+        alt={m.text ? m.text.slice(0, 120) : `Photo from ${m.who}`}
+        loading={eager ? "eager" : "lazy"}
+        decoding="async"
+        referrerPolicy={m.fromXImages ? "no-referrer" : undefined}
+        ref={(el) => {
+          if (el?.complete) fit(el);
+        }}
+        onLoad={(e) => fit(e.currentTarget)}
+        className={cx("relative h-full w-full", whole ? "object-contain" : "object-cover object-[center_30%]", moving && "ken-burns")}
+      />
+    </span>
+  );
+}
 
 /**
  * Featured as a slideshow: each top moment crossfades in with a slow pan-and-zoom, story-style
@@ -139,7 +174,7 @@ function FeaturedShow({ slides, onOpen, paused }: { slides: MomentView[]; onOpen
           >
             {s.images.length ? (
               // Re-keyed when it becomes the current slide, so the pan-and-zoom starts fresh each time.
-              <Img key={k === i ? `on-${i}` : "off"} m={s} eager={k === 0} className={cx("h-full w-full object-cover", k === i && "ken-burns")} />
+              <FeaturedImage key={k === i ? `on-${i}` : "off"} m={s} eager={k === 0} moving={k === i} />
             ) : (
               // A pinned words-only moment: a big warm quote card instead of a photo.
               <span aria-hidden className="block h-full w-full bg-gradient-to-br from-flame via-[#ef6a2c] to-sun" />
@@ -167,11 +202,12 @@ function FeaturedShow({ slides, onOpen, paused }: { slides: MomentView[]; onOpen
       )}
 
       {/* The caption sits outside the links so screen readers hear it once, for the current slide. */}
-      <div key={m.id} aria-live={running ? "off" : "polite"} className="moment-fade pointer-events-none absolute inset-x-0 bottom-0 z-[2] p-5 text-left sm:p-8">
+      <div key={m.id} aria-live={running ? "off" : "polite"} className="moment-fade pointer-events-none absolute inset-x-0 bottom-0 z-[2] p-5 pr-20 text-left sm:px-20 sm:pb-9">
         <span className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-white backdrop-blur">
           Featured{n > 1 && <span className="font-semibold tracking-normal text-white/70">{i + 1}/{n}</span>}
         </span>
-        {m.text && <span className="line-clamp-3 block max-w-2xl text-lg font-semibold leading-snug text-white sm:text-2xl">{m.text}</span>}
+        {/* Two lines at most: the photo is the star; the full text is one tap away in the viewer. */}
+        {m.text && <p className="line-clamp-2 max-w-3xl text-lg font-semibold leading-snug text-white [text-shadow:0_1px_12px_rgba(0,0,0,0.5)] sm:text-2xl">{m.text}</p>}
         <span className="mt-2 block text-sm text-white/70">
           {m.xUrl ? "𝕏 " : ""}
           {m.who} · {m.ago}
@@ -412,26 +448,29 @@ export function MomentsGallery({
                 >
                   {m.images.length ? (
                     <>
-                      <Img m={m} className={cx("w-full bg-white/5 object-cover transition duration-700 group-hover:scale-105", SHAPES[i % SHAPES.length])} />
+                      {/* The photo's own shape, kept between a short strip and a tall portrait; any crop keeps the top, where faces usually are. */}
+                      <Img m={m} className="max-h-[560px] min-h-[150px] w-full bg-white/5 object-cover object-[center_30%] transition duration-700 group-hover:scale-105" />
                       <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent opacity-90" />
                       {m.video && <PlayBadge gif={m.video.gif} />}
-                      <span className="absolute right-2.5 top-2.5 flex gap-1.5">
-                        {m.video && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-black/45 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur">
-                            {m.video.gif ? "GIF" : <><Play size={11} fill="currentColor" aria-hidden /> Video</>}
-                          </span>
-                        )}
-                        {m.images.length > 1 && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-black/45 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur">
-                            <Images size={12} aria-hidden /> {m.images.length}
-                          </span>
-                        )}
-                        {m.xUrl && <span className="rounded-full bg-black/45 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur">𝕏</span>}
-                      </span>
+                      {/* One quiet badge at most: videos already show a play button; GIFs and albums get a corner tag. */}
+                      {(m.video?.gif || (!m.video && m.images.length > 1)) && (
+                        <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full bg-black/45 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur">
+                          {m.video?.gif ? (
+                            "GIF"
+                          ) : (
+                            <>
+                              <Images size={12} aria-hidden /> {m.images.length}
+                            </>
+                          )}
+                        </span>
+                      )}
                       <span className="absolute inset-x-0 bottom-0 p-3 text-left">
-                        {m.text && <span className="mb-1 line-clamp-2 block max-h-0 overflow-hidden text-sm leading-snug text-white/90 opacity-0 transition-all duration-300 group-hover:max-h-12 group-hover:opacity-100">{m.text}</span>}
+                        {m.text && <span className="mb-1 line-clamp-2 max-h-0 overflow-hidden text-sm leading-snug text-white/90 opacity-0 transition-all duration-300 group-hover:max-h-12 group-hover:opacity-100">{m.text}</span>}
                         <span className="flex items-center justify-between gap-2 text-xs font-semibold text-white">
-                          <span className="truncate">{m.who}</span>
+                          <span className="truncate">
+                            {m.xUrl ? "𝕏 " : ""}
+                            {m.who}
+                          </span>
                           <ReactionBadge c={reactions.counts[m.id]} />
                         </span>
                       </span>
@@ -439,7 +478,7 @@ export function MomentsGallery({
                   ) : (
                     <span className={cx("flex min-h-44 flex-col justify-between gap-6 p-5 text-left", QUOTE_TONES[i % QUOTE_TONES.length])}>
                       <span aria-hidden className="font-serif text-5xl leading-none opacity-50">“</span>
-                      <span className="line-clamp-6 text-lg font-semibold leading-snug">{m.text}</span>
+                      <span className={cx("line-clamp-6 font-semibold leading-snug", (m.text?.length ?? 0) <= 50 ? "text-2xl" : "text-lg")}>{m.text}</span>
                       <span className="flex items-center justify-between gap-2 text-xs font-semibold">
                         <span className="truncate opacity-80">
                           {m.xUrl ? "𝕏 " : ""}
@@ -558,7 +597,7 @@ function Viewer({ moments, index, onIndex, origin, reactions }: { moments: Momen
         ) : m.images.length ? (
           <Img key={`${m.id}-${photo}`} m={m} i={photo} eager className="moment-fade max-h-full max-w-full rounded-2xl object-contain shadow-[0_30px_80px_rgba(0,0,0,0.6)]" />
         ) : (
-          <blockquote key={m.id} className="moment-fade max-w-2xl px-4 text-center text-2xl font-semibold leading-snug sm:text-4xl">
+          <blockquote key={m.id} className={cx("moment-fade max-h-full max-w-2xl overflow-y-auto px-4 py-4 text-center font-semibold leading-snug", quoteSize(m.text, "viewer"))}>
             <span aria-hidden className="mb-2 block font-serif text-6xl leading-none text-sun">“</span>
             {m.text}
           </blockquote>
@@ -603,7 +642,7 @@ function Viewer({ moments, index, onIndex, origin, reactions }: { moments: Momen
             </span>
           )}
         </div>
-        {m.note && <p className="font-medium">{m.note}</p>}
+        {m.note && <p className="line-clamp-3 font-medium">{m.note}</p>}
         {m.text && m.images.length > 0 && <p className={cx("max-h-28 overflow-y-auto whitespace-pre-line text-sm leading-relaxed", m.note ? "text-white/60" : "text-white/85")}>{m.text}</p>}
         {m.people.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 text-sm">

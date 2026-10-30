@@ -23,3 +23,13 @@ export function momentPost(m: { text: string | null; who: string; fromX: boolean
   const quote = words ? `“${words.length > 120 ? `${words.slice(0, 117).trimEnd()}…` : words}”` : "";
   return quote ? `${quote} — ${m.fromX ? m.who : "a moment"} from ${HASHTAG} 📸` : `A moment from ${HASHTAG} 📸`;
 }
+
+/** Post text without X's leftover links (pic.twitter.com/…, t.co/…) and stray spacing, for display. */
+export function cleanPostText(text: string | null | undefined): string {
+  return (text ?? "")
+    .replace(/\s*(?:https?:\/\/)?(?:pic\.twitter\.com|t\.co)\/\S+/gi, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}

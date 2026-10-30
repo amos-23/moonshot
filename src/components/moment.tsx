@@ -1,5 +1,6 @@
 import type { MomentItem, MomentPerson } from "@/lib/data";
 import { timeAgo } from "@/lib/time";
+import { cleanPostText } from "@/lib/share";
 
 /** Who shared the moment (for an X post: who posted it on X). */
 export function momentWho({ moment: m, author }: MomentItem) {
@@ -45,8 +46,8 @@ export function toMomentView(item: MomentItem, people: MomentPerson[] = []): Mom
     id: m.id,
     images: uploaded.length ? uploaded : m.xMedia,
     fromXImages: !uploaded.length,
-    text: (fromX ? m.xText : m.body) || null,
-    note: fromX && m.body ? m.body : null,
+    text: cleanPostText(fromX ? m.xText : m.body) || null,
+    note: fromX && m.body ? cleanPostText(m.body) || null : null,
     who: momentWho(item),
     whoHref: fromX && m.xAuthorHandle ? `https://x.com/${m.xAuthorHandle}` : author ? `/?q=${encodeURIComponent(author.xHandle ?? author.name)}` : m.xHandle ? `https://x.com/${m.xHandle}` : null,
     avatar: fromX ? m.xAvatarUrl : null,
@@ -58,4 +59,19 @@ export function toMomentView(item: MomentItem, people: MomentPerson[] = []): Mom
     likes: fromX ? m.xLikes : 0,
     replies: fromX ? m.xReplies : 0,
   };
+}
+
+/** Big quote text that shrinks as the words get longer, so any length fits on screen. */
+export function quoteSize(text: string | null, where: "story" | "viewer"): string {
+  const n = text?.length ?? 0;
+  const steps = where === "story" ? ["text-3xl sm:text-5xl", "text-2xl sm:text-4xl", "text-xl sm:text-3xl", "text-lg sm:text-2xl"] : ["text-2xl sm:text-4xl", "text-xl sm:text-3xl", "text-lg sm:text-2xl", "text-base sm:text-xl"];
+  return steps[n <= 80 ? 0 : n <= 180 ? 1 : n <= 320 ? 2 : 3];
+}
+
+/** Long words for a big quote, cut at a word boundary with "…" (the full text stays in the viewer). */
+export function quoteText(text: string | null, max = 220): string {
+  const t = text ?? "";
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  return `${cut.slice(0, cut.lastIndexOf(" ") > max * 0.6 ? cut.lastIndexOf(" ") : max).trimEnd()}…`;
 }
