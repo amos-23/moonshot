@@ -1,0 +1,357 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
+import { ChevronLeft, ChevronRight, ExternalLink, Images, MapPin, Plus, X } from "lucide-react";
+import type { MomentView } from "./moment";
+import { ReportLink } from "./client";
+import { MomentForm } from "./forms";
+import { Avatar, cx } from "./ui";
+
+// Rhythm for the photo wall: varied shapes so it reads like a contact sheet, not a grid of squares.
+const SHAPES = ["aspect-[4/5]", "aspect-square", "aspect-[3/4]", "aspect-[5/4]", "aspect-[4/5]", "aspect-[3/4]"];
+// Words-only moments get a warm card instead of a photo.
+const QUOTE_TONES = ["bg-gradient-to-br from-flame to-sun text-white", "bg-[#1f1d26] text-sun ring-1 ring-white/10", "bg-gradient-to-br from-sun to-[#ffcf73] text-ink"];
+
+function Img({ m, i = 0, className, eager }: { m: MomentView; i?: number; className?: string; eager?: boolean }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={m.images[i]}
+      alt={i === 0 ? (m.text ? m.text.slice(0, 120) : `Photo from ${m.who}`) : `Photo ${i + 1} from ${m.who}`}
+      loading={eager ? "eager" : "lazy"}
+      decoding="async"
+      referrerPolicy={m.fromXImages ? "no-referrer" : undefined}
+      className={className}
+    />
+  );
+}
+
+const label = (m: MomentView) => {
+  const words = m.note ?? m.text;
+  return `Open moment from ${m.who}${words ? `: ${words.slice(0, 80)}` : ""}`;
+};
+
+/** The whole Moments experience: featured moment, photo wall, full-screen viewer and the share sheet. */
+export function MomentsGallery({ moments, myName, shareOpen, posted, total }: { moments: MomentView[]; myName: string | null; shareOpen: boolean; posted?: string; total: number }) {
+  const { featured, wall, ordered } = useMemo(() => {
+    const featured = moments.find((m) => m.images.length) ?? null;
+    const wall = featured ? moments.filter((m) => m.id !== featured.id) : moments;
+    // The viewer walks through moments in the order they appear on the page.
+    return { featured, wall, ordered: featured ? [featured, ...wall] : wall };
+  }, [moments]);
+  // Tracked by id, so a refreshed list (e.g. after a report hides a moment) never shows the wrong one.
+  const [openId, setOpenId] = useState<string | null>(null);
+  const open = openId ? ordered.findIndex((m) => m.id === openId) : -1;
+  const [sharing, setSharing] = useState(shareOpen);
+  // Each post comes back with a new ?posted=…, which closes the sheet.
+  useEffect(() => {
+    if (posted) setSharing(false);
+  }, [posted]);
+  // The floating "+" only shows once the big "Add your moment" button has scrolled away.
+  const heroCta = useRef<HTMLButtonElement>(null);
+  const [fab, setFab] = useState(false);
+  useEffect(() => {
+    const el = heroCta.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => setFab(!e.isIntersecting));
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  const show = useCallback(
+    (i: number | null) => {
+      const id = i === null ? null : ordered[i].id;
+      setOpenId(id);
+      history.replaceState(null, "", id ? `#m-${id}` : location.pathname + location.search);
+    },
+    [ordered],
+  );
+
+  // A link to /moments#m-<id> (from the homepage highlights) opens that moment straight away.
+  useEffect(() => {
+    const id = location.hash.match(/^#m-(.+)$/)?.[1];
+    if (id && ordered.some((m) => m.id === id)) setOpenId(id);
+    // Only on first load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <>
+      <section className="relative overflow-hidden">
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-40 mx-auto h-[520px] max-w-4xl rounded-full bg-[radial-gradient(closest-side,rgba(232,80,42,0.45),rgba(246,168,33,0.12)_55%,transparent)] blur-2xl" />
+        <div className="relative mx-auto max-w-6xl px-4 pb-8 pt-12 text-center sm:pt-16">
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-sun">Moonshot 2026 · Lagos</p>
+          <h1 className="mt-3 bg-gradient-to-b from-white via-white to-white/60 bg-clip-text text-6xl font-black uppercase leading-[0.9] tracking-tight text-transparent sm:text-8xl">Moments</h1>
+          <p className="mx-auto mt-4 max-w-md text-white/70">Photos and highlights from two days at the National Theatre, shared by the people who were there.</p>
+          {total > 0 && (
+            <p className="mt-4 text-sm text-white/50">
+              {total} moment{total === 1 ? "" : "s"} shared
+            </p>
+          )}
+          <button ref={heroCta} type="button" onClick={() => setSharing(true)} data-track="moments_share_open" className="mt-6 inline-flex h-12 items-center gap-2 rounded-full bg-sun px-6 font-bold text-ink shadow-[0_8px_30px_rgba(246,168,33,0.35)] transition hover:-translate-y-0.5 hover:bg-[#ffb93d]">
+            <Plus size={18} aria-hidden /> Add your moment
+          </button>
+        </div>
+      </section>
+
+      <div className="mx-auto max-w-6xl px-4 pb-24">
+        {featured && (
+          <a
+            href={`#m-${featured.id}`}
+            onClick={(e) => (e.preventDefault(), show(0))}
+            data-track="moments_featured"
+            data-track-id={featured.id}
+            aria-label={label(featured)}
+            className="moment-rise group relative mb-4 block overflow-hidden rounded-[28px] bg-white/5 ring-1 ring-white/10 sm:mb-6"
+          >
+            <Img m={featured} eager className="aspect-[4/5] w-full object-cover transition duration-700 group-hover:scale-[1.03] sm:aspect-[21/9]" />
+            <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+            <span className="absolute inset-x-0 bottom-0 p-5 text-left sm:p-8">
+              <span className="mb-2 inline-block rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-white backdrop-blur">Featured</span>
+              {featured.text && <span className="line-clamp-3 block max-w-2xl text-lg font-semibold leading-snug text-white sm:text-2xl">{featured.text}</span>}
+              <span className="mt-2 block text-sm text-white/70">
+                {featured.xUrl ? "𝕏 " : ""}
+                {featured.who} · {featured.ago}
+              </span>
+            </span>
+          </a>
+        )}
+
+        {moments.length === 0 ? (
+          <div className="rounded-[28px] border border-dashed border-white/15 px-6 py-16 text-center">
+            <p className="text-lg font-semibold">No moments yet</p>
+            <p className="mt-1 text-white/60">Be the first to share a photo or highlight from Moonshot.</p>
+          </div>
+        ) : (
+          <ul className="columns-2 gap-3 sm:gap-4 md:columns-3 lg:columns-4 [&>li]:mb-3 [&>li]:break-inside-avoid sm:[&>li]:mb-4">
+            {wall.map((m, i) => (
+              <li key={m.id} id={`m-${m.id}`} className="moment-rise" style={{ animationDelay: `${Math.min(i, 12) * 50}ms` }}>
+                <a
+                  href={`#m-${m.id}`}
+                  onClick={(e) => (e.preventDefault(), show(featured ? i + 1 : i))}
+                  data-track="moment_open"
+                  data-track-id={m.id}
+                  aria-label={label(m)}
+                  className="group relative block overflow-hidden rounded-3xl ring-1 ring-white/10 transition duration-300 hover:-translate-y-0.5 hover:ring-white/25"
+                >
+                  {m.images.length ? (
+                    <>
+                      <Img m={m} className={cx("w-full bg-white/5 object-cover transition duration-700 group-hover:scale-105", SHAPES[i % SHAPES.length])} />
+                      <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent opacity-90" />
+                      <span className="absolute right-2.5 top-2.5 flex gap-1.5">
+                        {m.images.length > 1 && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-black/45 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur">
+                            <Images size={12} aria-hidden /> {m.images.length}
+                          </span>
+                        )}
+                        {m.xUrl && <span className="rounded-full bg-black/45 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur">𝕏</span>}
+                      </span>
+                      <span className="absolute inset-x-0 bottom-0 p-3 text-left">
+                        {m.text && <span className="mb-1 line-clamp-2 block max-h-0 overflow-hidden text-sm leading-snug text-white/90 opacity-0 transition-all duration-300 group-hover:max-h-12 group-hover:opacity-100">{m.text}</span>}
+                        <span className="block truncate text-xs font-semibold text-white">{m.who}</span>
+                      </span>
+                    </>
+                  ) : (
+                    <span className={cx("flex min-h-44 flex-col justify-between gap-6 p-5 text-left", QUOTE_TONES[i % QUOTE_TONES.length])}>
+                      <span aria-hidden className="font-serif text-5xl leading-none opacity-50">“</span>
+                      <span className="line-clamp-6 text-lg font-semibold leading-snug">{m.text}</span>
+                      <span className="truncate text-xs font-semibold opacity-80">
+                        {m.xUrl ? "𝕏 " : ""}
+                        {m.who} · {m.ago}
+                      </span>
+                    </span>
+                  )}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {fab && (
+        <button type="button" onClick={() => setSharing(true)} data-track="moments_share_fab" aria-label="Add your moment" className="moment-rise fixed bottom-5 right-5 z-30 grid h-14 w-14 place-items-center rounded-full bg-sun text-ink shadow-[0_10px_30px_rgba(0,0,0,0.45)] transition hover:scale-105">
+          <Plus size={24} aria-hidden />
+        </button>
+      )}
+
+      {open >= 0 && <Viewer moments={ordered} index={open} onIndex={show} />}
+      {sharing && <ShareSheet myName={myName} onClose={() => setSharing(false)} />}
+    </>
+  );
+}
+
+/** Full-screen viewer: swipe or use the arrow keys to move through photos and moments. */
+function Viewer({ moments, index, onIndex }: { moments: MomentView[]; index: number; onIndex: (i: number | null) => void }) {
+  const m = moments[index];
+  const [photo, setPhoto] = useState(0);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const touch = useRef<number | null>(null);
+
+  useEffect(() => setPhoto(0), [index]);
+  useEffect(() => {
+    closeRef.current?.focus();
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  const step = useCallback(
+    (dir: 1 | -1) => {
+      const nextPhoto = photo + dir;
+      if (nextPhoto >= 0 && nextPhoto < m.images.length) return setPhoto(nextPhoto);
+      const next = index + dir;
+      if (next >= 0 && next < moments.length) onIndex(next);
+    },
+    [photo, m.images.length, index, moments.length, onIndex],
+  );
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onIndex(null);
+      else if (e.key === "ArrowRight") step(1);
+      else if (e.key === "ArrowLeft") step(-1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [step, onIndex]);
+
+  const onTouchStart = (e: TouchEvent) => (touch.current = e.touches[0].clientX);
+  const onTouchEnd = (e: TouchEvent) => {
+    if (touch.current === null) return;
+    const dx = e.changedTouches[0].clientX - touch.current;
+    touch.current = null;
+    if (Math.abs(dx) > 50) step(dx < 0 ? 1 : -1);
+  };
+
+  const atStart = index === 0 && photo === 0;
+  const atEnd = index === moments.length - 1 && photo >= m.images.length - 1;
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label={`Moment from ${m.who}`} className="moment-fade fixed inset-0 z-50 flex flex-col overflow-hidden bg-[#0b0a0e] text-white">
+      {m.images.length > 0 && (
+        // Ambient glow: the photo itself, heavily blurred, behind everything.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img key={`glow-${m.id}-${photo}`} src={m.images[photo]} alt="" aria-hidden referrerPolicy={m.fromXImages ? "no-referrer" : undefined} className="moment-fade pointer-events-none absolute inset-0 h-full w-full scale-125 object-cover opacity-25 blur-3xl" />
+      )}
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/80" />
+      <div className="relative flex items-center justify-between px-4 py-3 text-sm text-white/60">
+        <span>
+          {index + 1} / {moments.length}
+        </span>
+        <button ref={closeRef} type="button" onClick={() => onIndex(null)} aria-label="Close" className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20">
+          <X size={20} aria-hidden />
+        </button>
+      </div>
+
+      <div className="relative flex min-h-0 flex-1 items-center justify-center px-2 sm:px-16" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+        {m.images.length ? (
+          <Img key={`${m.id}-${photo}`} m={m} i={photo} eager className="moment-fade max-h-full max-w-full rounded-2xl object-contain shadow-[0_30px_80px_rgba(0,0,0,0.6)]" />
+        ) : (
+          <blockquote key={m.id} className="moment-fade max-w-2xl px-4 text-center text-2xl font-semibold leading-snug sm:text-4xl">
+            <span aria-hidden className="mb-2 block font-serif text-6xl leading-none text-sun">“</span>
+            {m.text}
+          </blockquote>
+        )}
+        <button type="button" onClick={() => step(-1)} disabled={atStart} aria-label="Previous" className="absolute left-3 top-1/2 hidden h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-0 sm:grid">
+          <ChevronLeft size={24} aria-hidden />
+        </button>
+        <button type="button" onClick={() => step(1)} disabled={atEnd} aria-label="Next" className="absolute right-3 top-1/2 hidden h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-0 sm:grid">
+          <ChevronRight size={24} aria-hidden />
+        </button>
+      </div>
+
+      {m.images.length > 1 && (
+        <div className="relative flex justify-center gap-1.5 pt-3" aria-label={`Photo ${photo + 1} of ${m.images.length}`}>
+          {m.images.map((_, i) => (
+            <button key={i} type="button" onClick={() => setPhoto(i)} aria-label={`Photo ${i + 1}`} className={cx("h-1.5 rounded-full transition-all", i === photo ? "w-6 bg-sun" : "w-1.5 bg-white/30")} />
+          ))}
+        </div>
+      )}
+
+      <div className="safe-bottom relative mx-auto w-full max-w-2xl space-y-3 px-5 pb-5 pt-4">
+        <div className="flex items-center gap-2.5 text-sm">
+          {m.avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={m.avatar} alt="" width={32} height={32} referrerPolicy="no-referrer" className="h-8 w-8 rounded-full object-cover" />
+          ) : (
+            <Avatar name={m.who} size={32} />
+          )}
+          <span className="min-w-0 flex-1 truncate">
+            {m.whoHref ? (
+              <a href={m.whoHref} target={m.whoHref.startsWith("/") ? undefined : "_blank"} rel="noopener noreferrer nofollow" className="font-semibold hover:underline" data-track="moment_author">
+                {m.who}
+              </a>
+            ) : (
+              <span className="font-semibold">{m.who}</span>
+            )}
+            <span className="text-white/50"> · {m.ago}</span>
+          </span>
+          {m.place && (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-2.5 py-0.5 text-xs text-white/70">
+              <MapPin size={12} aria-hidden /> {m.place}
+            </span>
+          )}
+        </div>
+        {m.note && <p className="font-medium">{m.note}</p>}
+        {m.text && m.images.length > 0 && <p className={cx("max-h-28 overflow-y-auto whitespace-pre-line text-sm leading-relaxed", m.note ? "text-white/60" : "text-white/85")}>{m.text}</p>}
+        {m.people.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 text-sm">
+            <span className="font-semibold text-sun">👋 Follow up:</span>
+            {m.people.map((p) => (
+              <Link key={p.key} href={`/?q=${encodeURIComponent(p.q)}`} data-track="moment_person" data-track-id={m.id} className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 font-semibold hover:bg-white/20">
+                <Avatar name={p.name} size={18} /> {p.name}
+              </Link>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-3 pt-1 [&_button]:text-white/50">
+          {m.xUrl ? (
+            <a href={m.xUrl} target="_blank" rel="noopener noreferrer nofollow" data-track="moment_x_open" data-track-id={m.id} className="inline-flex items-center gap-1 text-sm font-semibold text-sun hover:underline">
+              View on X <ExternalLink size={13} aria-hidden />
+            </a>
+          ) : (
+            <span />
+          )}
+          <ReportLink type="moment" id={m.id} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** "Add your moment" as a sheet over the gallery (bottom sheet on phones). */
+function ShareSheet({ myName, onClose }: { myName: string | null; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.querySelector<HTMLElement>("input, textarea, button")?.focus();
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+  return (
+    <div className="moment-fade fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-6" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div ref={ref} role="dialog" aria-modal="true" aria-labelledby="share-h" className="moment-rise max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-[28px] bg-white p-5 text-ink shadow-2xl sm:rounded-[28px] sm:p-6">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 id="share-h" className="text-xl font-extrabold">
+              Add your moment
+            </h2>
+            <p className="text-sm text-muted">Photos, a highlight, or an X post. Tag people with @handle.</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-canvas hover:bg-line">
+            <X size={18} aria-hidden />
+          </button>
+        </div>
+        <MomentForm myName={myName} />
+      </div>
+    </div>
+  );
+}

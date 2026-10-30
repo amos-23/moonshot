@@ -21,11 +21,20 @@ const mobile = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, is
 const errors = [];
 // A normal browser user agent: the tracker ignores "HeadlessChrome" as a bot.
 const UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36";
-/** The Moments form is folded into a one-line "Share a photo, update or X post" row (open only while there are no moments yet). */
+/** Moments: "Add your moment" opens the share sheet. */
 async function openShare(page) {
-  if (!(await page.getByLabel(/what's happening/i).isVisible())) await page.locator("summary", { hasText: "Share a photo" }).click();
+  if (!(await page.getByLabel(/what's happening/i).isVisible())) await page.getByRole("button", { name: "Add your moment" }).first().click();
   await page.getByLabel(/what's happening/i).waitFor();
 }
+const escapeRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Moments: open the tile whose text matches, and return the full-screen viewer. */
+async function openMoment(page, text) {
+  await page.getByRole("link", { name: new RegExp(`Open moment from .*${escapeRe(text)}`) }).first().click();
+  const viewer = page.getByRole("dialog");
+  await viewer.waitFor();
+  return viewer;
+}
+const momentTiles = (page, text) => page.getByRole("link", { name: new RegExp(`Open moment from .*${escapeRe(text)}`) });
 
 async function visitor(opts = mobile) {
   const ctx = await browser.newContext({ userAgent: UA, ...opts });
@@ -206,27 +215,32 @@ try {
   ]);
   await anon.page.getByRole("img", { name: "Your photo 2" }).waitFor();
   await anon.page.getByRole("button", { name: "Post", exact: true }).click();
-  await anon.page.waitForURL(/posted=1/);
-  const mine = anon.page.locator("li", { hasText: `The fintech panel is packed ${run}` });
+  await anon.page.waitForURL(/posted=\d+/);
+  await anon.page.getByText("Posted — thanks for sharing").waitFor();
+  const mine = await openMoment(anon.page, `The fintech panel is packed ${run}`);
   assert.equal(await mine.getByRole("link", { name: "@moment_fan", exact: true }).getAttribute("href"), "https://x.com/moment_fan");
-  const msrcs = await mine.locator("img[src^='/moment-photo/']").evaluateAll((els) => els.map((e) => e.getAttribute("src")));
-  assert.equal(msrcs.length, 2, "both photos show");
-  assert.match(msrcs[1], /\?n=1$/);
-  for (const src of msrcs) assert.equal((await anon.page.request.get(`${BASE}${src}`)).headers()["content-type"], "image/jpeg");
+  // Two photos: dots to move between them, each served as a JPEG.
+  await mine.getByRole("button", { name: "Photo 2" }).click();
+  const second = await mine.locator("img[src^='/moment-photo/']:not([aria-hidden])").getAttribute("src");
+  assert.match(second, /\?n=1$/);
+  for (const src of [second.replace(/\?n=1$/, ""), second]) assert.equal((await anon.page.request.get(`${BASE}${src}`)).headers()["content-type"], "image/jpeg");
   // Tagging @bola_grows links the moment to Bola's card.
   await mine.getByText("Follow up:").waitFor();
-  const follow = mine.getByRole("link", { name: /Bola/ });
-  assert.equal(await follow.getAttribute("href"), "/?q=bola_grows");
+  assert.equal(await mine.getByRole("link", { name: /Bola/ }).getAttribute("href"), "/?q=bola_grows");
+  // The viewer has its own link (for sharing) and closes with Escape.
+  assert.match(anon.page.url(), /#m-/);
+  await anon.page.keyboard.press("Escape");
+  await mine.waitFor({ state: "detached" });
 
   await bola.page.goto(`${BASE}/moments`);
-  assert.equal(await bola.page.getByLabel(/what's happening/i).isVisible(), false, "once there are moments, the form is folded into one line");
+  assert.equal(await bola.page.getByLabel(/what's happening/i).isVisible(), false, "the share form waits behind \"Add your moment\"");
   await openShare(bola.page);
   await bola.page.getByText(`Posting as Bola ${run}`).waitFor();
   await bola.page.getByLabel(/what's happening/i).fill(`Grabbing coffee ${run}`);
   await bola.page.getByLabel("Where?").fill("Food village");
   await bola.page.getByRole("button", { name: "Post", exact: true }).click();
-  await bola.page.waitForURL(/posted=1/);
-  await bola.page.locator("li", { hasText: `Grabbing coffee ${run}` }).getByRole("link", { name: `Bola ${run}` }).waitFor();
+  await bola.page.waitForURL(/posted=\d+/);
+  await (await openMoment(bola.page, `Grabbing coffee ${run}`)).getByRole("link", { name: `Bola ${run}` }).waitFor();
   await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`Bola ${run}`)}`);
   assert.equal(await card(anon.page, `Bola ${run}`).getByText(/catch me at/i).count(), 0, "a moment's place doesn't touch the card");
 
@@ -239,11 +253,12 @@ try {
   await anon.page.getByLabel(/share an x post/i).fill(SAMPLE_POST);
   await anon.page.getByLabel(/what's happening/i).fill(`Worth a read ${run}`);
   await anon.page.getByRole("button", { name: "Post", exact: true }).click();
-  const xm = await Promise.race([anon.page.waitForURL(/posted=1/).then(() => "posted"), anon.page.getByText(/couldn't load that x post/i).waitFor().then(() => "skipped")]);
+  const xm = await Promise.race([anon.page.waitForURL(/posted=\d+/).then(() => "posted"), anon.page.getByText(/couldn't load that x post/i).waitFor().then(() => "skipped")]);
   if (xm === "posted") {
-    const xmoment = anon.page.locator("li", { hasText: `Worth a read ${run}` });
-    await xmoment.getByText("From X").waitFor();
+    const xmoment = await openMoment(anon.page, `Worth a read ${run}`);
+    await xmoment.getByText(`Worth a read ${run}`).waitFor();
     assert.equal(await xmoment.getByRole("link", { name: /view on x/i }).getAttribute("href"), SAMPLE_POST);
+    await anon.page.keyboard.press("Escape");
   } else console.log("  (X unreachable from here; skipped)");
   await anon.page.goto(BASE);
   await anon.page.getByRole("heading", { name: /moments/i }).waitFor();
@@ -256,14 +271,14 @@ try {
     const v = await visitor();
     await v.page.goto(`${BASE}/moments`);
     v.page.once("dialog", (d) => d.accept("spam"));
-    const target = v.page.locator("li", { hasText: `Grabbing coffee ${run}` });
+    const target = await openMoment(v.page, `Grabbing coffee ${run}`);
     await target.getByRole("button", { name: "Report" }).click();
-    // The third report hides the moment straight away, so its "thanks" note may vanish with it.
-    await Promise.race([v.page.getByText(/we'll take a look/i).waitFor(), target.waitFor({ state: "detached" })]);
+    // The third report hides the moment straight away, so the viewer may close with it.
+    await Promise.race([target.getByText(/we'll take a look/i).waitFor(), target.waitFor({ state: "detached" })]);
     await v.ctx.close();
   }
   await anon.page.goto(`${BASE}/moments`);
-  assert.equal(await anon.page.locator("li", { hasText: `Grabbing coffee ${run}` }).count(), 0, "reported moment is hidden");
+  assert.equal(await momentTiles(anon.page, `Grabbing coffee ${run}`).count(), 0, "reported moment is hidden");
 
   step("search works");
   await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`Bola ${run}`)}`);
@@ -399,7 +414,7 @@ try {
   await adminMoment.getByRole("button", { name: "Post", exact: true }).click();
   await admin.page.waitForURL(/moment=1/);
   await anon.page.goto(`${BASE}/moments`);
-  const am = anon.page.locator("li", { hasText: `Doors open for day 2 ${run}` });
+  const am = await openMoment(anon.page, `Doors open for day 2 ${run}`);
   await am.getByText("Someone at Moonshot").waitFor();
   assert.equal(await am.getByText("Moonshot Connect").count(), 0, "no default credit");
 

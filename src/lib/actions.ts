@@ -201,7 +201,7 @@ export async function postMomentAction(_: Result | null, form: FormData): Promis
     if (photos.length) await db.insert(schema.momentPhotos).values(photos.map((p, position) => ({ momentId: m.id, position, ...p })));
   });
   refresh();
-  if (result.ok) redirect(form.get("from") === "admin" ? "/admin?moment=1" : "/moments?posted=1");
+  if (result.ok) redirect(form.get("from") === "admin" ? "/admin?moment=1" : `/moments?posted=${Date.now()}`);
   return result;
 }
 

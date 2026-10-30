@@ -1,68 +1,41 @@
 import Link from "next/link";
-import { ChevronDown, Plus } from "lucide-react";
-import { getDb } from "@/lib/db";
+import { eq, sql } from "drizzle-orm";
+import { getDb, schema } from "@/lib/db";
 import { getMe } from "@/lib/me";
 import { listMoments, momentPeople } from "@/lib/data";
-import { MomentForm } from "@/components/forms";
-import { MomentCard } from "@/components/moment";
-import { Disclosure } from "@/components/client";
-import { Empty, Notice, PageTitle } from "@/components/ui";
+import { toMomentView } from "@/components/moment";
+import { MomentsGallery } from "@/components/moments-gallery";
 
-export const metadata = { title: "Moments", description: "Photos and updates from Moonshot 2026, shared by the people there." };
+export const metadata = { title: "Moments", description: "Photos and highlights from Moonshot 2026, shared by the people who were there." };
+
+const PAGE = 60;
 
 export default async function MomentsPage({ searchParams }: { searchParams: Promise<{ posted?: string; before?: string; share?: string }> }) {
   const sp = await searchParams;
   const before = sp.before && !Number.isNaN(Date.parse(sp.before)) ? new Date(sp.before) : undefined;
   const db = await getDb();
-  const [me, items] = await Promise.all([getMe(), listMoments(db, { limit: 60, before })]);
+  const [me, items, [{ total }]] = await Promise.all([
+    getMe(),
+    listMoments(db, { limit: PAGE, before }),
+    db.select({ total: sql<number>`count(*)::int` }).from(schema.moments).where(eq(schema.moments.hidden, false)),
+  ]);
   const people = await momentPeople(db, items);
   const last = items.at(-1);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
-      <PageTitle title="📸 Moments" sub="Photos and highlights from Moonshot 2026, shared by the people who were there." />
+    <div data-dark-page className="-mb-12 min-h-dvh bg-[#121116] text-white">
       {sp.posted && (
-        <div className="mb-4">
-          <Notice tone="success">Posted! Thanks for sharing.</Notice>
+        <p role="status" className="moment-fade sticky top-16 z-20 mx-auto w-fit translate-y-3 rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white shadow-lg">
+          Posted — thanks for sharing ✨
+        </p>
+      )}
+      <MomentsGallery moments={items.map((i) => toMomentView(i, people.get(i.moment.id)))} myName={me?.name ?? null} shareOpen={Boolean(sp.share) || (!before && items.length === 0)} posted={sp.posted} total={total} />
+      {items.length === PAGE && last && (
+        <div className="-mt-16 pb-16 text-center">
+          <Link href={`/moments?before=${encodeURIComponent(last.moment.createdAt.toISOString())}`} className="inline-flex h-11 items-center rounded-full bg-white/10 px-6 font-semibold text-white hover:bg-white/20">
+            Older moments
+          </Link>
         </div>
-      )}
-      {!before && (
-        <Disclosure
-          initialOpen={items.length === 0 || Boolean(sp.share)}
-          className="group mb-6 rounded-3xl border border-line bg-surface open:p-5 sm:open:p-6"
-          summaryClassName="flex cursor-pointer list-none items-center gap-2 rounded-3xl px-4 py-3 font-semibold group-open:mb-4 group-open:p-0 [&::-webkit-details-marker]:hidden"
-          summary={
-            <>
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-flame text-white">
-                <Plus size={18} aria-hidden />
-              </span>
-              <span className="min-w-0 flex-1 truncate">Share a photo, update or X post</span>
-              <ChevronDown size={18} className="shrink-0 text-muted transition-transform group-open:rotate-180" aria-hidden />
-            </>
-          }
-        >
-          <MomentForm myName={me?.name ?? null} />
-        </Disclosure>
-      )}
-      {items.length === 0 ? (
-        <Empty title={before ? "That's everything" : "No moments yet"}>{before ? "You've reached the first moment." : "Be the first to share what's happening at Moonshot."}</Empty>
-      ) : (
-        <>
-          <ul className="columns-1 gap-4 sm:columns-2 lg:columns-3 [&>li]:mb-4 [&>li]:break-inside-avoid">
-            {items.map((item) => (
-              <li key={item.moment.id} id={`m-${item.moment.id}`} className="scroll-mt-20">
-                <MomentCard item={item} people={people.get(item.moment.id)} />
-              </li>
-            ))}
-          </ul>
-          {items.length === 60 && last && (
-            <div className="mt-4 text-center">
-              <Link href={`/moments?before=${encodeURIComponent(last.moment.createdAt.toISOString())}`} className="font-semibold text-flame-700 underline">
-                Older moments
-              </Link>
-            </div>
-          )}
-        </>
       )}
     </div>
   );
