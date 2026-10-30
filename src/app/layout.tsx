@@ -4,13 +4,18 @@ import "./globals.css";
 import { UserRound } from "lucide-react";
 import { getMe } from "@/lib/me";
 import { Tracker } from "@/components/tracker";
+import { siteOrigin } from "@/lib/site";
 import { cookies } from "next/headers";
 import { SIGNUP_COOKIE, eventOver } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return eventOver()
+  const origin = await siteOrigin();
+  // Every page shares with a branded preview image unless it sets its own.
+  const image = { url: "/og/site", width: 1200, height: 630, alt: "Moonshot Connect" };
+  const shared = { metadataBase: new URL(origin), openGraph: { images: [image], siteName: "Moonshot Connect" }, twitter: { card: "summary_large_image" as const, images: [image] } };
+  const base = eventOver()
     ? {
         title: { default: "Moonshot Connect — find the people you met at Moonshot 2026", template: "%s · Moonshot Connect" },
         description: "Find and follow up with the people you met at Moonshot by TechCabal (Lagos, 28–29 Oct 2026). No sign-up.",
@@ -19,6 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
         title: { default: "Moonshot Connect — meet the right people at Moonshot 2026", template: "%s · Moonshot Connect" },
         description: "See who's going to Moonshot by TechCabal (Lagos, 28–29 Oct 2026) and reach the people worth meeting. No sign-up.",
       };
+  return { ...base, ...shared };
 }
 
 export const viewport: Viewport = { themeColor: "#e8502a", width: "device-width", initialScale: 1 };

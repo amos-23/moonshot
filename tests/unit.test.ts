@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { eventOver } from "@/lib/constants";
+import { momentPost, withUtm, xIntent } from "@/lib/share";
 import { momentScore, parseHandles, rotationIndex, ROTATE_MS } from "@/lib/featured";
 import { scoreMatch, type MatchCard } from "@/lib/matching";
 import { cardSchema, signupSchema } from "@/lib/validation";
@@ -198,5 +199,19 @@ describe("Featured scoring", () => {
     const picks = new Set(Array.from({ length: 20 }, (_, i) => rotationIndex(10, t + i * ROTATE_MS)));
     expect(picks.size).toBeGreaterThan(2);
     expect(rotationIndex(1, t)).toBe(0);
+  });
+});
+
+describe("share links", () => {
+  it("tags links with where they were shared and keeps the #hash", () => {
+    expect(withUtm("https://s.io/m/1", "x", "moment")).toBe("https://s.io/m/1?utm_source=x&utm_campaign=moment");
+    expect(withUtm("https://s.io/?q=ada#top", "whatsapp", "card")).toBe("https://s.io/?q=ada&utm_source=whatsapp&utm_campaign=card#top");
+    expect(xIntent("Hi #Moonshot2026", "https://s.io/m/1")).toBe("https://x.com/intent/post?text=Hi+%23Moonshot2026&url=https%3A%2F%2Fs.io%2Fm%2F1");
+  });
+  it("writes a short post about a moment", () => {
+    expect(momentPost({ text: "Main stage  was packed", who: "Ada", fromX: false })).toBe("“Main stage was packed” — a moment from #Moonshot2026 📸");
+    expect(momentPost({ text: "Great day", who: "@tola", fromX: true })).toBe("“Great day” — @tola from #Moonshot2026 📸");
+    expect(momentPost({ text: null, who: "x", fromX: false })).toBe("A moment from #Moonshot2026 📸");
+    expect(momentPost({ text: "x".repeat(200), who: "x", fromX: false }).length).toBeLessThan(170);
   });
 });

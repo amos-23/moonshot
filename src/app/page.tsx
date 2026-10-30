@@ -12,7 +12,8 @@ import { EVENT, eventOver } from "@/lib/constants";
 import { pickFeatured } from "@/lib/featured";
 import { PersonCard, XCard } from "@/components/person";
 import { momentImage, momentWho } from "@/components/moment";
-import { ShareButtons } from "@/components/share";
+import { ShareButtons, XLogo } from "@/components/share";
+import { HASHTAG, withUtm, xIntent } from "@/lib/share";
 import { ScrollIntoView } from "@/components/client";
 import { Button, Card, Empty, LinkButton, Notice, Sunburst, cx, inputClass } from "@/components/ui";
 
@@ -80,6 +81,17 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
                   so the people you met can find you.
                 </p>
               )}
+              <p className="mt-3 text-sm">
+                <a
+                  href={xIntent(`Met people at ${HASHTAG}? Find them again here — search a name, no sign-up 👇`, withUtm(origin, "x", "home"))}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-track="home_share_x"
+                  className="inline-flex items-center gap-1.5 font-semibold text-white/90 underline-offset-4 hover:underline"
+                >
+                  <XLogo size={12} /> Tell people on X
+                </a>
+              </p>
             </>
           ) : (
             <>
@@ -124,8 +136,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
             {(sp.added === "card" || sp.added === "update") && me && (
               <ShareButtons
                 track="share_card"
-                text="I'm on Moonshot Connect — find me and see who else is at Moonshot:"
-                url={`${origin}/?q=${encodeURIComponent(me.name)}`}
+                campaign="card"
+                text={over ? "Met me at #Moonshot2026? Here's my card — say hi 👋" : "I'm at #Moonshot2026 — here's my card, come say hi 👋"}
+                url={`${origin}/p/${me.id}`}
               />
             )}
           </div>
@@ -259,7 +272,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
               <p className="text-lg font-bold">“{q}” isn&apos;t here yet</p>
               <p className="mx-auto mt-1 max-w-md text-sm text-muted">{over ? "Invite them to add themselves, so you can find them here." : "Invite them, so you (and everyone else at Moonshot) can find them."}</p>
               <div className="mt-4 flex justify-center">
-                <ShareButtons track="invite" text={`${q}, I'm looking for you on Moonshot Connect. Add yourself so people ${over ? "you met at" : "at"} Moonshot can find you:`} url={`${origin}/card`} />
+                <ShareButtons track="invite" campaign="invite" text={`${q}, I'm looking for you on Moonshot Connect. Add yourself so people ${over ? "you met at" : "at"} Moonshot can find you:`} url={`${origin}/card`} />
               </div>
             </Card>
           ) : (

@@ -133,8 +133,20 @@ try {
   step("Ada adds herself with a WhatsApp number, a photo and where to catch her");
   await addCard(ada.page, { name: `Ada ${run}`, headline: "Founder, payments startup", wants: ["Business partners", "Investors"], contact: "+234 803 000 0000", where: "Booth 14, Hall B", photo: true });
   await ada.page.getByText(/you're on the list/i).waitFor();
-  const shareX = await ada.page.getByRole("link", { name: "Share on X" }).getAttribute("href");
-  assert.ok(new URL(shareX).searchParams.get("text").endsWith(`/?q=${encodeURIComponent(`Ada ${run}`)}`), "share link points to her card");
+  // Sharing her card: a /p/… link with a name-card preview, tagged as shared on X.
+  const shareX = new URL(await ada.page.getByRole("link", { name: "Post on X" }).getAttribute("href"));
+  assert.match(shareX.searchParams.get("text"), /#Moonshot2026/);
+  const adaShare = shareX.searchParams.get("url");
+  assert.match(adaShare, /\/p\/[0-9a-f-]{36}\?utm_source=x&utm_campaign=card$/, "share link is her card's own link");
+  const adaPath = new URL(adaShare).pathname;
+  const adaHtml = await (await ada.page.request.get(`${BASE}${adaPath}`)).text();
+  assert.match(adaHtml, new RegExp(`<meta property="og:image" content="[^"]*/og/person/`));
+  assert.match(adaHtml, /<meta name="twitter:card" content="summary_large_image"/);
+  const personImg = await ada.page.request.get(`${BASE}/og/person/${adaPath.split("/").pop()}`);
+  assert.equal(personImg.headers()["content-type"], "image/png");
+  assert.ok((await personImg.body()).length > 10_000, "a real preview image");
+  await ada.page.goto(`${BASE}${adaPath}?utm_source=x&utm_campaign=card`);
+  await ada.page.waitForURL((u) => new URL(u).searchParams.get("q") !== null && new URL(u).searchParams.get("utm_campaign") === "card");
   await ada.page.goto(`${BASE}/card`);
   assert.equal(await ada.page.locator("#wants").innerText(), "Business partners, Investors", "multi-select keeps both choices");
 
@@ -197,7 +209,7 @@ try {
   const ghost = `Biliyamin ${run.replace(/\d/g, (d) => "abcdefghij"[d])}`; // letters only, like a real name
   await anon.page.goto(`${BASE}/?q=${encodeURIComponent(ghost)}`);
   await anon.page.getByText(`“${ghost}” isn't here yet`).waitFor();
-  assert.match(decodeURIComponent(await anon.page.getByRole("link", { name: "Share on X" }).getAttribute("href")), /\/card/);
+  assert.match(decodeURIComponent(await anon.page.getByRole("link", { name: "Post on X" }).getAttribute("href")), /\/card\?utm_source=x&utm_campaign=invite/);
   await shot(anon.page, "07-invite");
 
   step("Moments: anyone can post photos or an update and tag people; card holders post as themselves");
@@ -217,7 +229,15 @@ try {
   await anon.page.getByRole("button", { name: "Post", exact: true }).click();
   await anon.page.waitForURL(/posted=\d+/);
   await anon.page.getByText("Posted — thanks for sharing").waitFor();
+  // Right after posting: share the new moment on X, with its own link.
+  const postedShare = new URL(await anon.page.getByRole("link", { name: "Post it on X" }).getAttribute("href"));
+  const momentLink = postedShare.searchParams.get("url");
+  assert.match(momentLink, /\/m\/[0-9a-f-]{36}\?utm_source=x&utm_campaign=posted$/);
+  const momentId = new URL(momentLink).pathname.split("/").pop();
   const mine = await openMoment(anon.page, `The fintech panel is packed ${run}`);
+  const viewerShare = new URL(await mine.getByRole("link", { name: "Post on X" }).getAttribute("href"));
+  assert.equal(new URL(viewerShare.searchParams.get("url")).pathname, `/m/${momentId}`, "the viewer shares the same moment");
+  assert.match(viewerShare.searchParams.get("text"), /“The fintech panel is packed .*” — a moment from #Moonshot2026/);
   assert.equal(await mine.getByRole("link", { name: "@moment_fan", exact: true }).getAttribute("href"), "https://x.com/moment_fan");
   // Two photos: dots to move between them, each served as a JPEG.
   await mine.getByRole("button", { name: "Photo 2" }).click();
@@ -231,6 +251,18 @@ try {
   assert.match(anon.page.url(), /#m-/);
   await anon.page.keyboard.press("Escape");
   await mine.waitFor({ state: "detached" });
+  // A shared moment link: the photo is its preview on X, and opening it goes straight to the moment.
+  const mHtml = await (await anon.page.request.get(`${BASE}/m/${momentId}`)).text();
+  assert.match(mHtml, new RegExp(`<meta property="og:image" content="[^"]*/og/moment/${momentId}"`));
+  assert.match(mHtml, /<meta name="twitter:card" content="summary_large_image"/);
+  const mImg = await anon.page.request.get(`${BASE}/og/moment/${momentId}`);
+  assert.equal(mImg.headers()["content-type"], "image/png");
+  assert.ok((await mImg.body()).length > 10_000);
+  for (const og of ["/og/moments", "/og/site"]) assert.equal((await anon.page.request.get(`${BASE}${og}`)).headers()["content-type"], "image/png");
+  await anon.page.goto(`${BASE}/m/${momentId}?utm_source=x&utm_campaign=moment`);
+  await anon.page.waitForURL(new RegExp(`/moments\\?.*utm_campaign=moment.*#m-${momentId}$`));
+  await anon.page.getByRole("dialog").getByText(`The fintech panel is packed ${run}`).waitFor();
+  await anon.page.keyboard.press("Escape");
 
   await bola.page.goto(`${BASE}/moments`);
   assert.equal(await bola.page.getByLabel(/what's happening/i).isVisible(), false, "the share form waits behind \"Add your moment\"");

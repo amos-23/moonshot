@@ -45,7 +45,7 @@ export default async function CardPage({ searchParams }: { searchParams: Promise
         <div className="mt-6 space-y-4">
           <Card className="space-y-3 p-5">
             <p className="text-sm font-semibold">Share your card</p>
-            <ShareButtons track="share_card" text="I'm on Moonshot Connect — find me and see who else is at Moonshot:" url={`${await siteOrigin()}/?q=${encodeURIComponent(me.name)}`} />
+            <ShareButtons track="share_card" campaign="card" text="I'm on Moonshot Connect — here's my card from #Moonshot2026 👋" url={`${await siteOrigin()}/p/${me.id}`} />
           </Card>
           <Card className="space-y-2 p-5">
             <p className="text-sm font-semibold">Edit from another device</p>

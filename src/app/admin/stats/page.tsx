@@ -21,9 +21,6 @@ const CLICK_LABELS: Record<string, string> = {
   save_card: "Save card",
   add_yourself_header: "Add yourself (header)",
   add_yourself_hero: "Add yourself (home)",
-  share_card_x: "Share my card on X",
-  share_card_whatsapp: "Share my card on WhatsApp",
-  share_card_copy: "Copy my card link",
   invite_x: "Invite (not found) on X",
   invite_whatsapp: "Invite (not found) on WhatsApp",
   invite_copy: "Invite (not found) copy link",
@@ -68,6 +65,15 @@ const CLICK_LABELS: Record<string, string> = {
   highlights_all: "Highlights: see all (home)",
   highlights_add: "Highlights: add yours (home)",
   highlights_empty: "Highlights: share yours (home, empty)",
+  moment_share_x: "Shared a moment on X",
+  moment_share_native: "Shared a moment (phone share)",
+  moment_share_copy: "Copied a moment's link",
+  moments_share_x: "Shared Moments on X",
+  posted_share_x: "Shared their new moment on X",
+  home_share_x: "Tell people on X (home)",
+  share_card_x: "Shared my card on X",
+  share_card_whatsapp: "Shared my card on WhatsApp",
+  share_card_copy: "Copied my card link",
   signup_header: "Sign up (header)",
   signup_submit: "Sign up (submitted)",
   post_update: "Saved a card photo",
@@ -228,7 +234,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
       </div>
       {compare && <p className="-mt-3 text-xs text-muted">Arrows compare with the {rangeLabel} before.</p>}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         <Tile label="Visitors" value={t.visitors.toLocaleString()} sub={days === 1 ? "unique" : "unique per day, added up"} now={t.visitors} before={p.visitors} />
         <Tile label="Visits" value={t.views.toLocaleString()} sub="page views" now={t.views} before={p.views} />
         <Tile label="Contacted someone" value={t.contacters.toLocaleString()} sub={`${pct(t.contactRate)} of visitors · ${plural(t.contactClicks, "click")}`} now={t.contacters} before={p.contacters} />
@@ -237,6 +243,8 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
         <Tile label="Returning visitors" value={t.visitors ? pct(t.returning / t.visitors) : "—"} sub={`${t.returning.toLocaleString()} had been here before`} now={t.returning} before={p.returning} />
         <Tile label="Clicks" value={t.clicks.toLocaleString()} sub="buttons people pressed" now={t.clicks} before={p.clicks} />
         <Tile label="Searches" value={t.searches.toLocaleString()} sub={`${st.emptySearches.reduce((a, r) => a + r.n, 0)} found nothing`} now={t.searches} before={p.searches} />
+        <Tile label="Shares" value={t.shares.toLocaleString()} sub="on X, WhatsApp, or a copied link" now={t.shares} before={p.shares} />
+        <Tile label="Came from a share" value={t.fromShares.toLocaleString()} sub="visitors who arrived on a shared link" now={t.fromShares} before={p.fromShares} />
       </div>
 
       <Card className="p-5">

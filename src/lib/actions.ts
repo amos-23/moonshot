@@ -170,6 +170,7 @@ export async function postMomentAction(_: Result | null, form: FormData): Promis
   const handle = rawName.match(/^@?([A-Za-z0-9_]{1,15})$/) && rawName.startsWith("@") ? rawName.slice(1) : null;
   const name = handle ? null : rawName.slice(0, 40) || null;
 
+  let newId = "";
   const result = await guard(async () => {
     const admin = await isAdmin();
     if (!admin && !(await rateLimit("moment", Number(process.env.RATE_LIMIT_MOMENTS_PER_HOUR ?? 40), 60))) {
@@ -201,9 +202,11 @@ export async function postMomentAction(_: Result | null, form: FormData): Promis
       })
       .returning({ id: schema.moments.id });
     if (photos.length) await db.insert(schema.momentPhotos).values(photos.map((p, position) => ({ momentId: m.id, position, ...p })));
+    newId = m.id;
   });
   refresh();
-  if (result.ok) redirect(form.get("from") === "admin" ? "/admin?moment=1" : `/moments?posted=${Date.now()}`);
+  // Back to Moments with the new one's id, so the "Posted" note can offer to share it on X.
+  if (result.ok) redirect(form.get("from") === "admin" ? "/admin?moment=1" : `/moments?posted=${Date.now()}&m=${newId}`);
   return result;
 }
 

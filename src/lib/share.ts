@@ -1,0 +1,25 @@
+// Share links and ready-made posts. Every shared link carries utm tags, so Stats shows which shares
+// bring people back (Stats → Campaign links).
+
+export type ShareChannel = "x" | "whatsapp" | "copy" | "native";
+
+/** Adds ?utm_source=<channel>&utm_campaign=<campaign> to a link (keeping any #hash). */
+export function withUtm(url: string, channel: ShareChannel, campaign: string): string {
+  const [base, hash] = url.split("#");
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}utm_source=${channel}&utm_campaign=${encodeURIComponent(campaign)}${hash ? `#${hash}` : ""}`;
+}
+
+/** X's compose window with the post typed in. */
+export function xIntent(text: string, url: string): string {
+  return `https://x.com/intent/post?${new URLSearchParams({ text, url })}`;
+}
+
+export const HASHTAG = "#Moonshot2026";
+
+/** A short, natural post about a moment. */
+export function momentPost(m: { text: string | null; who: string; fromX: boolean }): string {
+  const words = m.text?.replace(/\s+/g, " ").trim();
+  const quote = words ? `“${words.length > 120 ? `${words.slice(0, 117).trimEnd()}…` : words}”` : "";
+  return quote ? `${quote} — ${m.fromX ? m.who : "a moment"} from ${HASHTAG} 📸` : `A moment from ${HASHTAG} 📸`;
+}

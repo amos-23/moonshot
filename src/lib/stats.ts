@@ -10,10 +10,16 @@ const TZ = sql.raw(`'${LAGOS}'`);
 
 /** Buttons that reach out to someone: the whole point of the site. */
 export const CONTACT = ["whatsapp", "x_profile", "linkedin", "email", "website", "checkin_contact"];
+/** Share buttons (X, WhatsApp, copy, the phone's share sheet). */
+const SHARE = sql`(${s.events.target} like '%share%' and ${s.events.target} not in ('moments_share_open', 'moments_share_fab'))`;
+
 /** Ways of opening a moment. */
 export const MOMENT_OPEN = ["moment_open", "moments_featured", "highlights_tile", "moments_strip_open", "moment_browse"];
 
 const list = (xs: string[]) => sql.join(xs.map((x) => sql`${x}`), sql`, `);
+/** Visits that arrived on a link shared with the site's own share buttons (their campaign names). */
+export const SHARE_CAMPAIGNS = ["moment", "moments", "posted", "card", "home", "invite"];
+const FROM_SHARE = sql`split_part(${s.events.campaign}, '/', 2) in (${list(SHARE_CAMPAIGNS)})`;
 
 /** 1, 7, 30 or 90 days, or 0 for all time. */
 export type Range = 0 | 1 | 7 | 30 | 90;
@@ -38,6 +44,8 @@ async function totals(db: DB, from: Date, to: Date) {
       contactClicks: sql<number>`count(*) filter (where ${s.events.type} = 'click' and ${s.events.target} in (${list(CONTACT)}))::int`,
       timeMs: sql<number>`coalesce(sum(${s.events.ms}) filter (where ${s.events.type} = 'leave'), 0)::float8`,
       timedVisitors: sql<number>`count(distinct ${s.events.visitor}) filter (where ${s.events.type} = 'leave')::int`,
+      shares: sql<number>`count(*) filter (where ${s.events.type} = 'click' and ${SHARE})::int`,
+      fromShares: sql<number>`count(distinct ${s.events.visitor}) filter (where ${s.events.type} = 'view' and ${FROM_SHARE})::int`,
     })
     .from(s.events)
     .where(and(gte(s.events.createdAt, from), lt(s.events.createdAt, to)));

@@ -97,20 +97,22 @@ describe("stats", () => {
       { type: "search", path: "/", visitor: "a", query: "fintech", results: 3 },
       { type: "search", path: "/", visitor: "b", query: "fintech", results: 3 },
       { type: "search", path: "/", visitor: "b", query: "drones", results: 0 },
+      { type: "click", path: "/moments", visitor: "b", target: "moment_share_x", targetId: m.id },
+      { type: "view", path: "/m/x", visitor: "c", campaign: "x/moment" },
       // The week before: 1 visitor, 1 visit.
       { type: "view", path: "/", visitor: "old", createdAt: ago(10) },
       // Long ago: outside both periods.
       { type: "view", path: "/", visitor: "older", createdAt: ago(40) },
     ]);
     const st = await siteStats(db, 7);
-    expect(st.totals).toMatchObject({ views: 4, visitors: 2, returning: 2, clicks: 4, searches: 3, contacters: 1, contactClicks: 1 });
-    expect(st.totals.avgTimeMs).toBe(60_000); // (60s + 30s + 30s) over 2 visitors
-    expect(st.totals.pagesPerVisitor).toBe(2);
+    expect(st.totals).toMatchObject({ views: 5, visitors: 3, returning: 2, clicks: 5, searches: 3, contacters: 1, contactClicks: 1, shares: 1, fromShares: 1 });
+    expect(st.totals.avgTimeMs).toBe(60_000); // (60s + 30s + 30s) over 2 visitors whose time was measured
+    expect(st.totals.pagesPerVisitor).toBeCloseTo(5 / 3);
     expect(st.prev).toMatchObject({ views: 1, visitors: 1 });
-    expect(st.live).toBe(2);
+    expect(st.live).toBe(3);
     expect(st.devices).toHaveLength(2);
     expect(st.devices).toEqual(expect.arrayContaining([{ key: "desktop", n: 1 }, { key: "mobile", n: 1 }]));
-    expect(st.campaigns).toEqual([{ key: "x/recap", n: 1 }]);
+    expect(st.campaigns).toEqual(expect.arrayContaining([{ key: "x/recap", n: 1 }, { key: "x/moment", n: 1 }]));
     expect(st.timeByPage.find((r) => r.key === "/moments")).toMatchObject({ avgMs: 60_000, visitors: 1 });
     expect(st.momentFunnel).toMatchObject({ visitors: 1, openers: 1, opens: 1, plays: 1, followUps: 1, toX: 0, avgMs: 60_000 });
     expect(st.topMoments[0]).toMatchObject({ id: m.id, opens: 1, plays: 1, followUps: 1 });
@@ -119,19 +121,19 @@ describe("stats", () => {
     expect(st.pages[0]).toEqual({ key: "/", n: 2 });
     expect(st.referrers).toEqual([{ key: "x.com", n: 1 }]);
     expect(st.topTargets.map((t) => t.name)).toContain("Clicky");
-    expect(st.funnel).toMatchObject({ visitors: 2, formVisitors: 1, contacters: 1, contactClicks: 1 });
+    expect(st.funnel).toMatchObject({ visitors: 3, formVisitors: 1, contacters: 1, contactClicks: 1 });
     expect(st.chart).toHaveLength(7);
-    expect(st.chart.at(-1)!.views).toBe(4);
-    expect(st.hours.reduce((a, h) => a + h.n, 0)).toBe(4);
+    expect(st.chart.at(-1)!.views).toBe(5);
+    expect(st.hours.reduce((a, h) => a + h.n, 0)).toBe(5);
 
     const day = await siteStats(db, 1);
     expect(day.hourly).toBe(true);
     expect(day.chart).toHaveLength(24);
-    expect(day.chart.at(-1)!.views).toBe(4);
+    expect(day.chart.at(-1)!.views).toBe(5);
 
     const all = await siteStats(db, 0);
     expect(all.prev).toBeNull();
-    expect(all.totals.views).toBe(6);
+    expect(all.totals.views).toBe(7);
   });
 });
 

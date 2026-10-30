@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
-import { ChevronLeft, ChevronRight, ExternalLink, Heart, Images, MapPin, MessageCircle, Play, Plus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink, Heart, Images, Link2, MapPin, MessageCircle, Play, Plus, Share2, X } from "lucide-react";
+import { HASHTAG, momentPost, withUtm, xIntent } from "@/lib/share";
 import type { MomentView } from "./moment";
 import { ReportLink } from "./client";
 import { MomentForm } from "./forms";
 import { track } from "./tracker";
+import { XLogo } from "./share";
 import { Avatar, cx } from "./ui";
 
 // Rhythm for the photo wall: varied shapes so it reads like a contact sheet, not a grid of squares.
@@ -259,7 +261,7 @@ const label = (m: MomentView) => {
 };
 
 /** The whole Moments experience: featured moment, photo wall, full-screen viewer and the share sheet. */
-export function MomentsGallery({ moments, featured, myName, shareOpen, posted, total }: { moments: MomentView[]; featured: MomentView[]; myName: string | null; shareOpen: boolean; posted?: string; total: number }) {
+export function MomentsGallery({ moments, featured, myName, shareOpen, posted, total, origin }: { moments: MomentView[]; featured: MomentView[]; myName: string | null; shareOpen: boolean; posted?: string; total: number; origin: string }) {
   // The wall shows every moment; the slideshow re-shows the best of them up top. The viewer walks
   // through the wall in order (featured moments from older pages are added in front).
   const { wall, ordered } = useMemo(() => {
@@ -321,6 +323,17 @@ export function MomentsGallery({ moments, featured, myName, shareOpen, posted, t
           <button ref={heroCta} type="button" onClick={() => setSharing(true)} data-track="moments_share_open" className="mt-6 inline-flex h-12 items-center gap-2 rounded-full bg-sun px-6 font-bold text-ink shadow-[0_8px_30px_rgba(246,168,33,0.35)] transition hover:-translate-y-0.5 hover:bg-[#ffb93d]">
             <Plus size={18} aria-hidden /> Add your moment
           </button>
+          <p className="mt-4">
+            <a
+              href={xIntent(`Photos and highlights from ${HASHTAG}, shared by the people who were there 📸`, withUtm(`${origin}/moments`, "x", "moments"))}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-track="moments_share_x"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-white/70 hover:text-white"
+            >
+              <XLogo size={13} /> Share Moments on X
+            </a>
+          </p>
         </div>
         <FilmStrip moments={ordered} onOpen={openById} />
       </section>
@@ -391,14 +404,14 @@ export function MomentsGallery({ moments, featured, myName, shareOpen, posted, t
         </button>
       )}
 
-      {open >= 0 && <Viewer moments={ordered} index={open} onIndex={show} />}
+      {open >= 0 && <Viewer moments={ordered} index={open} onIndex={show} origin={origin} />}
       {sharing && <ShareSheet myName={myName} onClose={() => setSharing(false)} />}
     </>
   );
 }
 
 /** Full-screen viewer: swipe or use the arrow keys to move through photos and moments. */
-function Viewer({ moments, index, onIndex }: { moments: MomentView[]; index: number; onIndex: (i: number | null) => void }) {
+function Viewer({ moments, index, onIndex, origin }: { moments: MomentView[]; index: number; onIndex: (i: number | null) => void; origin: string }) {
   const m = moments[index];
   const [photo, setPhoto] = useState(0);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -532,7 +545,8 @@ function Viewer({ moments, index, onIndex }: { moments: MomentView[]; index: num
             ))}
           </div>
         )}
-        <div className="flex items-center justify-between gap-3 pt-1 [&_button]:text-white/50">
+        <MomentShare m={m} origin={origin} />
+        <div className="flex items-center justify-between gap-3 pt-1 [&>button]:text-white/50">
           {m.xUrl ? (
             <span className="flex items-center gap-4">
               <a href={m.xUrl} target="_blank" rel="noopener noreferrer nofollow" data-track="moment_x_open" data-track-id={m.id} className="inline-flex items-center gap-1 text-sm font-semibold text-sun hover:underline">
@@ -555,6 +569,37 @@ function Viewer({ moments, index, onIndex }: { moments: MomentView[]; index: num
           <ReportLink type="moment" id={m.id} />
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Share a moment: its own link (/m/…) shows the photo as a big preview on X and WhatsApp. */
+function MomentShare({ m, origin }: { m: MomentView; origin: string }) {
+  const [copied, setCopied] = useState(false);
+  const [canShare, setCanShare] = useState(false);
+  useEffect(() => setCanShare(typeof navigator.share === "function"), []);
+  const link = `${origin}/m/${m.id}`;
+  const text = momentPost({ text: m.text, who: m.who, fromX: Boolean(m.xUrl) });
+  const other = async () => {
+    if (canShare) {
+      track("moment_share_native", m.id);
+      await navigator.share({ title: `${m.who} at Moonshot 2026`, text, url: withUtm(link, "native", "moment") }).catch(() => {});
+      return;
+    }
+    track("moment_share_copy", m.id);
+    await navigator.clipboard?.writeText(withUtm(link, "copy", "moment")).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <a href={xIntent(text, withUtm(link, "x", "moment"))} target="_blank" rel="noopener noreferrer" data-track="moment_share_x" data-track-id={m.id} className="inline-flex h-10 items-center gap-2 rounded-full bg-sun px-4 text-sm font-bold text-ink hover:bg-[#ffb93d]">
+        <XLogo /> Post on X
+      </a>
+      <button type="button" onClick={other} className="inline-flex h-10 items-center gap-2 rounded-full bg-white/10 px-4 text-sm font-semibold text-white hover:bg-white/20">
+        {canShare ? <Share2 size={15} aria-hidden /> : <Link2 size={15} aria-hidden />}
+        {canShare ? "Share" : copied ? "Link copied" : "Copy link"}
+      </button>
     </div>
   );
 }
