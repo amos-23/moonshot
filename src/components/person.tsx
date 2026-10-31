@@ -8,7 +8,9 @@ import { Disclosure, ReportLink } from "./client";
 import { CommentForm } from "./forms";
 import { Avatar, Card, Tag, cx } from "./ui";
 
-const HELLO = "Hi! Found you on Moonshot Connect — would love to meet at Moonshot.";
+/** The message WhatsApp and email open with. */
+export const helloFor = (eventShort: string) => `Hi! Found you on ${eventShort} Connect — would love to connect at ${eventShort}.`;
+const HELLO = "Hi! Found you on Event Connect — would love to connect.";
 
 type Reachable = Pick<Person, "whatsapp" | "xHandle" | "linkedinUrl" | "email" | "websiteUrl">;
 
@@ -17,7 +19,7 @@ export function contact(p: Reachable, hello = HELLO) {
   if (p.whatsapp) return { kind: "whatsapp", label: "WhatsApp", href: `https://wa.me/${p.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(hello)}`, icon: MessageCircle };
   if (p.xHandle) return { kind: "x_profile", label: `@${p.xHandle}`, href: `https://x.com/${p.xHandle}`, icon: AtSign };
   if (p.linkedinUrl) return { kind: "linkedin", label: "LinkedIn", href: p.linkedinUrl, icon: UserRound };
-  if (p.email) return { kind: "email", label: "Email", href: `mailto:${p.email}?subject=${encodeURIComponent("Meeting at Moonshot")}&body=${encodeURIComponent(hello)}`, icon: Mail };
+  if (p.email) return { kind: "email", label: "Email", href: `mailto:${p.email}?subject=${encodeURIComponent("Let's connect")}&body=${encodeURIComponent(hello)}`, icon: Mail };
   if (p.websiteUrl) return { kind: "website", label: "Website", href: p.websiteUrl, icon: Globe };
   return null;
 }
@@ -29,7 +31,7 @@ function Shell({ avatar, title, sub, children, action, badge, photo, avatarImg }
         {photo ? (
           <a href={photo} target="_blank" rel="noopener" className="shrink-0" aria-label={`Open photo of ${avatar}`}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo} alt={`${avatar} at Moonshot`} loading="lazy" decoding="async" width={72} height={72} className="h-[72px] w-[72px] rounded-2xl bg-canvas object-cover" />
+            <img src={photo} alt={`Photo of ${avatar}`} loading="lazy" decoding="async" width={72} height={72} className="h-[72px] w-[72px] rounded-2xl bg-canvas object-cover" />
           </a>
         ) : avatarImg ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -66,8 +68,8 @@ export function CatchMe({ person }: { person: Person }) {
   );
 }
 
-export function PersonCard({ person: p, reasons = [], showJoined }: { person: Person; reasons?: string[]; showJoined?: boolean }) {
-  const c = contact(p);
+export function PersonCard({ person: p, reasons = [], showJoined, eventShort }: { person: Person; reasons?: string[]; showJoined?: boolean; eventShort?: string }) {
+  const c = contact(p, eventShort ? helloFor(eventShort) : undefined);
   const tags = [...p.wants.map((w) => `Wants: ${labelFor(WANTS, w)}`), ...p.offers.map((o) => `Offers: ${labelFor(OFFERS, o)}`)];
   return (
     <Shell

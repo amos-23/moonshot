@@ -15,13 +15,12 @@ export function xIntent(text: string, url: string): string {
   return `https://x.com/intent/post?${new URLSearchParams({ text, url })}`;
 }
 
-export const HASHTAG = "#Moonshot2026";
 
-/** A short, natural post about a moment. */
-export function momentPost(m: { text: string | null; who: string; fromX: boolean }): string {
+/** A short, natural post about a moment, ending with the event's hashtag (or name). */
+export function momentPost(m: { text: string | null; who: string; fromX: boolean }, tag: string): string {
   const words = m.text?.replace(/\s+/g, " ").trim();
   const quote = words ? `“${words.length > 120 ? `${words.slice(0, 117).trimEnd()}…` : words}”` : "";
-  return quote ? `${quote} — ${m.fromX ? m.who : "a moment"} from ${HASHTAG} 📸` : `A moment from ${HASHTAG} 📸`;
+  return quote ? `${quote} — ${m.fromX ? m.who : "a moment"} from ${tag} 📸` : `A moment from ${tag} 📸`;
 }
 
 /** Post text without X's leftover links (pic.twitter.com/…, t.co/…) and stray spacing, for display. */

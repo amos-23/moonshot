@@ -5,7 +5,7 @@ import { cleanPostText } from "@/lib/share";
 /** Who shared the moment (for an X post: who posted it on X). */
 export function momentWho({ moment: m, author }: MomentItem) {
   if (m.xPostUrl) return m.xAuthorName ?? (m.xAuthorHandle ? `@${m.xAuthorHandle}` : "On X");
-  return author?.name ?? (m.xHandle ? `@${m.xHandle}` : m.name ?? "Someone at Moonshot");
+  return author?.name ?? (m.xHandle ? `@${m.xHandle}` : m.name ?? "Someone at the event");
 }
 
 /** Photos uploaded with a moment (up to 4), as URLs. */
@@ -38,7 +38,7 @@ export type MomentView = {
   replies: number;
 };
 
-export function toMomentView(item: MomentItem, people: MomentPerson[] = []): MomentView {
+export function toMomentView(item: MomentItem, people: MomentPerson[] = [], eventSlug: string): MomentView {
   const { moment: m, author } = item;
   const uploaded = momentPhotos(m);
   const fromX = Boolean(m.xPostUrl);
@@ -49,7 +49,7 @@ export function toMomentView(item: MomentItem, people: MomentPerson[] = []): Mom
     text: cleanPostText(fromX ? m.xText : m.body) || null,
     note: fromX && m.body ? cleanPostText(m.body) || null : null,
     who: momentWho(item),
-    whoHref: fromX && m.xAuthorHandle ? `https://x.com/${m.xAuthorHandle}` : author ? `/?q=${encodeURIComponent(author.xHandle ?? author.name)}` : m.xHandle ? `https://x.com/${m.xHandle}` : null,
+    whoHref: fromX && m.xAuthorHandle ? `https://x.com/${m.xAuthorHandle}` : author ? `/${eventSlug}?q=${encodeURIComponent(author.xHandle ?? author.name)}` : m.xHandle ? `https://x.com/${m.xHandle}` : null,
     avatar: fromX ? m.xAvatarUrl : null,
     xUrl: m.xPostUrl,
     place: m.place,

@@ -7,7 +7,8 @@ import { ReactionBar, type Reactions } from "./reactions";
 import { XLogo } from "./share";
 import { track } from "./tracker";
 import { Avatar, cx } from "./ui";
-import { HASHTAG, momentPost, withUtm, xIntent } from "@/lib/share";
+import { momentPost, withUtm, xIntent } from "@/lib/share";
+import { useGalleryEvent } from "./moment-event";
 
 const PHOTO_MS = 6000;
 const textMs = (t: string | null) => Math.min(9000, 4000 + (t?.length ?? 0) * 40);
@@ -18,6 +19,7 @@ const textMs = (t: string | null) => Math.min(9000, 4000 + (t?.length ?? 0) * 40
  * with sound when the browser allows it; photos get the slow pan-and-zoom.
  */
 export function MomentsStory({ slides, onClose, onAdd, reactions, origin }: { slides: MomentView[]; onClose: () => void; onAdd: () => void; reactions: Reactions; origin: string }) {
+  const ev = useGalleryEvent();
   const [i, setI] = useState(0);
   const [held, setHeld] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -101,7 +103,7 @@ export function MomentsStory({ slides, onClose, onAdd, reactions, origin }: { sl
   const many = slides.length > 30;
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Moonshot highlights" className="moment-fade fixed inset-0 z-[60] flex select-none flex-col overflow-hidden bg-black text-white">
+    <div role="dialog" aria-modal="true" aria-label={`${ev.short} highlights`} className="moment-fade fixed inset-0 z-[60] flex select-none flex-col overflow-hidden bg-black text-white">
       {/* Backdrop: the photo itself, blurred, so every shape of photo fills the screen. */}
       {m?.images[0] && (
         // eslint-disable-next-line @next/next/no-img-element
@@ -156,7 +158,7 @@ export function MomentsStory({ slides, onClose, onAdd, reactions, origin }: { sl
               </p>
             </>
           )}
-          {done && <p className="flex-1 text-sm font-semibold">Moonshot 2026</p>}
+          {done && <p className="flex-1 text-sm font-semibold">{ev.name}</p>}
           {isVideo && (
             <button type="button" onClick={() => setMuted((x) => !x)} aria-label={muted ? "Turn sound on" : "Turn sound off"} className="grid h-10 w-10 place-items-center rounded-full bg-white/10 hover:bg-white/20">
               {muted ? <VolumeX size={18} aria-hidden /> : <Volume2 size={18} aria-hidden />}
@@ -209,13 +211,13 @@ export function MomentsStory({ slides, onClose, onAdd, reactions, origin }: { sl
         {done && (
           <div className="moment-rise max-w-md px-8 text-center" onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
             <p className="text-xs font-bold uppercase tracking-[0.3em] text-sun">That was</p>
-            <p className="mt-2 text-5xl font-black uppercase leading-[0.95]">Moonshot 2026 ✨</p>
+            <p className="mt-2 text-5xl font-black uppercase leading-[0.95]">{ev.short} ✨</p>
             <p className="mt-3 text-white/70">
               {slides.length} moments, shared by the people who were there.
             </p>
             <div className="mt-7 flex flex-col items-center gap-3">
               <a
-                href={xIntent(`Relive ${HASHTAG} in ${slides.length} moments ✨📸`, withUtm(`${origin}/moments?story=1`, "x", "story"))}
+                href={xIntent(`Relive ${ev.tag || ev.name} in ${slides.length} moments ✨📸`, withUtm(`${origin}/${ev.slug}/moments?story=1`, "x", "story"))}
                 target="_blank"
                 rel="noopener noreferrer"
                 data-track="story_share_x"
@@ -242,7 +244,7 @@ export function MomentsStory({ slides, onClose, onAdd, reactions, origin }: { sl
             {m.note && <p className="mb-1 font-semibold">{m.note}</p>}
             {m.text && m.images.length > 0 && <p className="line-clamp-4 whitespace-pre-line text-[15px] leading-snug text-white/90">{m.text}</p>}
             <a
-              href={xIntent(momentPost({ text: m.text, who: m.who, fromX: Boolean(m.xUrl) }), withUtm(`${origin}/m/${m.id}`, "x", "story"))}
+              href={xIntent(momentPost({ text: m.text, who: m.who, fromX: Boolean(m.xUrl) }, ev.tag || ev.name), withUtm(`${origin}/m/${m.id}`, "x", "story"))}
               target="_blank"
               rel="noopener noreferrer"
               data-track="moment_share_x"

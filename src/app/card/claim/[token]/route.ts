@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { findByToken } from "@/lib/me";
+import { cardCookieName, findByToken } from "@/lib/me";
+import { getDb } from "@/lib/db";
+import { getEventById } from "@/lib/events";
 
 // Opening a private edit link remembers the card on this device.
 function origin(req: NextRequest) {
@@ -11,8 +13,9 @@ function origin(req: NextRequest) {
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const person = await findByToken(token);
-  if (!person) return NextResponse.redirect(new URL("/card?bad=1", origin(req)));
-  const res = NextResponse.redirect(new URL("/card?claimed=1", origin(req)));
-  res.cookies.set("mc_card", token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 180 });
+  const event = person ? await getEventById(await getDb(), person.eventId) : null;
+  if (!person || !event) return NextResponse.redirect(new URL("/?bad=1", origin(req)));
+  const res = NextResponse.redirect(new URL(`/${event.slug}/card?claimed=1`, origin(req)));
+  res.cookies.set(cardCookieName(event.id), token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 180 });
   return res;
 }

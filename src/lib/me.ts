@@ -3,17 +3,18 @@ import crypto from "crypto";
 import { cookies, headers } from "next/headers";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import type { Person } from "@/lib/db/schema";
+import { MOONSHOT_EVENT_ID, type Person } from "@/lib/db/schema";
 
 // No accounts. Creating a card issues a random edit token; its hash is stored, the token lives
 // in an httpOnly cookie and in a private edit link the person can open on another device.
-const COOKIE = "mc_card";
+// Each event has its own card, so its own cookie (Moonshot keeps the original name).
+export const cardCookieName = (eventId: string) => (eventId === MOONSHOT_EVENT_ID ? "mc_card" : `mc_card_${eventId.slice(0, 8)}`);
 
 export const hashToken = (token: string) => crypto.createHash("sha256").update(token).digest("hex");
 export const newToken = () => crypto.randomBytes(24).toString("base64url");
 
-export async function setCardCookie(token: string) {
-  (await cookies()).set(COOKIE, token, {
+export async function setCardCookie(eventId: string, token: string) {
+  (await cookies()).set(cardCookieName(eventId), token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -22,12 +23,12 @@ export async function setCardCookie(token: string) {
   });
 }
 
-export async function clearCardCookie() {
-  (await cookies()).delete(COOKIE);
+export async function clearCardCookie(eventId: string) {
+  (await cookies()).delete(cardCookieName(eventId));
 }
 
-export async function myToken(): Promise<string | null> {
-  return (await cookies()).get(COOKIE)?.value ?? null;
+export async function myToken(eventId: string): Promise<string | null> {
+  return (await cookies()).get(cardCookieName(eventId))?.value ?? null;
 }
 
 export async function findByToken(token: string): Promise<Person | null> {
@@ -36,9 +37,11 @@ export async function findByToken(token: string): Promise<Person | null> {
   return (await db.query.people.findFirst({ where: eq(schema.people.editTokenHash, hashToken(token)) })) ?? null;
 }
 
-export async function getMe(): Promise<Person | null> {
-  const token = await myToken();
-  return token ? findByToken(token) : null;
+/** Your card for this event, if you've made one. */
+export async function getMe(eventId: string): Promise<Person | null> {
+  const token = await myToken(eventId);
+  const me = token ? await findByToken(token) : null;
+  return me && me.eventId === eventId ? me : null;
 }
 
 async function clientIp(): Promise<string> {

@@ -1,6 +1,18 @@
-# Moonshot Connect
+# Event Connect
 
-A minimal, no-sign-up list of who's at **Moonshot by TechCabal** (National Theatre, Lagos, 28–29 October 2026), so people can find each other and reach out directly.
+A minimal, no-sign-up way to find the people worth meeting at events, reach them directly, and relive the moments afterwards. The homepage lists the events; each one has its own space:
+
+| Event | Address |
+| --- | --- |
+| Moonshot by TechCabal (National Theatre, Lagos, 28–29 October 2026) | `/moonshot` |
+| ADMARP Digital Product Growth Summit 2026 (157 Gardens Event Centre, Ilupeju, Lagos, 27 November 2026) | `/admarp-growth-summit` |
+| Ogun Digital Summit 2026 (June 12 Cultural Centre, Kuto, Abeokuta, 26 November 2026) | `/ogun-digital-summit` |
+
+Each event has its own **Connect** (people and "From X" cards), **Moments**, Featured, top accounts and Meet up; nothing is shared between events, and a card made at one event is separate from a card at another. Each event page follows its dates: before it, "Who's going"; during it, Meet up opens; after it, "Find the people you met". Admins add and edit events (name, address, dates, venue, official site, hashtag…) at the bottom of `/admin`, and pick which event the rest of the admin page is about at the top.
+
+Links from before events had their own addresses (`/moments`, `/card`, `/?q=…`, shared `/m/…` and `/p/…` links) still work and go to the right event.
+
+What each event's space has (paths below are inside the event, e.g. `/moonshot/moments`):
 
 - **Add yourself** in a few seconds with your name, what you do, who you want to meet, and one way to reach you (@handle, WhatsApp number, email or LinkedIn).
 - **Or add your X post.** Paste a link to a public post about Moonshot and it shows up as a "From X" card. The card uses only what the post says publicly, links back to the original, and lists who the author says they want to meet.

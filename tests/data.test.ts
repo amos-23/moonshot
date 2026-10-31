@@ -7,7 +7,10 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/lib/db/schema";
 import type { DB } from "@/lib/db";
 import { backfillDetails, commentsFor, importPosts, listMoments, listPeople, listXCards, momentPeople, reactionCounts, refreshMomentStats } from "@/lib/data";
-import { pickFeatured, TOP_ACCOUNTS_KEY } from "@/lib/featured";
+import { pickFeatured, topAccountsKey } from "@/lib/featured";
+import { eventPhase, getEvent, listEvents } from "@/lib/events";
+
+const E = schema.MOONSHOT_EVENT_ID;
 import { siteStats } from "@/lib/stats";
 
 let db: DB;
@@ -20,7 +23,7 @@ beforeAll(async () => {
 let n = 0;
 async function person(over: Partial<typeof schema.people.$inferInsert> = {}) {
   n++;
-  const [p] = await db.insert(schema.people).values({ editTokenHash: `h${n}`, name: `Person ${n}`, headline: "Builder", email: `p${n}@x.io`, ...over }).returning();
+  const [p] = await db.insert(schema.people).values({ eventId: E, editTokenHash: `h${n}`, name: `Person ${n}`, headline: "Builder", email: `p${n}@x.io`, ...over }).returning();
   return p;
 }
 
@@ -30,18 +33,18 @@ describe("people", () => {
     const vc = await person({ name: "Val VC", offers: ["investment"] });
     await person({ name: "Random" });
     const hidden = await person({ name: "Hidden", offers: ["investment"], hidden: true });
-    const list = await listPeople(db, me);
+    const list = await listPeople(db, E, me);
     expect(list[0].person.id).toBe(vc.id);
     expect(list[0].reasons[0]).toMatch(/Val offers investment/);
     expect(list.map((r) => r.person.id)).not.toContain(me.id);
     expect(list.map((r) => r.person.id)).not.toContain(hidden.id);
-    expect((await listPeople(db, null, "val")).length).toBe(1);
+    expect((await listPeople(db, E, null, "val")).length).toBe(1);
   });
 });
 
 describe("X cards", () => {
   it("imports, dedupes, keeps one card per author, and drops authors who made their own card", async () => {
-    const res = await importPosts(db, [
+    const res = await importPosts(db, E, [
       { url: "https://x.com/oreofe/status/1849000000000000000", content: "Looking to meet founders and engineers" },
       { url: "https://x.com/oreofe/status/1850000000000000000", content: "Newer post: see you at Moonshot" },
       { url: "https://x.com/oreofe/status/1849000000000000000" },
@@ -49,21 +52,21 @@ describe("X cards", () => {
       { url: "https://x.com/kemi/status/1849000000000000002", content: "Who is going to Moonshot?" },
     ]);
     expect(res.map((r) => r.status)).toEqual(["added", "added", "duplicate", "invalid", "added"]);
-    let cards = await listXCards(db);
+    let cards = await listXCards(db, E);
     expect(cards.map((c) => c.authorHandle).sort()).toEqual(["kemi", "oreofe"]);
     expect(cards.find((c) => c.authorHandle === "oreofe")?.content).toMatch(/Newer post/);
     // Search matches the post each card shows (the latest one).
-    expect((await listXCards(db, "founders")).map((c) => c.authorHandle)).toEqual([]);
-    expect((await listXCards(db, "newer moonshot")).map((c) => c.authorHandle)).toEqual(["oreofe"]);
+    expect((await listXCards(db, E, "founders")).map((c) => c.authorHandle)).toEqual([]);
+    expect((await listXCards(db, E, "newer moonshot")).map((c) => c.authorHandle)).toEqual(["oreofe"]);
     await person({ name: "Kemi", xHandle: "Kemi" });
-    cards = await listXCards(db);
+    cards = await listXCards(db, E);
     expect(cards.map((c) => c.authorHandle)).toEqual(["oreofe"]);
   });
 });
 
 describe("comments", () => {
   it("groups visible comments by post, oldest first", async () => {
-    const [r] = await importPosts(db, [{ url: "https://x.com/tola/status/1851000000000000000", content: "Moonshot!" }]);
+    const [r] = await importPosts(db, E, [{ url: "https://x.com/tola/status/1851000000000000000", content: "Moonshot!" }]);
     const postId = r.id!;
     await db.insert(schema.comments).values([
       { postId, name: "A", body: "first" },
@@ -80,7 +83,7 @@ describe("comments", () => {
 describe("stats", () => {
   it("counts visits, visitors, time, devices, campaigns, moments and compares with the period before", async () => {
     const p = await person({ name: "Clicky" });
-    const [m] = await db.insert(schema.moments).values({ body: "Stage view", hasPhoto: true, photoCount: 1, visitor: "v", hidden: true }).returning();
+    const [m] = await db.insert(schema.moments).values({ eventId: E, body: "Stage view", hasPhoto: true, photoCount: 1, visitor: "v", hidden: true }).returning();
     const ago = (days: number) => new Date(Date.now() - days * 86_400_000);
     await db.insert(schema.events).values([
       { type: "view", path: "/", visitor: "a", referrer: "x.com", device: "mobile", campaign: "x/recap", returning: false },
@@ -139,7 +142,7 @@ describe("stats", () => {
 
 describe("X post images backfill", () => {
   it("fills in images once per post and remembers posts without any", async () => {
-    await importPosts(db, [
+    await importPosts(db, E, [
       { url: "https://x.com/pics/status/1852000000000000000", content: "photo post" },
       { url: "https://x.com/nopics/status/1852000000000000001", content: "text only" },
     ]);
@@ -149,7 +152,7 @@ describe("X post images backfill", () => {
       return id.endsWith("0") ? { media: ["https://pbs.twimg.com/media/A.jpg"], avatarUrl: null } : null;
     };
     await backfillDetails(db, fake, 50);
-    const cards = await listXCards(db, "post");
+    const cards = await listXCards(db, E, "post");
     expect(cards.find((c) => c.authorHandle === "pics")?.media).toEqual(["https://pbs.twimg.com/media/A.jpg"]);
     expect(calls).toEqual(expect.arrayContaining(["1852000000000000000", "1852000000000000001"]));
     const before = calls.length;
@@ -161,16 +164,16 @@ describe("X post images backfill", () => {
 describe("moments", () => {
   it("lists visible moments newest first, with the author's card when there is one", async () => {
     const author = await person({ name: "Moment Maker" });
-    await db.insert(schema.moments).values({ body: "first", name: "Anon", visitor: "v" });
+    await db.insert(schema.moments).values({ eventId: E, body: "first", name: "Anon", visitor: "v" });
     await new Promise((r) => setTimeout(r, 5));
-    await db.insert(schema.moments).values({ body: "by a card holder", personId: author.id, visitor: "v" });
-    await db.insert(schema.moments).values({ body: "hidden", hidden: true, visitor: "v" });
-    await db.insert(schema.moments).values({ xPostUrl: "https://x.com/a/status/1", xText: "shared from X", visitor: "v" });
-    const items = await listMoments(db);
+    await db.insert(schema.moments).values({ eventId: E, body: "by a card holder", personId: author.id, visitor: "v" });
+    await db.insert(schema.moments).values({ eventId: E, body: "hidden", hidden: true, visitor: "v" });
+    await db.insert(schema.moments).values({ eventId: E, xPostUrl: "https://x.com/a/status/1", xText: "shared from X", visitor: "v" });
+    const items = await listMoments(db, E);
     expect(items.map((i) => i.moment.body || i.moment.xText)).toEqual(["shared from X", "by a card holder", "first"]);
     expect(items[1].author?.name).toBe("Moment Maker");
     expect(items[2].author).toBeNull();
-    await expect(db.insert(schema.moments).values({ body: "", hasPhoto: false, visitor: "v" })).rejects.toThrow();
+    await expect(db.insert(schema.moments).values({ eventId: E, body: "", hasPhoto: false, visitor: "v" })).rejects.toThrow();
   });
 });
 
@@ -178,20 +181,20 @@ describe("moments and people", () => {
   it("links a moment to its poster and the people it @mentions who are on the site", async () => {
     const tola = await person({ name: "Tola Card", xHandle: "TolaC" });
     await person({ name: "Hidden Mention", xHandle: "hidem", hidden: true });
-    await importPosts(db, [{ url: "https://x.com/kunle_x/status/1853000000000000000", content: "Moonshot!" }]);
+    await importPosts(db, E, [{ url: "https://x.com/kunle_x/status/1853000000000000000", content: "Moonshot!" }]);
     const [m] = await db
       .insert(schema.moments)
-      .values({ xPostUrl: "https://x.com/someone/status/2", xAuthorHandle: "someone", xText: "Great day with @tolac, @Kunle_X, @hidem and @nobody", visitor: "v", photoCount: 0 })
+      .values({ eventId: E, xPostUrl: "https://x.com/someone/status/2", xAuthorHandle: "someone", xText: "Great day with @tolac, @Kunle_X, @hidem and @nobody", visitor: "v", photoCount: 0 })
       .returning();
-    await db.insert(schema.moments).values({ body: "two photos", hasPhoto: true, photoCount: 2, visitor: "v" });
-    const items = await listMoments(db);
-    const ppl = await momentPeople(db, items);
+    await db.insert(schema.moments).values({ eventId: E, body: "two photos", hasPhoto: true, photoCount: 2, visitor: "v" });
+    const items = await listMoments(db, E);
+    const ppl = await momentPeople(db, E, items);
     expect(ppl.get(m.id)?.map((p) => p.name)).toEqual(["Tola Card", "@kunle_x"]);
     expect(ppl.get(m.id)?.[0]).toMatchObject({ key: tola.id, q: "TolaC" });
   });
 
   it("stores several photos per moment, in order", async () => {
-    const [m] = await db.insert(schema.moments).values({ body: "gallery", hasPhoto: true, photoCount: 2, visitor: "v" }).returning();
+    const [m] = await db.insert(schema.moments).values({ eventId: E, body: "gallery", hasPhoto: true, photoCount: 2, visitor: "v" }).returning();
     await db.insert(schema.momentPhotos).values([
       { momentId: m.id, position: 0, mime: "image/jpeg", data: "AA==" },
       { momentId: m.id, position: 1, mime: "image/jpeg", data: "AQ==" },
@@ -205,7 +208,7 @@ describe("Featured", () => {
     // Fresh state for this test: hide everything from earlier tests.
     await db.update(schema.moments).set({ hidden: true });
     const add = async (o: Partial<typeof schema.moments.$inferInsert>) =>
-      (await db.insert(schema.moments).values({ body: "m", visitor: "v", ...o }).returning())[0];
+      (await db.insert(schema.moments).values({ eventId: E, body: "m", visitor: "v", ...o }).returning())[0];
     const textOnly = await add({ body: "loved but no photo", xLikes: 9999 });
     const popular = await add({ xPostUrl: "https://x.com/a/status/10", xAuthorHandle: "a", xMedia: ["https://pbs.twimg.com/media/a.jpg"], xLikes: 500 });
     const official = await add({ xPostUrl: "https://x.com/TechCabal/status/11", xAuthorHandle: "TechCabal", xMedia: ["https://pbs.twimg.com/media/b.jpg"], xLikes: 200 });
@@ -214,12 +217,12 @@ describe("Featured", () => {
 
     // Only the top 10 rotate; text-only moments never feature.
     const seen = new Set<string>();
-    for (let k = 0; k < 40; k++) seen.add((await pickFeatured(db, Date.now() + k * 30 * 60_000))!.item.moment.id);
+    for (let k = 0; k < 40; k++) seen.add((await pickFeatured(db, E, Date.now() + k * 30 * 60_000))!.item.moment.id);
     expect(seen.has(textOnly.id)).toBe(false);
     expect(seen.has(popular.id)).toBe(true);
     expect(seen.size).toBeLessThanOrEqual(10);
     expect(seen.size).toBeGreaterThan(5);
-    const show = (await pickFeatured(db))!;
+    const show = (await pickFeatured(db, E))!;
     expect(show.list).toHaveLength(6);
     expect(show.list[0]).toBe(show.item);
     expect(new Set(show.list.map((i) => i.moment.id)).size).toBe(6);
@@ -227,20 +230,20 @@ describe("Featured", () => {
     // Opens on the site lift an uploaded photo into the top 5.
     await db.insert(schema.events).values(Array.from({ length: 60 }, () => ({ type: "click", path: "/moments", visitor: "v", target: "moment_open", targetId: photo.id })));
     const seen2 = new Set<string>();
-    for (let k = 0; k < 40; k++) seen2.add((await pickFeatured(db, Date.now() + k * 30 * 60_000))!.item.moment.id);
+    for (let k = 0; k < 40; k++) seen2.add((await pickFeatured(db, E, Date.now() + k * 30 * 60_000))!.item.moment.id);
     expect(seen2.has(photo.id)).toBe(true);
 
     // A top account outranks a more-liked post from anyone else.
-    await db.insert(schema.settings).values({ key: TOP_ACCOUNTS_KEY, value: "techcabal" }).onConflictDoUpdate({ target: schema.settings.key, set: { value: "techcabal" } });
+    await db.insert(schema.settings).values({ key: topAccountsKey(E), value: "techcabal" }).onConflictDoUpdate({ target: schema.settings.key, set: { value: "techcabal" } });
     await db.update(schema.moments).set({ hidden: true }).where(sql`${schema.moments.xAuthorHandle} = 'q'`);
     await db.update(schema.moments).set({ hidden: true }).where(eq(schema.moments.id, photo.id));
     // With two candidates left, both rotate, but the official one scores higher: 201*4 vs 501.
-    const picked = await pickFeatured(db);
+    const picked = await pickFeatured(db, E);
     expect([official.id, popular.id]).toContain(picked!.item.moment.id);
 
     // An admin's pin always wins.
     await db.update(schema.moments).set({ featuredAt: new Date() }).where(eq(schema.moments.id, textOnly.id));
-    const pinned = await pickFeatured(db);
+    const pinned = await pickFeatured(db, E);
     expect(pinned).toMatchObject({ reason: "pinned" });
     expect(pinned!.item.moment.id).toBe(textOnly.id);
     // The slideshow: the pin first, then the top moments with images.
@@ -249,7 +252,7 @@ describe("Featured", () => {
   });
 
   it("refreshes likes, replies and video for X moments that are due", async () => {
-    const [m] = await db.insert(schema.moments).values({ xPostUrl: "https://x.com/v/status/1860000000000000000", xAuthorHandle: "v", visitor: "v" }).returning();
+    const [m] = await db.insert(schema.moments).values({ eventId: E, xPostUrl: "https://x.com/v/status/1860000000000000000", xAuthorHandle: "v", visitor: "v" }).returning();
     const calls: string[] = [];
     const fake = async (id: string) => {
       calls.push(id);
@@ -266,7 +269,7 @@ describe("Featured", () => {
 
 describe("reactions", () => {
   it("counts 🔥 ❤️ 👏 per moment, once per browser per kind", async () => {
-    const [m] = await db.insert(schema.moments).values({ body: "react to me", visitor: "v", hidden: true }).returning();
+    const [m] = await db.insert(schema.moments).values({ eventId: E, body: "react to me", visitor: "v", hidden: true }).returning();
     await db.insert(schema.reactions).values([
       { momentId: m.id, kind: "fire", reactor: "a" },
       { momentId: m.id, kind: "fire", reactor: "b" },
@@ -276,5 +279,30 @@ describe("reactions", () => {
     await expect(db.insert(schema.reactions).values({ momentId: m.id, kind: "angry", reactor: "c" })).rejects.toThrow();
     expect((await reactionCounts(db, [m.id])).get(m.id)).toEqual({ fire: 2, love: 1, clap: 0 });
     expect((await reactionCounts(db, [])).size).toBe(0);
+  });
+});
+
+describe("events", () => {
+  it("starts with Moonshot, ADMARP and Ogun Digital Summit, and keeps each event's people and moments apart", async () => {
+    const events = await listEvents(db);
+    expect(events.map((e) => e.slug)).toEqual(["moonshot", "admarp-growth-summit", "ogun-digital-summit"]);
+    const ogun = (await getEvent(db, "ogun-digital-summit"))!;
+    expect(ogun).toMatchObject({ dates: "26 November 2026", venue: "June 12 Cultural Centre, Kuto, Abeokuta, Ogun State" });
+    expect(eventPhase(ogun, new Date("2026-11-26T10:00:00Z"))).toBe("live");
+    const admarp = (await getEvent(db, "admarp-growth-summit"))!;
+    expect(admarp.venue).toMatch(/157 Gardens/);
+
+    const [p] = await db.insert(schema.people).values({ eventId: admarp.id, editTokenHash: "iso-1", name: "Growth Gina", headline: "PM", email: "g@x.io" }).returning();
+    await db.insert(schema.moments).values({ eventId: admarp.id, body: "ADMARP only", visitor: "v" });
+    await importPosts(db, admarp.id, [{ url: "https://x.com/gina_grows/status/1870000000000000009", content: "See you at the summit" }]);
+    expect((await listPeople(db, admarp.id, null)).map((r) => r.person.id)).toEqual([p.id]);
+    expect((await listPeople(db, E, null)).map((r) => r.person.id)).not.toContain(p.id);
+    expect((await listMoments(db, admarp.id)).map((m) => m.moment.body)).toEqual(["ADMARP only"]);
+    expect((await listMoments(db, E)).map((m) => m.moment.body)).not.toContain("ADMARP only");
+    expect((await listXCards(db, admarp.id)).map((c) => c.authorHandle)).toEqual(["gina_grows"]);
+    expect((await listXCards(db, E)).map((c) => c.authorHandle)).not.toContain("gina_grows");
+    // The same X post can be a card at two events.
+    const again = await importPosts(db, E, [{ url: "https://x.com/gina_grows/status/1870000000000000009", content: "See you at the summit" }]);
+    expect(again[0].status).toBe("added");
   });
 });

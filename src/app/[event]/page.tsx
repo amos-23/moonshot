@@ -8,35 +8,42 @@ import { after } from "next/server";
 import { backfillImages, refreshLive } from "@/lib/social/live";
 import { recordSearch } from "@/lib/track";
 import { siteOrigin } from "@/lib/site";
-import { EVENT, eventOver } from "@/lib/constants";
+import { notFound } from "next/navigation";
+import { eventPhase, eventTag, getEvent } from "@/lib/events";
 import { pickFeatured } from "@/lib/featured";
 import { PersonCard, XCard } from "@/components/person";
 import { momentImage, momentWho } from "@/components/moment";
 import { ShareButtons, XLogo } from "@/components/share";
-import { HASHTAG, cleanPostText, withUtm, xIntent } from "@/lib/share";
+import { cleanPostText, withUtm, xIntent } from "@/lib/share";
 import { ScrollIntoView } from "@/components/client";
 import { Button, Card, Empty, LinkButton, Notice, Sunburst, cx, inputClass } from "@/components/ui";
 
 type SP = { q?: string; added?: string; f?: string; sort?: string };
 
-export default async function Home({ searchParams }: { searchParams: Promise<SP> }) {
+export default async function EventHome({ params, searchParams }: { params: Promise<{ event: string }>; searchParams: Promise<SP> }) {
   const sp = await searchParams;
   const q = sp.q?.trim().slice(0, 80) || undefined;
   const filter = isFilter(sp.f) ? sp.f : undefined;
   const db = await getDb();
-  const me = await getMe();
-  const over = eventOver();
+  const event = await getEvent(db, (await params).event);
+  if (!event) notFound();
+  const base = `/${event.slug}`;
+  const me = await getMe(event.id);
+  const phase = eventPhase(event);
+  const over = phase === "after";
+  const live = phase === "live";
+  const tag = eventTag(event) || event.short;
   // "For you" needs a card to match against; without one, show the newest first.
   const sort = sp.sort === "new" || sp.sort === "match" ? sp.sort : me ? "match" : "new";
   await refreshLive(db).catch(() => null); // no-op unless X_BEARER_TOKEN is set
   // Fill in images for older X posts after the page has been sent, so it never slows it down.
   after(() => backfillImages(db).catch((err) => console.error("image backfill failed", err)));
-  const { items, gaps, counts } = await feed(db, me, { q, filter, sort });
+  const { items, gaps, counts } = await feed(db, event.id, me, { q, filter, sort });
   const [comments, moments, checkins, featured] = await Promise.all([
     commentsFor(db, items.flatMap((i) => (i.kind === "x" ? [i.post.id] : []))),
-    q || filter ? Promise.resolve([]) : listMoments(db, { limit: over ? 40 : 12 }),
-    over ? Promise.resolve([]) : listCheckins(db),
-    over && !q && !filter ? pickFeatured(db) : Promise.resolve(null),
+    q || filter ? Promise.resolve([]) : listMoments(db, event.id, { limit: over ? 40 : 12 }),
+    live ? listCheckins(db, event.id) : Promise.resolve([]),
+    over && !q && !filter ? pickFeatured(db, event.id) : Promise.resolve(null),
   ]);
   if (q) await recordSearch(q, items.length);
   const origin = await siteOrigin();
@@ -44,7 +51,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
   const href = (patch: Partial<SP>) => {
     const next = { q, f: filter, sort: sp.sort, ...patch };
     const qs = new URLSearchParams(Object.entries(next).filter((e): e is [string, string] => Boolean(e[1]))).toString();
-    return `/${qs ? `?${qs}` : ""}`;
+    return `${base}${qs ? `?${qs}` : ""}`;
   };
   const chip = (on: boolean) => cx("shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold", on ? "bg-ink text-white" : "border border-line bg-white hover:border-ink/40");
   const gap = filter && gaps[filter];
@@ -59,9 +66,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
         <div className="relative mx-auto max-w-6xl px-4 py-12 text-center sm:py-16">
           {over ? (
             <>
-              <p className="text-xs font-bold uppercase tracking-[0.2em]">Moonshot 2026 · thanks for coming</p>
+              <p className="text-xs font-bold uppercase tracking-[0.2em]">{event.short} · thanks for coming</p>
               <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-black uppercase leading-[0.95] tracking-tight sm:text-6xl">Find the people you met</h1>
-              <p className="mx-auto mt-3 max-w-md font-medium">Everyone who added themselves at Moonshot is still here. Search a name and follow up.</p>
+              <p className="mx-auto mt-3 max-w-md font-medium">Everyone who added themselves at {event.short} is still here. Search a name and follow up.</p>
               <form role="search" method="get" className="mx-auto mt-6 flex max-w-xl gap-2">
                 <label className="relative flex-1">
                   <span className="sr-only">Search a name</span>
@@ -75,7 +82,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
               {!me && (
                 <p className="mt-4 text-sm font-medium">
                   Not on the list?{" "}
-                  <Link href="/card" className="underline" data-track="add_yourself_hero">
+                  <Link href={`${base}/card`} className="underline" data-track="add_yourself_hero">
                     Add yourself
                   </Link>{" "}
                   so the people you met can find you.
@@ -83,7 +90,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
               )}
               <p className="mt-3 text-sm">
                 <a
-                  href={xIntent(`Met people at ${HASHTAG}? Find them again here — search a name, no sign-up 👇`, withUtm(origin, "x", "home"))}
+                  href={xIntent(`Met people at ${tag}? Find them again here — search a name, no sign-up 👇`, withUtm(`${origin}${base}`, "x", "home"))}
                   target="_blank"
                   rel="noopener noreferrer"
                   data-track="home_share_x"
@@ -96,16 +103,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
           ) : (
             <>
             <p className="text-xs font-bold uppercase tracking-[0.2em]">
-              {EVENT.dates} · {EVENT.venue}
+              {[event.dates, event.venue].filter(Boolean).join(" · ") || event.name}
             </p>
-            <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-black uppercase leading-[0.95] tracking-tight sm:text-6xl">Who&apos;s at Moonshot</h1>
+            <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-black uppercase leading-[0.95] tracking-tight sm:text-6xl">{phase === "before" ? <>Who&apos;s going to {event.short}</> : <>Who&apos;s at {event.short}</>}</h1>
             <p className="mx-auto mt-3 max-w-md font-medium">Find people worth meeting and reach them directly. No sign-up.</p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <LinkButton href="/meet" variant="dark" size="lg" data-track="meet_hero">
+              {live && (
+            <LinkButton href={`${base}/meet`} variant="dark" size="lg" data-track="meet_hero">
                 📍 Meet someone now{checkins.length ? ` · ${checkins.length} around` : ""}
               </LinkButton>
+            )}
               {!me && (
-                <LinkButton href="/card" variant="secondary" size="lg" data-track="add_yourself_hero">
+                <LinkButton href={`${base}/card`} variant="secondary" size="lg" data-track="add_yourself_hero">
                   Add yourself
                 </LinkButton>
               )}
@@ -123,12 +132,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
             <p className="font-semibold text-emerald-900">
               {sp.added === "x" ? "Your post is on the list." : sp.added === "update" ? "Photo saved — it's on your card now." : "You're on the list! Now tell people where to find you."}
             </p>
-            {sp.added === "card" && me && !over && (
+            {sp.added === "card" && me && live && (
               <div className="flex flex-wrap gap-2">
-                <LinkButton href="/meet" size="sm" data-track="meet_after_signup">
+                <LinkButton href={`${base}/meet`} size="sm" data-track="meet_after_signup">
                   📍 Check in to meet people now
                 </LinkButton>
-                <LinkButton href="/update" size="sm" variant="secondary" data-track="update_after_signup">
+                <LinkButton href={`${base}/update`} size="sm" variant="secondary" data-track="update_after_signup">
                   📸 Add a photo to your card
                 </LinkButton>
               </div>
@@ -137,7 +146,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
               <ShareButtons
                 track="share_card"
                 campaign="card"
-                text={over ? "Met me at #Moonshot2026? Here's my card — say hi 👋" : "I'm at #Moonshot2026 — here's my card, come say hi 👋"}
+                text={over ? `Met me at ${tag}? Here's my card — say hi 👋` : phase === "before" ? `I'm going to ${tag} — here's my card, let's meet 👋` : `I'm at ${tag} — here's my card, come say hi 👋`}
                 url={`${origin}/p/${me.id}`}
               />
             )}
@@ -146,7 +155,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
         )}
 
         {!q && !filter && over && (
-          <Highlights moments={moments} featured={featured?.item ?? null} />
+          <Highlights moments={moments} featured={featured?.item ?? null} base={base} short={event.short} />
         )}
 
         {!q && !filter && !over && (
@@ -155,18 +164,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
               <h2 id="moments-h" className="text-lg font-extrabold uppercase">
                 📸 Moments
               </h2>
-              <Link href="/moments" className="text-sm font-semibold text-flame-700 hover:underline" data-track="moments_see_all">
+              <Link href={`${base}/moments`} className="text-sm font-semibold text-flame-700 hover:underline" data-track="moments_see_all">
                 {moments.length ? "See all →" : "Share one →"}
               </Link>
             </div>
             {moments.length === 0 ? (
-              <Link href="/moments" className="block rounded-3xl border border-dashed border-line bg-white p-5 text-center text-sm text-muted hover:border-ink/30" data-track="moments_empty_cta">
-                Be the first to share a photo or update from Moonshot →
+              <Link href={`${base}/moments`} className="block rounded-3xl border border-dashed border-line bg-white p-5 text-center text-sm text-muted hover:border-ink/30" data-track="moments_empty_cta">
+                Be the first to share a photo or update from {event.short} →
               </Link>
             ) : (
               <ul className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none]">
                 <li className="shrink-0">
-                  <Link href="/moments" data-track="moments_strip_add" className="flex h-40 w-28 flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-flame/40 bg-flame-50 text-center text-sm font-semibold text-flame-700">
+                  <Link href={`${base}/moments`} data-track="moments_strip_add" className="flex h-40 w-28 flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-flame/40 bg-flame-50 text-center text-sm font-semibold text-flame-700">
                     <span className="text-2xl" aria-hidden>
                       ＋
                     </span>
@@ -177,7 +186,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
                   const img = momentImage(item);
                   return (
                     <li key={item.moment.id} className="shrink-0">
-                      <Link href="/moments" data-track="moments_strip" className="relative block h-40 w-28 overflow-hidden rounded-2xl bg-ink text-white">
+                      <Link href={`${base}/moments`} data-track="moments_strip" className="relative block h-40 w-28 overflow-hidden rounded-2xl bg-ink text-white">
                         {img ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={img} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-cover object-[center_30%]" />
@@ -214,8 +223,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
           <Link href={href({ f: undefined })} className={chip(!filter)} aria-current={!filter ? "page" : undefined}>
             All
           </Link>
-          {!over && (
-          <Link href="/meet" className="shrink-0 rounded-full bg-sun px-3.5 py-1.5 text-sm font-semibold text-ink" data-track="meet_chip">
+          {live && (
+          <Link href={`${base}/meet`} className="shrink-0 rounded-full bg-sun px-3.5 py-1.5 text-sm font-semibold text-ink" data-track="meet_chip">
             📍 Around now <span className="text-ink/60">{checkins.length}</span>
           </Link>
           )}
@@ -246,7 +255,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
         </div>
         {sort === "match" && !me && (
           <p className="-mt-3 mb-5 text-sm text-muted">
-            <Link href="/card" className="font-semibold text-flame-700 underline">
+            <Link href={`${base}/card`} className="font-semibold text-flame-700 underline">
               Add yourself
             </Link>{" "}
             to see who fits you best.
@@ -258,7 +267,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
             <Notice tone="warn">
               <strong>{gap.want} people</strong> want to meet {FILTERS[filter].wantLabel} — {gap.have === 0 ? "none" : `only ${gap.have}`} {gap.have === 1 ? "is" : "are"} here yet.{" "}
               {filter === "investors" ? "Investing?" : "Hiring?"}{" "}
-              <Link href="/card" className="font-semibold underline">
+              <Link href={`${base}/card`} className="font-semibold underline">
                 Add yourself
               </Link>{" "}
               or share this page with someone who is.
@@ -270,13 +279,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
           q && looksLikeName ? (
             <Card className="p-6 text-center">
               <p className="text-lg font-bold">“{q}” isn&apos;t here yet</p>
-              <p className="mx-auto mt-1 max-w-md text-sm text-muted">{over ? "Invite them to add themselves, so you can find them here." : "Invite them, so you (and everyone else at Moonshot) can find them."}</p>
+              <p className="mx-auto mt-1 max-w-md text-sm text-muted">{over ? "Invite them to add themselves, so you can find them here." : `Invite them, so you (and everyone else at ${event.short}) can find them.`}</p>
               <div className="mt-4 flex justify-center">
-                <ShareButtons track="invite" campaign="invite" text={`${q}, I'm looking for you on Moonshot Connect. Add yourself so people ${over ? "you met at" : "at"} Moonshot can find you:`} url={`${origin}/card`} />
+                <ShareButtons track="invite" campaign="invite" text={`${q}, I'm looking for you on ${event.short} Connect. Add yourself so people ${over ? "you met at" : "at"} ${event.short} can find you:`} url={`${origin}${base}/card`} />
               </div>
             </Card>
           ) : (
-            <Empty title={q || filter ? "No one matches that" : "No one here yet"} action={q || filter ? <LinkButton href="/" variant="secondary">Clear</LinkButton> : <LinkButton href="/card">Add yourself</LinkButton>}>
+            <Empty title={q || filter ? "No one matches that" : "No one here yet"} action={q || filter ? <LinkButton href={base} variant="secondary">Clear</LinkButton> : <LinkButton href={`${base}/card`}>Add yourself</LinkButton>}>
               {q || filter ? "Try another search or filter." : "Be the first — it takes a few seconds."}
             </Empty>
           )
@@ -285,7 +294,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
             {items.map((i) =>
               i.kind === "person" ? (
                 <li key={i.person.id}>
-                  <PersonCard person={i.person} reasons={i.reasons} showJoined={sort === "new"} />
+                  <PersonCard person={i.person} reasons={i.reasons} showJoined={sort === "new"} eventShort={event.short} />
                 </li>
               ) : (
                 <li key={i.post.id}>
@@ -300,8 +309,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
   );
 }
 
-/** After Moonshot: a grid of the best-looking moments (photos first), right under "Find the people you met". */
-function Highlights({ moments, featured }: { moments: MomentItem[]; featured: MomentItem | null }) {
+/** After the event: a grid of the best-looking moments (photos first), right under "Find the people you met". */
+function Highlights({ moments, featured, base, short }: { moments: MomentItem[]; featured: MomentItem | null; base: string; short: string }) {
   // The current Featured moment leads, then the newest with photos.
   const rest = moments.filter((m) => m.moment.id !== featured?.moment.id);
   const withImages = rest.filter((m) => momentImage(m));
@@ -314,23 +323,23 @@ function Highlights({ moments, featured }: { moments: MomentItem[]; featured: Mo
         </h2>
         <span className="flex shrink-0 gap-3 text-sm font-semibold">
           {moments.length > 0 && (
-            <Link href="/moments?story=1" className="text-ink hover:underline" data-track="home_story">
+            <Link href={`${base}/moments?story=1`} className="text-ink hover:underline" data-track="home_story">
               ▶ Watch
             </Link>
           )}
-          <Link href="/moments?share=1" className="text-muted hover:text-ink" data-track="highlights_add">
+          <Link href={`${base}/moments?share=1`} className="hidden text-muted hover:text-ink sm:inline" data-track="highlights_add">
             ＋ Add yours
           </Link>
           {moments.length > 0 && (
-            <Link href="/moments" className="text-flame-700 hover:underline" data-track="highlights_all">
+            <Link href={`${base}/moments`} className="text-flame-700 hover:underline" data-track="highlights_all">
               See all →
             </Link>
           )}
         </span>
       </div>
       {tiles.length === 0 ? (
-        <Link href="/moments?share=1" className="block rounded-3xl border border-dashed border-line bg-white p-6 text-center text-sm text-muted hover:border-ink/30" data-track="highlights_empty">
-          Share your photos and highlights from Moonshot →
+        <Link href={`${base}/moments?share=1`} className="block rounded-3xl border border-dashed border-line bg-white p-6 text-center text-sm text-muted hover:border-ink/30" data-track="highlights_empty">
+          Share your photos and highlights from {short} →
         </Link>
       ) : (
         <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -338,7 +347,7 @@ function Highlights({ moments, featured }: { moments: MomentItem[]; featured: Mo
             const img = momentImage(item);
             return (
               <li key={item.moment.id}>
-                <Link href={`/moments#m-${item.moment.id}`} data-track="highlights_tile" data-track-id={item.moment.id} className="relative block aspect-square overflow-hidden rounded-2xl bg-ink text-white">
+                <Link href={`${base}/moments#m-${item.moment.id}`} data-track="highlights_tile" data-track-id={item.moment.id} className="relative block aspect-square overflow-hidden rounded-2xl bg-ink text-white">
                   {img ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={img} alt={(item.moment.body || item.moment.xText || "").slice(0, 100)} loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-cover object-[center_30%] transition-transform hover:scale-105" />

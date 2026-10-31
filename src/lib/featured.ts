@@ -18,8 +18,11 @@ export function parseHandles(text: string): string[] {
   return Array.from(new Set(found.map((h) => h.replace(/^@/, "").toLowerCase()))).slice(0, 200);
 }
 
-export async function getTopAccounts(db: DB): Promise<string[]> {
-  const row = await db.query.settings.findFirst({ where: eq(s.settings.key, TOP_ACCOUNTS_KEY) });
+/** Each event has its own list (stored as "top_accounts:<event id>"). */
+export const topAccountsKey = (eventId: string) => `${TOP_ACCOUNTS_KEY}:${eventId}`;
+
+export async function getTopAccounts(db: DB, eventId: string): Promise<string[]> {
+  const row = await db.query.settings.findFirst({ where: eq(s.settings.key, topAccountsKey(eventId)) });
   return row ? parseHandles(row.value) : [];
 }
 
@@ -51,14 +54,14 @@ export function rotationIndex(n: number, now: number): number {
 export type FeaturedPick = { item: MomentItem; list: MomentItem[]; reason: "pinned" | "top"; candidates: number };
 const SLIDES = 6;
 
-export async function pickFeatured(db: DB, now = Date.now()): Promise<FeaturedPick | null> {
-  const items = await listMoments(db, { limit: 300 });
+export async function pickFeatured(db: DB, eventId: string, now = Date.now()): Promise<FeaturedPick | null> {
+  const items = await listMoments(db, eventId, { limit: 300 });
   const pinned = items.filter((i) => i.moment.featuredAt).sort((a, b) => b.moment.featuredAt!.getTime() - a.moment.featuredAt!.getTime())[0];
 
   const withImages = items.filter((i) => hasImage(i.moment) && i.moment.id !== pinned?.moment.id);
   if (!withImages.length) return pinned ? { item: pinned, list: [pinned], reason: "pinned", candidates: 1 } : null;
   const ids = withImages.map((i) => i.moment.id);
-  const [top, opens, reacts] = await Promise.all([getTopAccounts(db), momentOpens(db, ids, now), reactionCounts(db, ids)]);
+  const [top, opens, reacts] = await Promise.all([getTopAccounts(db, eventId), momentOpens(db, ids, now), reactionCounts(db, ids)]);
   const total = (id: string) => {
     const c = reacts.get(id);
     return c ? c.fire + c.love + c.clap : 0;

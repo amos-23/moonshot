@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eventOver } from "@/lib/constants";
+import { eventPhase } from "@/lib/events";
 import { cleanPostText, momentPost, withUtm, xIntent } from "@/lib/share";
 import { momentScore, parseHandles, rotationIndex, ROTATE_MS } from "@/lib/featured";
 import { scoreMatch, type MatchCard } from "@/lib/matching";
@@ -122,16 +122,17 @@ describe("X post images", () => {
   });
 });
 
-describe("eventOver", () => {
-  it("switches to the after-Moonshot site at midnight in Lagos after day 2, unless EVENT_MODE says otherwise", () => {
+describe("eventPhase", () => {
+  it("is before, live or after from the event's dates, unless EVENT_MODE says otherwise", () => {
     const prev = process.env.EVENT_MODE;
     delete process.env.EVENT_MODE;
-    expect(eventOver(new Date("2026-10-29T22:59:00Z"))).toBe(false);
-    expect(eventOver(new Date("2026-10-29T23:00:00Z"))).toBe(true);
-    process.env.EVENT_MODE = "live";
-    expect(eventOver(new Date("2026-11-05T12:00:00Z"))).toBe(false);
+    const e = { startsAt: new Date("2026-11-26T23:00:00Z"), endsAt: new Date("2026-11-27T23:00:00Z") };
+    expect(eventPhase(e, new Date("2026-11-26T22:59:00Z"))).toBe("before");
+    expect(eventPhase(e, new Date("2026-11-27T12:00:00Z"))).toBe("live");
+    expect(eventPhase(e, new Date("2026-11-27T23:00:00Z"))).toBe("after");
+    expect(eventPhase({ startsAt: null, endsAt: null }, new Date())).toBe("live"); // no dates yet
     process.env.EVENT_MODE = "after";
-    expect(eventOver(new Date("2026-10-28T12:00:00Z"))).toBe(true);
+    expect(eventPhase(e, new Date("2026-11-27T12:00:00Z"))).toBe("after");
     if (prev === undefined) delete process.env.EVENT_MODE;
     else process.env.EVENT_MODE = prev;
   });
@@ -210,10 +211,10 @@ describe("share links", () => {
     expect(xIntent("Hi #Moonshot2026", "https://s.io/m/1")).toBe("https://x.com/intent/post?text=Hi+%23Moonshot2026&url=https%3A%2F%2Fs.io%2Fm%2F1");
   });
   it("writes a short post about a moment", () => {
-    expect(momentPost({ text: "Main stage  was packed", who: "Ada", fromX: false })).toBe("“Main stage was packed” — a moment from #Moonshot2026 📸");
-    expect(momentPost({ text: "Great day", who: "@tola", fromX: true })).toBe("“Great day” — @tola from #Moonshot2026 📸");
-    expect(momentPost({ text: null, who: "x", fromX: false })).toBe("A moment from #Moonshot2026 📸");
-    expect(momentPost({ text: "x".repeat(200), who: "x", fromX: false }).length).toBeLessThan(170);
+    expect(momentPost({ text: "Main stage  was packed", who: "Ada", fromX: false }, "#Moonshot2026")).toBe("“Main stage was packed” — a moment from #Moonshot2026 📸");
+    expect(momentPost({ text: "Great day", who: "@tola", fromX: true }, "#Moonshot2026")).toBe("“Great day” — @tola from #Moonshot2026 📸");
+    expect(momentPost({ text: null, who: "x", fromX: false }, "#Moonshot2026")).toBe("A moment from #Moonshot2026 📸");
+    expect(momentPost({ text: "x".repeat(200), who: "x", fromX: false }, "#Moonshot2026").length).toBeLessThan(170);
   });
 });
 

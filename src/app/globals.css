@@ -62,24 +62,24 @@ body {
 body:has([data-dark-page]) {
   background: #121116;
 }
-body:has([data-dark-page]) > header {
+body:has([data-dark-page]) .site-header {
   background: rgb(18 17 22 / 0.8);
   border-color: rgb(255 255 255 / 0.08);
   color: #fff;
 }
-body:has([data-dark-page]) > header .text-muted {
+body:has([data-dark-page]) .site-header .text-muted {
   color: rgb(255 255 255 / 0.6);
 }
-body:has([data-dark-page]) > header .text-muted:hover {
+body:has([data-dark-page]) .site-header .text-muted:hover {
   color: #fff;
 }
-body:has([data-dark-page]) > header .bg-ink {
+body:has([data-dark-page]) .site-header .bg-ink {
   background: rgb(255 255 255 / 0.12);
 }
-body:has([data-dark-page]) > footer {
+body:has([data-dark-page]) .site-footer {
   color: rgb(255 255 255 / 0.45);
 }
-body:has([data-dark-page]) > footer p {
+body:has([data-dark-page]) .site-footer p {
   border-color: rgb(255 255 255 / 0.08);
 }
 

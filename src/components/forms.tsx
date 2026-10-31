@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { addCommentAction, addXPostAction, adminLoginAction, checkInAction, importMomentsAction, importPostsAction, postMomentAction, saveTopAccountsAction, signUpAction, saveCardAction, saveUpdateAction } from "@/lib/actions";
-import type { Person } from "@/lib/db/schema";
+import { addCommentAction, addXPostAction, adminLoginAction, checkInAction, importMomentsAction, importPostsAction, postMomentAction, saveEventAction, saveTopAccountsAction, signUpAction, saveCardAction, saveUpdateAction } from "@/lib/actions";
+import type { EventSpace, Person } from "@/lib/db/schema";
 import { MAX_MOMENT_PHOTOS, OFFERS, WANTS } from "@/lib/constants";
 import type { ImportResult } from "@/lib/data";
 import { MultiPhotoPicker, MultiSelect, PhotoPicker, Status, Submit, useForm } from "./client";
@@ -11,11 +11,12 @@ import { Field, Tag, cx, inputClass } from "./ui";
 
 const contactOf = (p: Person | null) => (p ? (p.xHandle ? `@${p.xHandle}` : p.whatsapp ?? p.email ?? p.linkedinUrl ?? p.websiteUrl ?? "") : "");
 
-export function CardForm({ person }: { person: Person | null }) {
+export function CardForm({ person, event }: { person: Person | null; event: string }) {
   const { state, pending, onSubmit, err } = useForm(saveCardAction, { refresh: true });
   const p = person;
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-5">
+      <input type="hidden" name="event" value={event} />
       <Field label="Name" htmlFor="name" error={err("name")}>
         <input id="name" name="name" autoComplete="name" defaultValue={p?.name} maxLength={60} className={inputClass} aria-invalid={!!err("name")} />
       </Field>
@@ -51,12 +52,13 @@ export function CardForm({ person }: { person: Person | null }) {
   );
 }
 
-export function XPostForm() {
+export function XPostForm({ event }: { event: string }) {
   const { state, pending, onSubmit } = useForm(addXPostAction);
   return (
     <form onSubmit={onSubmit} className="space-y-2">
+      <input type="hidden" name="event" value={event} />
       <label htmlFor="url" className="block text-sm font-semibold">
-        Link to your post about Moonshot
+        Link to your post about the event
       </label>
       <div className="flex gap-2">
         <input id="url" name="url" inputMode="url" placeholder="x.com/you/status/…" className={inputClass} />
@@ -85,11 +87,12 @@ export function AdminLogin() {
   );
 }
 
-export function ImportForm() {
+export function ImportForm({ event }: { event: string }) {
   const { state, pending, onSubmit } = useForm(importPostsAction, { refresh: true });
   const rows = state?.ok ? (state.data as ImportResult[]) : [];
   return (
     <form onSubmit={onSubmit} className="space-y-3">
+      <input type="hidden" name="event" value={event} />
       <Field label="X post links" htmlFor="records" hint="One per line. Text and author are filled in from X's public embed.">
         <textarea id="records" name="records" rows={4} className={cx(inputClass, "font-mono text-xs")} placeholder="https://x.com/someone/status/1234567890123456789" />
       </Field>
@@ -135,12 +138,13 @@ export function CommentForm({ postId, myName }: { postId: string; myName: string
   );
 }
 
-export function UpdateForm({ person }: { person: Person }) {
+export function UpdateForm({ person, event }: { person: Person; event: string }) {
   const { state, pending, onSubmit, err } = useForm(saveUpdateAction);
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-5">
+      <input type="hidden" name="event" value={event} />
       <PhotoPicker current={person.photoUpdatedAt ? `/photo/${person.id}?v=${person.photoUpdatedAt.getTime()}` : null} error={err("photo")} />
-      <p className="text-xs text-muted">A picture of you at Moonshot on your card helps people recognise you.</p>
+      <p className="text-xs text-muted">A picture of you on your card helps people recognise you at the event.</p>
       <div className="flex items-center gap-3">
         <Submit pending={pending} size="lg" className="shrink-0" data-track="post_update">
           Save photo
@@ -153,16 +157,17 @@ export function UpdateForm({ person }: { person: Person }) {
   );
 }
 
-export function MomentForm({ myName }: { myName: string | null }) {
+export function MomentForm({ myName, event }: { myName: string | null; event: string }) {
   const { state, pending, onSubmit, err } = useForm(postMomentAction);
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-4">
+      <input type="hidden" name="event" value={event} />
       <MultiPhotoPicker max={MAX_MOMENT_PHOTOS} error={err("photo")} />
       <Field label="…or share an X post" htmlFor="xUrl" optional error={err("xUrl")} hint="Paste a link to a public post. Its text and images are shown with a link back to X.">
         <input id="xUrl" name="xUrl" inputMode="url" placeholder="x.com/name/status/…" className={inputClass} />
       </Field>
       <Field label="What's happening?" htmlFor="body" optional error={err("body")}>
-        <textarea id="body" name="body" rows={2} maxLength={280} placeholder="Best moment of Moonshot for me… (tag people with @handle)" className={inputClass} />
+        <textarea id="body" name="body" rows={2} maxLength={280} placeholder="My best moment… (tag people with @handle)" className={inputClass} />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Where?" htmlFor="place" optional error={err("place")}>
@@ -206,7 +211,7 @@ function ImportResults({ rows }: { rows: ImportResult[] }) {
 }
 
 /** Admin: X post links are all it takes, many at once. A photo or written update sits under "Or add…". */
-export function AdminMomentForm() {
+export function AdminMomentForm({ event }: { event: string }) {
   const links = useForm(importMomentsAction, { refresh: true });
   const { state, pending, onSubmit, err } = useForm(postMomentAction);
   const linksForm = useRef<HTMLFormElement>(null);
@@ -222,6 +227,7 @@ export function AdminMomentForm() {
   return (
     <div className="space-y-3">
       <form ref={linksForm} onSubmit={links.onSubmit} noValidate className="space-y-2">
+      <input type="hidden" name="event" value={event} />
         <label htmlFor="admin-links" className="sr-only">
           X post links for Moments
         </label>
@@ -250,6 +256,7 @@ export function AdminMomentForm() {
       <details className="text-sm">
         <summary className="cursor-pointer text-muted">Or add a photo or update instead</summary>
         <form onSubmit={onSubmit} noValidate className="mt-3 space-y-3">
+      <input type="hidden" name="event" value={event} />
           <input type="hidden" name="from" value="admin" />
           <MultiPhotoPicker max={MAX_MOMENT_PHOTOS} error={err("photo")} />
           <Field label="What's happening?" htmlFor="admin-body" optional error={err("body")}>
@@ -284,10 +291,11 @@ const DURATIONS = [
   ["day", "Rest of today"],
 ] as const;
 
-export function CheckinForm({ me }: { me: { name: string } | null }) {
+export function CheckinForm({ me, event }: { me: { name: string } | null; event: string }) {
   const { state, pending, onSubmit, err } = useForm(checkInAction);
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-3">
+      <input type="hidden" name="event" value={event} />
       <div className={cx("grid gap-3", me ? "sm:grid-cols-[1fr_auto]" : "sm:grid-cols-[1fr_1fr_auto]")}>
         <div>
           <label htmlFor="place" className="sr-only">
@@ -353,7 +361,7 @@ export function CheckinForm({ me }: { me: { name: string } | null }) {
   );
 }
 
-export function SignupForm({ name, about }: { name: string; about: string }) {
+export function SignupForm({ name, about, event }: { name: string; about: string; event?: string }) {
   const { state, pending, onSubmit, err } = useForm(signUpAction);
   if (state?.ok)
     return (
@@ -367,6 +375,7 @@ export function SignupForm({ name, about }: { name: string; about: string }) {
     );
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-4">
+      {event && <input type="hidden" name="event" value={event} />}
       <Field label="Email" htmlFor="su-email" error={err("email")}>
         <input id="su-email" name="email" type="email" inputMode="email" autoComplete="email" required className={inputClass} aria-invalid={!!err("email")} />
       </Field>
@@ -390,16 +399,63 @@ export function SignupForm({ name, about }: { name: string; about: string }) {
   );
 }
 
-export function TopAccountsForm({ current }: { current: string }) {
+export function TopAccountsForm({ current, event }: { current: string; event: string }) {
   const { state, pending, onSubmit } = useForm(saveTopAccountsAction, { refresh: true });
   return (
     <form onSubmit={onSubmit} className="space-y-2">
+      <input type="hidden" name="event" value={event} />
       <Field label="Top accounts" htmlFor="top-accounts" hint="X handles whose posts get a strong boost for Featured (e.g. organisers, speakers, well-known founders). Separate with spaces or new lines.">
         <textarea id="top-accounts" name="handles" rows={2} defaultValue={current} placeholder="@techcabal @someone" className={cx(inputClass, "font-mono text-xs")} />
       </Field>
       <div className="flex items-center gap-3">
         <Submit pending={pending} variant="secondary" size="sm">
           Save
+        </Submit>
+        <Status state={state} />
+      </div>
+    </form>
+  );
+}
+
+/** "2026-11-27" (Lagos) for a date input, from a stored start, or the day an end falls in. */
+function lagosDate(d: Date | null, end = false): string {
+  if (!d) return "";
+  return new Date(d.getTime() + 3600_000 - (end ? 1 : 0)).toISOString().slice(0, 10);
+}
+
+/** Admin: one event's details (or a blank form to add one). */
+export function EventForm({ event }: { event: EventSpace | null }) {
+  const { state, pending, onSubmit, err } = useForm(saveEventAction, { refresh: true });
+  const k = event?.id ?? "new";
+  const f = (name: string, label: string, opts: { value?: string | null; placeholder?: string; hint?: string; type?: string; optional?: boolean } = {}) => (
+    <Field label={label} htmlFor={`${k}-${name}`} optional={opts.optional ?? true} hint={opts.hint} error={err(name)}>
+      <input id={`${k}-${name}`} name={name} type={opts.type ?? "text"} defaultValue={opts.value ?? ""} placeholder={opts.placeholder} className={inputClass} />
+    </Field>
+  );
+  return (
+    <form onSubmit={onSubmit} noValidate className="space-y-3">
+      {event && <input type="hidden" name="id" value={event.id} />}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {f("name", "Name", { value: event?.name, placeholder: "Ogun Digital Summit 2026", optional: false })}
+        {f("slug", "Address", { value: event?.slug, placeholder: "ogun-digital-summit", hint: "The site address: /your-address", optional: false })}
+        {f("short", "Short name", { value: event?.short, placeholder: "Ogun Digital", hint: "For the logo: “OGUN DIGITAL CONNECT”" })}
+        {f("organiser", "Organiser", { value: event?.organiser })}
+        {f("dates", "Dates (as shown)", { value: event?.dates, placeholder: "26 November 2026" })}
+        {f("venue", "Venue", { value: event?.venue, placeholder: "June 12 Cultural Centre, Abeokuta" })}
+        {f("startDay", "First day", { value: lagosDate(event?.startsAt ?? null), type: "date", hint: "Before it: “Who's going”" })}
+        {f("endDay", "Last day", { value: lagosDate(event?.endsAt ?? null, true), type: "date", hint: "After it: “Find the people you met”" })}
+        {f("tagline", "Tagline", { value: event?.tagline })}
+        {f("url", "Official site", { value: event?.url, placeholder: "https://…" })}
+        {f("hashtag", "Hashtag", { value: event?.hashtag, placeholder: "#OgunDigitalSummit" })}
+        {f("xHandle", "X handle", { value: event?.xHandle, placeholder: "@organiser" })}
+        {f("position", "Order on the homepage", { value: String(event?.position ?? 100), type: "number" })}
+        <label className="flex items-center gap-2 self-end pb-3 text-sm">
+          <input type="checkbox" name="hidden" defaultChecked={event?.hidden ?? false} className="h-4 w-4 accent-[var(--color-flame-700)]" /> Hidden (a draft only admins can open)
+        </label>
+      </div>
+      <div className="flex items-center gap-3">
+        <Submit pending={pending} variant="dark" size="sm">
+          {event ? "Save" : "Add event"}
         </Submit>
         <Status state={state} />
       </div>

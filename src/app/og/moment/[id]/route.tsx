@@ -10,8 +10,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const db = await getDb();
   const [row] = /^[0-9a-f-]{36}$/i.test(id)
     ? await db
-        .select({ m: schema.moments, author: schema.people.name })
+        .select({ m: schema.moments, author: schema.people.name, short: schema.eventSpaces.short, eventName: schema.eventSpaces.name })
         .from(schema.moments)
+        .innerJoin(schema.eventSpaces, eq(schema.eventSpaces.id, schema.moments.eventId))
         .leftJoin(schema.people, eq(schema.people.id, schema.moments.personId))
         .where(and(eq(schema.moments.id, id), eq(schema.moments.hidden, false)))
         .limit(1)
@@ -22,8 +23,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const [p] = await db.select().from(schema.momentPhotos).where(and(eq(schema.momentPhotos.momentId, m.id), eq(schema.momentPhotos.position, 0))).limit(1);
     if (p) img = `data:${p.mime};base64,${p.data}`;
   } else if (m?.xMedia[0]) img = await fetchAsDataUrl(m.xMedia[0]);
-  const text = clip(m ? cleanPostText(m.body || m.xText) : "Photos and highlights from Moonshot 2026", img ? 110 : 160);
-  const who = m ? (m.xPostUrl ? (m.xAuthorName ?? `@${m.xAuthorHandle}`) : (row.author ?? (m.xHandle ? `@${m.xHandle}` : m.name)) ?? "Someone at Moonshot") : "";
+  const text = clip(m ? cleanPostText(m.body || m.xText) : "Photos and highlights from the event", img ? 110 : 160);
+  const who = m ? (m.xPostUrl ? (m.xAuthorName ?? `@${m.xAuthorHandle}`) : (row.author ?? (m.xHandle ? `@${m.xHandle}` : m.name)) ?? `Someone at ${row.short}`) : "";
   const host = new URL(req.url).host;
 
   return new ImageResponse(
@@ -36,7 +37,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           <div style={{ width: 44, height: 44, borderRadius: 12, background: img ? BRAND.flame : BRAND.ink, display: "flex", alignItems: "flex-end", justifyContent: "center", overflow: "hidden" }}>
             <div style={{ width: 32, height: 32, borderRadius: 32, background: BRAND.sun, marginBottom: -8 }} />
           </div>
-          <div style={{ display: "flex", fontSize: 26, fontWeight: 800, letterSpacing: 4, color: img ? BRAND.sun : "white" }}>MOMENTS · MOONSHOT 2026</div>
+          <div style={{ display: "flex", fontSize: 26, fontWeight: 800, letterSpacing: 4, color: img ? BRAND.sun : "white" }}>MOMENTS · {(row?.short ?? "Event Connect").toUpperCase()}</div>
         </div>
         <div style={{ position: "absolute", left: 56, right: 56, bottom: 52, display: "flex", flexDirection: "column", gap: 18 }}>
           {/* Type shrinks for longer captions so any length fits the card. */}

@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import { Clock, MapPin } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { getMe } from "@/lib/me";
-import { eventOver } from "@/lib/constants";
+import { notFound } from "next/navigation";
+import { checkinCookie, eventPhase, getEvent } from "@/lib/events";
 import { listCheckins } from "@/lib/data";
 import { endCheckinAction } from "@/lib/actions";
 import { formatTime, timeAgo } from "@/lib/time";
@@ -12,30 +13,33 @@ import { CheckinForm } from "@/components/forms";
 import { ActionButton, ReportLink } from "@/components/client";
 import { Avatar, Card, Empty, Notice, PageTitle, cx } from "@/components/ui";
 
-export const metadata = { title: "Meet up", description: "Who's around at Moonshot right now, and where to find them." };
+export const metadata = { title: "Meet up", description: "Who's around at the event right now, and where to find them." };
 
-export default async function MeetPage({ searchParams }: { searchParams: Promise<{ checked?: string }> }) {
+export default async function MeetPage({ params, searchParams }: { params: Promise<{ event: string }>; searchParams: Promise<{ checked?: string }> }) {
   const { checked } = await searchParams;
-  if (eventOver()) {
+  const db = await getDb();
+  const event = await getEvent(db, (await params).event);
+  if (!event) notFound();
+  const phase = eventPhase(event);
+  if (phase !== "live") {
     return (
       <div className="mx-auto max-w-4xl px-4 py-8">
         <PageTitle title="📍 Meet up" />
         <Empty
-          title="Moonshot is over — thanks for coming!"
+          title={phase === "after" ? `${event.short} is over — thanks for coming!` : `Meet up opens when ${event.short} starts`}
           action={
-            <Link href="/" className="font-semibold text-flame-700 underline">
-              Find the people you met →
+            <Link href={`/${event.slug}`} className="font-semibold text-flame-700 underline">
+              {phase === "after" ? "Find the people you met →" : "See who's going →"}
             </Link>
           }
         >
-          Meet up was for finding each other during the event.
+          {phase === "after" ? "Meet up was for finding each other during the event." : "On the day, check in with where you are so people can come and meet you."}
         </Empty>
       </div>
     );
   }
-  const db = await getDb();
-  const [me, checkins] = await Promise.all([getMe(), listCheckins(db)]);
-  const myCheckinId = (await cookies()).get("mc_checkin")?.value;
+  const [me, checkins] = await Promise.all([getMe(event.id), listCheckins(db, event.id)]);
+  const myCheckinId = (await cookies()).get(checkinCookie(event.id))?.value;
   const isMine = (c: (typeof checkins)[number]) => (me ? c.personId === me.id : c.id === myCheckinId);
   const mine = checkins.find(isMine);
 
@@ -55,7 +59,7 @@ export default async function MeetPage({ searchParams }: { searchParams: Promise
               <p className="font-semibold">You&apos;re checked in at {mine.place}</p>
               <p className="text-sm text-muted">Until {formatTime(mine.expiresAt)}. Moving? Check in again below, or let people know you&apos;ve left.</p>
             </div>
-            <ActionButton action={endCheckinAction} variant="secondary" size="md">
+            <ActionButton action={endCheckinAction.bind(null, event.id)} variant="secondary" size="md">
               <span data-track="checkin_end">I&apos;ve left</span>
             </ActionButton>
           </div>
@@ -63,7 +67,7 @@ export default async function MeetPage({ searchParams }: { searchParams: Promise
         <details open={!mine} className={cx(mine && "mt-4 border-t border-line pt-4")}>
           <summary className={cx("cursor-pointer text-sm font-semibold", !mine && "sr-only")}>{mine ? "Check in somewhere else" : "Check in"}</summary>
           <div className={mine ? "mt-4" : ""}>
-            <CheckinForm me={me ? { name: me.name } : null} />
+            <CheckinForm me={me ? { name: me.name } : null} event={event.slug} />
           </div>
         </details>
       </Card>
@@ -76,7 +80,7 @@ export default async function MeetPage({ searchParams }: { searchParams: Promise
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
           {checkins.map((c) => {
-            const reach = contact(c, `Hi ${c.name.split(" ")[0]}! Saw on Moonshot Connect you're at ${c.place} — can I come say hi?`);
+            const reach = contact(c, `Hi ${c.name.split(" ")[0]}! Saw on ${event.short} Connect you're at ${c.place} — can I come say hi?`);
             return (
               <li key={c.id}>
                 <Card className={cx("flex h-full flex-col gap-3 p-4", isMine(c) && "border-flame/40 bg-flame-50")}>
@@ -85,7 +89,7 @@ export default async function MeetPage({ searchParams }: { searchParams: Promise
                     <div className="min-w-0 flex-1">
                       <p className="font-bold leading-tight">
                         {c.personId ? (
-                          <Link href={`/?q=${encodeURIComponent(c.name)}`} className="hover:underline">
+                          <Link href={`/${event.slug}?q=${encodeURIComponent(c.name)}`} className="hover:underline">
                             {c.name}
                           </Link>
                         ) : (

@@ -2,6 +2,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import type { DB } from "@/lib/db";
 import * as s from "@/lib/db/schema";
+import { MOONSHOT_EVENT_ID } from "@/lib/db/schema";
 import { SEARCH_PHRASES } from "@/lib/constants";
 import { detectThemes } from "./x-url";
 import { activeSearchProvider, fetchPostDetails } from "./providers";
@@ -27,7 +28,8 @@ export async function refreshLive(db: DB, force = false): Promise<{ provider: st
   for (const p of res.posts) {
     const r = await db
       .insert(s.socialPosts)
-      .values({ externalId: p.externalId, url: p.url, authorHandle: p.authorHandle, authorName: p.authorName, content: p.content, postedAt: p.postedAt, themes: detectThemes(p.content), source: "x_api" })
+      // The automatic X search looks for Moonshot posts, so they belong to Moonshot.
+      .values({ eventId: MOONSHOT_EVENT_ID, externalId: p.externalId, url: p.url, authorHandle: p.authorHandle, authorName: p.authorName, content: p.content, postedAt: p.postedAt, themes: detectThemes(p.content), source: "x_api" })
       .onConflictDoNothing()
       .returning({ id: s.socialPosts.id });
     added += r.length;

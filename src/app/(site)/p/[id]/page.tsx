@@ -7,20 +7,21 @@ import { GoTo } from "@/components/share-landing";
 
 async function load(id: string) {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
-  const [p] = await (await getDb())
-    .select()
+  const [row] = await (await getDb())
+    .select({ p: schema.people, event: schema.eventSpaces })
     .from(schema.people)
+    .innerJoin(schema.eventSpaces, eq(schema.eventSpaces.id, schema.people.eventId))
     .where(and(eq(schema.people.id, id), eq(schema.people.hidden, false)))
     .limit(1);
-  return p ?? null;
+  return row ? { ...row.p, event: row.event } : null;
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const p = await load(id);
   if (!p) return {};
-  const title = `${p.name} · Moonshot Connect`;
-  const description = `${p.headline}${p.company ? ` at ${p.company}` : ""}. Find ${p.name.split(" ")[0]} and others from Moonshot 2026, and reach out directly.`;
+  const title = `${p.name} · ${p.event.short} Connect`;
+  const description = `${p.headline}${p.company ? ` at ${p.company}` : ""}. Find ${p.name.split(" ")[0]} and others from ${p.event.name}, and reach out directly.`;
   const image = { url: `/og/person/${id}`, width: 1200, height: 630, alt: `${p.name}, ${p.headline}` };
   return {
     title,
@@ -35,7 +36,7 @@ export default async function SharedCard({ params }: { params: Promise<{ id: str
   const { id } = await params;
   const p = await load(id);
   if (!p) redirect("/");
-  const to = `/?q=${encodeURIComponent(p.xHandle ?? p.name)}`;
+  const to = `/${p.event.slug}?q=${encodeURIComponent(p.xHandle ?? p.name)}`;
   return (
     <div className="grid min-h-[60dvh] place-items-center px-4 text-center">
       <GoTo path={to} />

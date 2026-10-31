@@ -4,7 +4,8 @@ import { getDb, schema } from "@/lib/db";
 import { isAdmin } from "@/lib/me";
 import { adminLogoutAction, removePhotoAction, resolveReportAction, setFeaturedAction, setHiddenAction } from "@/lib/actions";
 import { formatTime, timeAgo } from "@/lib/time";
-import { AdminLogin, AdminMomentForm, ImportForm, TopAccountsForm } from "@/components/forms";
+import { AdminLogin, AdminMomentForm, EventForm, ImportForm, TopAccountsForm } from "@/components/forms";
+import { listEvents } from "@/lib/events";
 import { momentWho } from "@/components/moment";
 import { getTopAccounts, pickFeatured } from "@/lib/featured";
 import { ActionButton } from "@/components/client";
@@ -12,8 +13,8 @@ import { Button, Card, Notice, PageTitle, Tag } from "@/components/ui";
 
 export const metadata = { title: "Admin", robots: { index: false } };
 
-export default async function AdminPage({ searchParams }: { searchParams: Promise<{ moment?: string }> }) {
-  const { moment } = await searchParams;
+export default async function AdminPage({ searchParams }: { searchParams: Promise<{ moment?: string; event?: string }> }) {
+  const { moment, event: slug } = await searchParams;
   if (!(await isAdmin())) {
     return (
       <div className="mx-auto max-w-xl px-4 py-12">
@@ -23,16 +24,26 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     );
   }
   const db = await getDb();
+  // Everything below is for one event at a time (pick it at the top); reports and sign-ups are site-wide.
+  const events = await listEvents(db, { includeHidden: true });
+  const event = events.find((e) => e.slug === slug) ?? events.find((e) => e.slug === "moonshot") ?? events[0];
   const [reports, people, posts, comments, momentRows, liveCheckins, signups, featured, topAccounts] = await Promise.all([
     db.select().from(schema.reports).where(eq(schema.reports.resolved, false)).orderBy(desc(schema.reports.createdAt)).limit(100),
-    db.select().from(schema.people).orderBy(desc(schema.people.createdAt)).limit(500),
-    db.select().from(schema.socialPosts).orderBy(desc(schema.socialPosts.importedAt)).limit(500),
-    db.select().from(schema.comments).orderBy(desc(schema.comments.createdAt)).limit(300),
-    db.select().from(schema.moments).orderBy(desc(schema.moments.createdAt)).limit(300),
-    db.select().from(schema.checkins).where(sql`${schema.checkins.endedAt} is null and ${schema.checkins.expiresAt} > now()`).orderBy(desc(schema.checkins.createdAt)).limit(300),
+    db.select().from(schema.people).where(eq(schema.people.eventId, event.id)).orderBy(desc(schema.people.createdAt)).limit(500),
+    db.select().from(schema.socialPosts).where(eq(schema.socialPosts.eventId, event.id)).orderBy(desc(schema.socialPosts.importedAt)).limit(500),
+    db
+      .select({ c: schema.comments })
+      .from(schema.comments)
+      .innerJoin(schema.socialPosts, eq(schema.socialPosts.id, schema.comments.postId))
+      .where(eq(schema.socialPosts.eventId, event.id))
+      .orderBy(desc(schema.comments.createdAt))
+      .limit(300)
+      .then((r) => r.map((x) => x.c)),
+    db.select().from(schema.moments).where(eq(schema.moments.eventId, event.id)).orderBy(desc(schema.moments.createdAt)).limit(300),
+    db.select().from(schema.checkins).where(sql`${schema.checkins.eventId} = ${event.id} and ${schema.checkins.endedAt} is null and ${schema.checkins.expiresAt} > now()`).orderBy(desc(schema.checkins.createdAt)).limit(300),
     db.select().from(schema.signups).orderBy(desc(schema.signups.createdAt)),
-    pickFeatured(db),
-    getTopAccounts(db),
+    pickFeatured(db, event.id),
+    getTopAccounts(db, event.id),
   ]);
   const label = new Map<string, string>([
     ...people.map((p) => [p.id, p.name] as const),
@@ -70,11 +81,26 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="mx-auto max-w-4xl space-y-8 px-4 py-8">
+      <nav aria-label="Event" className="-mb-4 flex flex-wrap items-center gap-2">
+        <span className="text-sm font-semibold text-muted">Event:</span>
+        {events.map((e) => (
+          <Link key={e.id} href={`/admin?event=${e.slug}`} aria-current={e.id === event.id ? "page" : undefined} className={e.id === event.id ? "rounded-full bg-ink px-3.5 py-1.5 text-sm font-semibold text-white" : "rounded-full border border-line bg-white px-3.5 py-1.5 text-sm font-semibold hover:border-ink/40"}>
+            {e.short}
+            {e.hidden ? " (hidden)" : ""}
+          </Link>
+        ))}
+        <a href="#events" className="text-sm font-semibold text-flame-700 underline">
+          Manage events
+        </a>
+      </nav>
       <PageTitle
-        title="Admin"
+        title={`Admin · ${event.short}`}
         sub={`${people.length} cards · ${posts.length} X posts · ${momentRows.length} moments · ${comments.length} comments · ${signups.length} sign-ups`}
         action={
           <div className="flex items-center gap-2">
+          <Link href={`/${event.slug}`} className="text-sm font-semibold text-flame-700 hover:underline">
+            Open /{event.slug} ↗
+          </Link>
           <Link href="/admin/stats" className="inline-flex h-9 items-center rounded-full bg-flame-700 px-4 text-sm font-semibold text-white">
             Stats
           </Link>
@@ -90,7 +116,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       <Card className="p-5 sm:p-6">
         <h2 className="text-lg font-bold">📸 Add moments</h2>
         <p className="mb-3 text-sm text-muted">Paste an X post link (a recap, photos, a highlight) and it&apos;s added straight away. Keep pasting: one after another, or many at once.</p>
-        <AdminMomentForm />
+        <AdminMomentForm event={event.slug} />
       </Card>
       <Card className="p-5 sm:p-6">
         <h2 className="text-lg font-bold">★ Featured on Moments</h2>
@@ -108,7 +134,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <p className="mt-1 text-sm text-muted">Nothing yet. Featured picks from moments with a photo.</p>
         )}
         <div className="mt-4">
-          <TopAccountsForm current={topAccounts.map((h) => `@${h}`).join(" ")} />
+          <TopAccountsForm current={topAccounts.map((h) => `@${h}`).join(" ")} event={event.slug} />
         </div>
       </Card>
       <section>
@@ -138,7 +164,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       <Card className="p-5">
         <h2 className="font-bold">Add people from X posts</h2>
         <p className="mb-3 text-xs text-muted">Each post becomes a “From X” card in the People list.</p>
-        <ImportForm />
+        <ImportForm event={event.slug} />
       </Card>
       <section>
         <div className="mb-3 flex items-center justify-between gap-3">
@@ -229,6 +255,28 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <Row key={p.id} kind="post" id={p.id} title={`@${p.authorHandle}`} sub={p.content?.slice(0, 100) ?? ""} hidden={p.hidden} />
           ))}
         </ul>
+      </section>
+      <section id="events" className="scroll-mt-20">
+        <h2 className="mb-1 text-lg font-bold">Events</h2>
+        <p className="mb-3 text-sm text-muted">Each event has its own Connect (people) and Moments at its own address. Dates set what the event page shows: before (“Who&apos;s going”), during (Meet up) and after (“Find the people you met”).</p>
+        <div className="space-y-3">
+          {events.map((e) => (
+            <details key={e.id} className="rounded-3xl border border-line bg-surface p-4">
+              <summary className="cursor-pointer font-semibold">
+                {e.name} <span className="font-normal text-muted">· /{e.slug}{e.hidden ? " · hidden" : ""}{e.dates ? ` · ${e.dates}` : ""}</span>
+              </summary>
+              <div className="mt-4">
+                <EventForm event={e} />
+              </div>
+            </details>
+          ))}
+          <details className="rounded-3xl border border-dashed border-line p-4">
+            <summary className="cursor-pointer font-semibold text-flame-700">＋ Add an event</summary>
+            <div className="mt-4">
+              <EventForm event={null} />
+            </div>
+          </details>
+        </div>
       </section>
     </div>
   );

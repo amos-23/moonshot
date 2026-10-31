@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { ChevronLeft, ChevronRight, ExternalLink, Heart, Images, Link2, MapPin, MessageCircle, Play, Plus, Share2, X } from "lucide-react";
-import { HASHTAG, momentPost, withUtm, xIntent } from "@/lib/share";
+import { momentPost, withUtm, xIntent } from "@/lib/share";
+import { GalleryEventContext, useGalleryEvent, type GalleryEvent } from "./moment-event";
 import { quoteSize, type MomentView } from "./moment";
 import { ReportLink } from "./client";
 import { MomentForm } from "./forms";
@@ -313,6 +314,7 @@ const label = (m: MomentView) => {
 
 /** The whole Moments experience: featured moment, photo wall, full-screen viewer and the share sheet. */
 export function MomentsGallery({
+  event,
   moments,
   featured,
   myName,
@@ -323,6 +325,7 @@ export function MomentsGallery({
   origin,
   reactionCounts,
 }: {
+  event: GalleryEvent;
   moments: MomentView[];
   featured: MomentView[];
   myName: string | null;
@@ -389,13 +392,13 @@ export function MomentsGallery({
   const openById = (id: string) => show(ordered.findIndex((m) => m.id === id));
 
   return (
-    <>
+    <GalleryEventContext.Provider value={event}>
       <section className="relative overflow-hidden">
         <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-40 mx-auto h-[520px] max-w-4xl rounded-full bg-[radial-gradient(closest-side,rgba(232,80,42,0.45),rgba(246,168,33,0.12)_55%,transparent)] blur-2xl" />
         <div className="relative mx-auto max-w-6xl px-4 pb-8 pt-12 text-center sm:pt-16">
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-sun">Moonshot 2026 · Lagos</p>
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-sun">{[event.short, event.dates].filter(Boolean).join(" · ")}</p>
           <h1 className="mt-3 bg-gradient-to-b from-white via-white to-white/60 bg-clip-text text-6xl font-black uppercase leading-[0.9] tracking-tight text-transparent sm:text-8xl">Moments</h1>
-          <p className="mx-auto mt-4 max-w-md text-white/70">Photos and highlights from two days at the National Theatre, shared by the people who were there.</p>
+          <p className="mx-auto mt-4 max-w-md text-white/70">Photos and highlights from {event.name}, shared by the people who were there.</p>
           {total > 0 && (
             <p className="mt-4 text-sm text-white/50">
               {total} moment{total === 1 ? "" : "s"} shared
@@ -413,7 +416,7 @@ export function MomentsGallery({
           </div>
           <p className="mt-4">
             <a
-              href={xIntent(`Photos and highlights from ${HASHTAG}, shared by the people who were there 📸`, withUtm(`${origin}/moments`, "x", "moments"))}
+              href={xIntent(`Photos and highlights from ${event.tag || event.name}, shared by the people who were there 📸`, withUtm(`${origin}/${event.slug}/moments`, "x", "moments"))}
               target="_blank"
               rel="noopener noreferrer"
               data-track="moments_share_x"
@@ -432,7 +435,7 @@ export function MomentsGallery({
         {moments.length === 0 ? (
           <div className="rounded-[28px] border border-dashed border-white/15 px-6 py-16 text-center">
             <p className="text-lg font-semibold">No moments yet</p>
-            <p className="mt-1 text-white/60">Be the first to share a photo or highlight from Moonshot.</p>
+            <p className="mt-1 text-white/60">Be the first to share a photo or highlight from {event.short}.</p>
           </div>
         ) : (
           <ul ref={wallRef} className="columns-2 gap-3 sm:gap-4 md:columns-3 lg:columns-4 [&>li]:mb-3 [&>li]:break-inside-avoid sm:[&>li]:mb-4">
@@ -515,12 +518,13 @@ export function MomentsGallery({
         />
       )}
       {sharing && <ShareSheet myName={myName} onClose={() => setSharing(false)} />}
-    </>
+    </GalleryEventContext.Provider>
   );
 }
 
 /** Full-screen viewer: swipe or use the arrow keys to move through photos and moments. */
 function Viewer({ moments, index, onIndex, origin, reactions }: { moments: MomentView[]; index: number; onIndex: (i: number | null) => void; origin: string; reactions: Reactions }) {
+  const ev = useGalleryEvent();
   const m = moments[index];
   const [photo, setPhoto] = useState(0);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -648,7 +652,7 @@ function Viewer({ moments, index, onIndex, origin, reactions }: { moments: Momen
           <div className="flex flex-wrap items-center gap-1.5 text-sm">
             <span className="font-semibold text-sun">👋 Follow up:</span>
             {m.people.map((p) => (
-              <Link key={p.key} href={`/?q=${encodeURIComponent(p.q)}`} data-track="moment_person" data-track-id={m.id} className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 font-semibold hover:bg-white/20">
+              <Link key={p.key} href={`/${ev.slug}?q=${encodeURIComponent(p.q)}`} data-track="moment_person" data-track-id={m.id} className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 font-semibold hover:bg-white/20">
                 <Avatar name={p.name} size={18} /> {p.name}
               </Link>
             ))}
@@ -685,15 +689,16 @@ function Viewer({ moments, index, onIndex, origin, reactions }: { moments: Momen
 
 /** Share a moment: its own link (/m/…) shows the photo as a big preview on X and WhatsApp. */
 function MomentShare({ m, origin }: { m: MomentView; origin: string }) {
+  const ev = useGalleryEvent();
   const [copied, setCopied] = useState(false);
   const [canShare, setCanShare] = useState(false);
   useEffect(() => setCanShare(typeof navigator.share === "function"), []);
   const link = `${origin}/m/${m.id}`;
-  const text = momentPost({ text: m.text, who: m.who, fromX: Boolean(m.xUrl) });
+  const text = momentPost({ text: m.text, who: m.who, fromX: Boolean(m.xUrl) }, ev.tag || ev.name);
   const other = async () => {
     if (canShare) {
       track("moment_share_native", m.id);
-      await navigator.share({ title: `${m.who} at Moonshot 2026`, text, url: withUtm(link, "native", "moment") }).catch(() => {});
+      await navigator.share({ title: `${m.who} at ${ev.name}`, text, url: withUtm(link, "native", "moment") }).catch(() => {});
       return;
     }
     track("moment_share_copy", m.id);
@@ -716,6 +721,7 @@ function MomentShare({ m, origin }: { m: MomentView; origin: string }) {
 
 /** "Add your moment" as a sheet over the gallery (bottom sheet on phones). */
 function ShareSheet({ myName, onClose }: { myName: string | null; onClose: () => void }) {
+  const ev = useGalleryEvent();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     ref.current?.querySelector<HTMLElement>("input, textarea, button")?.focus();
@@ -742,7 +748,7 @@ function ShareSheet({ myName, onClose }: { myName: string | null; onClose: () =>
             <X size={18} aria-hidden />
           </button>
         </div>
-        <MomentForm myName={myName} />
+        <MomentForm myName={myName} event={ev.slug} />
       </div>
     </div>
   );

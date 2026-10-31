@@ -16,11 +16,16 @@ export type FeedOptions = { q?: string; filter?: FilterKey; sort?: "match" | "ne
  * The home feed: cards people made plus "From X" cards, searched word by word (tags included),
  * filtered, and sorted by fit ("match") or newest first ("new").
  */
-export async function feed(db: DB, me: Person | null, opts: FeedOptions = {}) {
+export async function feed(db: DB, eventId: string, me: Person | null, opts: FeedOptions = {}) {
   const words = searchWords(opts.q);
   const [people, posts] = await Promise.all([
-    db.select().from(s.people).where(eq(s.people.hidden, false)).orderBy(desc(s.people.createdAt)).limit(2000),
-    listXCards(db),
+    db
+      .select()
+      .from(s.people)
+      .where(and(eq(s.people.eventId, eventId), eq(s.people.hidden, false)))
+      .orderBy(desc(s.people.createdAt))
+      .limit(2000),
+    listXCards(db, eventId),
   ]);
   const f = opts.filter && opts.filter !== "x" ? FILTERS[opts.filter] : null;
 
@@ -49,24 +54,25 @@ export async function feed(db: DB, me: Person | null, opts: FeedOptions = {}) {
 }
 
 /** Cards people made, best fit first when we know who's looking. */
-export async function listPeople(db: DB, me: Person | null, q?: string) {
-  const { items } = await feed(db, me, { q, sort: "match" });
+export async function listPeople(db: DB, eventId: string, me: Person | null, q?: string) {
+  const { items } = await feed(db, eventId, me, { q, sort: "match" });
   return items.flatMap((i) => (i.kind === "person" ? [{ person: i.person, score: i.score, reasons: i.reasons }] : []));
 }
 
 /**
- * One card per X author who posted about Moonshot (their latest post), built only from what
- * they published. Authors who made their own card are shown once, as their own card.
+ * One card per X author who posted about the event (their latest post), built only from what
+ * they published. Authors who made their own card for this event are shown once, as their own card.
  */
-export async function listXCards(db: DB, q?: string) {
+export async function listXCards(db: DB, eventId: string, q?: string) {
   const rows = await db
     .selectDistinctOn([sql`lower(${s.socialPosts.authorHandle})`])
     .from(s.socialPosts)
     .where(
       and(
+        eq(s.socialPosts.eventId, eventId),
         eq(s.socialPosts.hidden, false),
         sql`${s.socialPosts.authorHandle} is not null`,
-        sql`not exists (select 1 from ${s.people} p where lower(p.x_handle) = lower(${s.socialPosts.authorHandle}) and p.hidden = false)`,
+        sql`not exists (select 1 from ${s.people} p where lower(p.x_handle) = lower(${s.socialPosts.authorHandle}) and p.hidden = false and p.event_id = ${eventId})`,
       ),
     )
     .orderBy(sql`lower(${s.socialPosts.authorHandle})`, desc(sql`coalesce(${s.socialPosts.postedAt}, ${s.socialPosts.importedAt})`));
@@ -152,12 +158,12 @@ export type MomentItem = {
 };
 
 /** The Moments feed, newest first. Posts by hidden cards are left out. */
-export async function listMoments(db: DB, opts: { limit?: number; before?: Date } = {}): Promise<MomentItem[]> {
+export async function listMoments(db: DB, eventId: string, opts: { limit?: number; before?: Date } = {}): Promise<MomentItem[]> {
   const rows = await db
     .select({ moment: s.moments, aid: s.people.id, aname: s.people.name, aheadline: s.people.headline, ax: s.people.xHandle, ahidden: s.people.hidden })
     .from(s.moments)
     .leftJoin(s.people, eq(s.people.id, s.moments.personId))
-    .where(and(eq(s.moments.hidden, false), opts.before ? lt(s.moments.createdAt, opts.before) : undefined))
+    .where(and(eq(s.moments.eventId, eventId), eq(s.moments.hidden, false), opts.before ? lt(s.moments.createdAt, opts.before) : undefined))
     .orderBy(desc(s.moments.createdAt))
     .limit(opts.limit ?? 60);
   return rows
@@ -193,7 +199,7 @@ export type MomentPerson = { key: string; name: string; q: string };
  * The people a moment is about, so a photo leads to someone you can follow up with: who posted it on X
  * and anyone it @mentions, when they have a card (or a "From X" card) on the site. Up to 4 each.
  */
-export async function momentPeople(db: DB, items: MomentItem[]): Promise<Map<string, MomentPerson[]>> {
+export async function momentPeople(db: DB, eventId: string, items: MomentItem[]): Promise<Map<string, MomentPerson[]>> {
   const handlesOf = (m: s.Moment, author: MomentItem["author"]) => {
     const found = [m.xAuthorHandle, m.xHandle, author?.xHandle, ...[...`${m.body} ${m.xText ?? ""}`.matchAll(/@([A-Za-z0-9_]{1,15})/g)].map((x) => x[1])];
     return Array.from(new Set(found.filter((h): h is string => Boolean(h)).map((h) => h.toLowerCase())));
@@ -204,11 +210,11 @@ export async function momentPeople(db: DB, items: MomentItem[]): Promise<Map<str
         db
           .select({ id: s.people.id, name: s.people.name, x: s.people.xHandle })
           .from(s.people)
-          .where(and(eq(s.people.hidden, false), inArray(sql`lower(${s.people.xHandle})`, all))),
+          .where(and(eq(s.people.eventId, eventId), eq(s.people.hidden, false), inArray(sql`lower(${s.people.xHandle})`, all))),
         db
           .select({ name: s.socialPosts.authorName, x: s.socialPosts.authorHandle })
           .from(s.socialPosts)
-          .where(and(eq(s.socialPosts.hidden, false), inArray(sql`lower(${s.socialPosts.authorHandle})`, all))),
+          .where(and(eq(s.socialPosts.eventId, eventId), eq(s.socialPosts.hidden, false), inArray(sql`lower(${s.socialPosts.authorHandle})`, all))),
       ])
     : [[], []];
   const byHandle = new Map<string, MomentPerson>();
@@ -230,12 +236,12 @@ export async function momentPeople(db: DB, items: MomentItem[]): Promise<Map<str
 }
 
 /** Active "Meet up" check-ins (not expired or ended), newest first. */
-export async function listCheckins(db: DB, now = new Date()) {
+export async function listCheckins(db: DB, eventId: string, now = new Date()) {
   const rows = await db
     .select({ c: s.checkins, cardHidden: s.people.hidden })
     .from(s.checkins)
     .leftJoin(s.people, eq(s.people.id, s.checkins.personId))
-    .where(and(eq(s.checkins.hidden, false), sql`${s.checkins.endedAt} is null`, gt(s.checkins.expiresAt, now)))
+    .where(and(eq(s.checkins.eventId, eventId), eq(s.checkins.hidden, false), sql`${s.checkins.endedAt} is null`, gt(s.checkins.expiresAt, now)))
     .orderBy(desc(s.checkins.createdAt))
     .limit(300);
   return rows.filter((r) => !r.cardHidden).map((r) => r.c);
@@ -275,7 +281,7 @@ export function parseImport(text: string): { records: ImportRecord[]; errors: Im
 
 type Enrich = (url: string) => Promise<{ authorName: string | null; text: string | null } | null>;
 
-export async function importPosts(db: DB, records: ImportRecord[], enrich?: Enrich): Promise<ImportResult[]> {
+export async function importPosts(db: DB, eventId: string, records: ImportRecord[], enrich?: Enrich): Promise<ImportResult[]> {
   const out: ImportResult[] = [];
   for (const r of records.slice(0, 200)) {
     const parsed = parseXPostUrl(r.url);
@@ -299,7 +305,7 @@ export async function importPosts(db: DB, records: ImportRecord[], enrich?: Enri
     }
     const res = await db
       .insert(s.socialPosts)
-      .values({ externalId: parsed.id, url: parsed.url, authorHandle: parsed.handle, authorName, content, postedAt, themes: detectThemes(content), source })
+      .values({ eventId, externalId: parsed.id, url: parsed.url, authorHandle: parsed.handle, authorName, content, postedAt, themes: detectThemes(content), source })
       .onConflictDoNothing()
       .returning({ id: s.socialPosts.id });
     out.push({ input: r.url, status: res.length ? "added" : "duplicate", id: res[0]?.id });

@@ -12,8 +12,9 @@ import { fetchOEmbed, fetchPostDetails } from "@/lib/social/providers";
 import { parseXPostUrl, snowflakeToDate } from "@/lib/social/x-url";
 import { parsePhoto } from "@/lib/photo";
 import { clientIp, visitorHash } from "@/lib/track";
-import { MAX_MOMENT_PHOTOS, SIGNUP_COOKIE, eventOver } from "@/lib/constants";
-import { TOP_ACCOUNTS_KEY, parseHandles } from "@/lib/featured";
+import { MAX_MOMENT_PHOTOS, SIGNUP_COOKIE } from "@/lib/constants";
+import { parseHandles, topAccountsKey } from "@/lib/featured";
+import { RESERVED_SLUGS, checkinCookie, eventPhase, getEvent } from "@/lib/events";
 
 export type Result = { ok: true; message?: string; data?: unknown } | { ok: false; error: string; fields?: Record<string, string> };
 
@@ -29,6 +30,13 @@ async function guard(fn: () => Promise<Result | void>): Promise<Result> {
 
 const refresh = () => revalidatePath("/", "layout");
 
+/** The event a form belongs to (its hidden "event" field, the event's slug). */
+async function formEvent(form: FormData) {
+  const e = await getEvent(await getDb(), String(form.get("event") ?? ""));
+  if (!e) throw new UserError("That event wasn't found.");
+  return e;
+}
+
 export async function saveCardAction(_: Result | null, form: FormData): Promise<Result> {
   const parsed = cardSchema.safeParse({
     name: form.get("name") ?? "",
@@ -41,9 +49,12 @@ export async function saveCardAction(_: Result | null, form: FormData): Promise<
   if (!parsed.success) return { ok: false, error: "Almost there — check the highlighted field.", fields: fieldErrors(parsed.error) };
 
   let created = false;
+  let slug = "";
   const result = await guard(async () => {
     const db = await getDb();
-    const me = await getMe();
+    const event = await formEvent(form);
+    slug = event.slug;
+    const me = await getMe(event.id);
     if (me) {
       await db.update(schema.people).set({ ...parsed.data, updatedAt: new Date() }).where(eq(schema.people.id, me.id));
       return { ok: true, message: "Saved." };
@@ -52,12 +63,12 @@ export async function saveCardAction(_: Result | null, form: FormData): Promise<
       return { ok: false, error: "Lots of cards are being made from this network — try again in a few minutes." };
     }
     const token = newToken();
-    await db.insert(schema.people).values({ ...parsed.data, editTokenHash: hashToken(token) });
-    await setCardCookie(token);
+    await db.insert(schema.people).values({ ...parsed.data, eventId: event.id, editTokenHash: hashToken(token) });
+    await setCardCookie(event.id, token);
     created = true;
   });
   refresh();
-  if (created) redirect("/?added=card");
+  if (created) redirect(`/${slug}?added=card`);
   return result;
 }
 
@@ -69,8 +80,11 @@ export async function saveUpdateAction(_: Result | null, form: FormData): Promis
   const removePhoto = form.get("removePhoto") === "on";
   if (!photo && !removePhoto) return { ok: false, error: "Pick a photo first." };
 
+  let slug = "";
   const result = await guard(async () => {
-    const me = await getMe();
+    const event = await formEvent(form);
+    slug = event.slug;
+    const me = await getMe(event.id);
     if (!me) return { ok: false, error: "Add yourself first." };
     if (!(await rateLimit("update", 60, 60))) return { ok: false, error: "Too many updates — try again in a few minutes." };
     const db = await getDb();
@@ -86,7 +100,7 @@ export async function saveUpdateAction(_: Result | null, form: FormData): Promis
     await db.update(schema.people).set({ photoUpdatedAt: photo ? now : null, updatedAt: now }).where(eq(schema.people.id, me.id));
   });
   refresh();
-  if (result.ok) redirect("/?added=update");
+  if (result.ok) redirect(`/${slug}?added=update`);
   return result;
 }
 
@@ -110,9 +124,10 @@ async function xMomentFields(xPost: NonNullable<ReturnType<typeof parseXPostUrl>
 export async function importMomentsAction(_: Result | null, form: FormData): Promise<Result> {
   return guard(async () => {
     const db = await requireAdmin();
+    const event = await formEvent(form);
     const lines = Array.from(new Set(String(form.get("links") ?? "").split(/[\s,]+/).map((l) => l.trim()).filter(Boolean))).slice(0, 50);
     if (!lines.length) return { ok: false, error: "Paste at least one X post link." };
-    const existing = new Set((await db.select({ url: schema.moments.xPostUrl }).from(schema.moments).where(sql`${schema.moments.xPostUrl} is not null`)).map((r) => r.url));
+    const existing = new Set((await db.select({ url: schema.moments.xPostUrl }).from(schema.moments).where(and(eq(schema.moments.eventId, event.id), sql`${schema.moments.xPostUrl} is not null`))).map((r) => r.url));
     const results: ImportResult[] = [];
     const h = await headers();
     const visitor = visitorHash(clientIp(h), h.get("user-agent") ?? "");
@@ -137,7 +152,7 @@ export async function importMomentsAction(_: Result | null, form: FormData): Pro
           results.push({ input: t.input, status: "invalid", message: "Couldn't load it (is it public?)" });
           continue;
         }
-        await db.insert(schema.moments).values({ ...fields, body: "", visitor });
+        await db.insert(schema.moments).values({ ...fields, eventId: event.id, body: "", visitor });
         results.push({ input: t.input, status: "added" });
       }
     }
@@ -170,6 +185,7 @@ export async function postMomentAction(_: Result | null, form: FormData): Promis
   const handle = rawName.match(/^@?([A-Za-z0-9_]{1,15})$/) && rawName.startsWith("@") ? rawName.slice(1) : null;
   const name = handle ? null : rawName.slice(0, 40) || null;
 
+  let slug = "";
   let newId = "";
   const result = await guard(async () => {
     const admin = await isAdmin();
@@ -177,8 +193,10 @@ export async function postMomentAction(_: Result | null, form: FormData): Promis
       return { ok: false, error: "Lots of moments from this network right now — try again in a few minutes." };
     }
     const db = await getDb();
+    const event = await formEvent(form);
+    slug = event.slug;
     // Moments added from the admin page are credited to the name typed there, not an admin's own card.
-    const me = admin && form.get("from") === "admin" ? null : await getMe();
+    const me = admin && form.get("from") === "admin" ? null : await getMe(event.id);
     const h = await headers();
     // An X post moment copies the post's text, images and author from X (it must be public).
     let x = {};
@@ -191,6 +209,7 @@ export async function postMomentAction(_: Result | null, form: FormData): Promis
       .insert(schema.moments)
       .values({
         ...x,
+        eventId: event.id,
         personId: me?.id ?? null,
         name: me ? null : name,
         xHandle: me ? null : handle,
@@ -206,7 +225,7 @@ export async function postMomentAction(_: Result | null, form: FormData): Promis
   });
   refresh();
   // Back to Moments with the new one's id, so the "Posted" note can offer to share it on X.
-  if (result.ok) redirect(form.get("from") === "admin" ? "/admin?moment=1" : `/moments?posted=${Date.now()}&m=${newId}`);
+  if (result.ok) redirect(form.get("from") === "admin" ? `/admin?event=${slug}&moment=1` : `/${slug}/moments?posted=${Date.now()}&m=${newId}`);
   return result;
 }
 
@@ -223,7 +242,9 @@ export async function signUpAction(_: Result | null, form: FormData): Promise<Re
   return guard(async () => {
     if (!(await rateLimit("signup", 10, 60))) return { ok: false, error: "Too many sign-ups from this network — try again later." };
     const db = await getDb();
-    const me = await getMe();
+    // Signing up from an event links the sign-up to your card there, if you have one.
+    const event = form.get("event") ? await getEvent(db, String(form.get("event"))) : null;
+    const me = event ? await getMe(event.id) : null;
     const now = new Date();
     // Only fill in what was given, so a repeat sign-up never blanks earlier details.
     const set = { updatedAt: now, ...(name && { name }), ...(about && { about }), ...(me && { personId: me.id }) };
@@ -238,7 +259,7 @@ export async function signUpAction(_: Result | null, form: FormData): Promise<Re
 
 // ─── Meet up ─────────────────────────────────────────────────────────────────
 
-const CHECKIN_COOKIE = "mc_checkin";
+
 
 /** When a check-in ends: in 1, 2 or 4 hours, or at the end of the day in Lagos. */
 export async function checkinExpiry(choice: string, now = new Date()): Promise<Date> {
@@ -251,7 +272,10 @@ export async function checkinExpiry(choice: string, now = new Date()): Promise<D
 }
 
 export async function checkInAction(_: Result | null, form: FormData): Promise<Result> {
-  if (eventOver()) return { ok: false, error: "Moonshot is over, so Meet up has closed." };
+  const ev = await getEvent(await getDb(), String(form.get("event") ?? ""));
+  if (!ev) return { ok: false, error: "That event wasn't found." };
+  if (eventPhase(ev) !== "live") return { ok: false, error: eventPhase(ev) === "after" ? `${ev.short} is over, so Meet up has closed.` : `Meet up opens when ${ev.short} starts.` };
+  const CHECKIN_COOKIE = checkinCookie(ev.id);
   const fail = (error: string, fields: Record<string, string>): Result => ({ ok: false, error, fields });
   const place = String(form.get("place") ?? "").trim();
   const note = String(form.get("note") ?? "").trim();
@@ -260,7 +284,7 @@ export async function checkInAction(_: Result | null, form: FormData): Promise<R
   if (note.length > 140) return { ok: false, error: "Keep it under 140 characters.", fields: { note: "Keep it under 140 characters." } };
 
   const result = await guard(async () => {
-    const me = await getMe();
+    const me = await getMe(ev.id);
     let who: { name: string; headline: string | null } & Contact;
     if (me) {
       who = { name: me.name, headline: me.headline, xHandle: me.xHandle, whatsapp: me.whatsapp, email: me.email, linkedinUrl: me.linkedinUrl, websiteUrl: me.websiteUrl };
@@ -282,23 +306,24 @@ export async function checkInAction(_: Result | null, form: FormData): Promise<R
     else if (previous && /^[0-9a-f-]{36}$/i.test(previous)) await db.update(schema.checkins).set({ endedAt: new Date() }).where(eq(schema.checkins.id, previous));
     const [c] = await db
       .insert(schema.checkins)
-      .values({ personId: me?.id ?? null, ...who, place, note, expiresAt, visitor: visitorHash(clientIp(h), h.get("user-agent") ?? "") })
+      .values({ eventId: ev.id, personId: me?.id ?? null, ...who, place, note, expiresAt, visitor: visitorHash(clientIp(h), h.get("user-agent") ?? "") })
       .returning({ id: schema.checkins.id });
     // Card holders also show "Catch me at" on their card while checked in.
     if (me) await db.update(schema.people).set({ whereNote: place, whereUpdatedAt: new Date() }).where(eq(schema.people.id, me.id));
     else (await cookies()).set(CHECKIN_COOKIE, c.id, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 });
   });
   refresh();
-  if (result.ok) redirect("/meet?checked=1");
+  if (result.ok) redirect(`/${ev.slug}/meet?checked=1`);
   return result;
 }
 
 /** "I've left": ends your current check-in. */
-export async function endCheckinAction(): Promise<Result> {
+export async function endCheckinAction(eventId: string): Promise<Result> {
   return guard(async () => {
     const db = await getDb();
-    const me = await getMe();
+    const me = await getMe(eventId);
     const jar = await cookies();
+    const CHECKIN_COOKIE = checkinCookie(eventId);
     const id = jar.get(CHECKIN_COOKIE)?.value;
     if (me) {
       await db.update(schema.checkins).set({ endedAt: new Date() }).where(and(eq(schema.checkins.personId, me.id), sql`${schema.checkins.endedAt} is null`));
@@ -311,23 +336,26 @@ export async function endCheckinAction(): Promise<Result> {
   });
 }
 
-/** Anyone can add a public X post about Moonshot; it must load via X's official embed. */
+/** Anyone can add a public X post about the event; it must load via X's official embed. */
 export async function addXPostAction(_: Result | null, form: FormData): Promise<Result> {
   const url = String(form.get("url") ?? "").trim();
   const parsed = parseXPostUrl(url);
   if (!parsed) return { ok: false, error: "Paste a link to a post, like x.com/name/status/123…" };
+  let slug = "";
   const result = await guard(async () => {
+    const event = await formEvent(form);
+    slug = event.slug;
     if (!(await rateLimit("xpost", 30, 60))) return { ok: false, error: "Too many posts from this network — try again shortly." };
     const embed = await fetchOEmbed(parsed.url);
     if (!embed?.text) return { ok: false, error: "We couldn't load that post. Is it public?" };
     const db = await getDb();
-    const [r] = await importPosts(db, [{ url: parsed.url, content: embed.text, authorName: embed.authorName }]);
+    const [r] = await importPosts(db, event.id, [{ url: parsed.url, content: embed.text, authorName: embed.authorName }]);
     if (r.status === "duplicate") return { ok: false, error: "That post is already here." };
     if (r.id) await attachDetails(db, { id: r.id, externalId: parsed.id }, fetchPostDetails);
   });
   if (result.ok) {
     refresh();
-    redirect("/?added=x");
+    redirect(`/${slug}?added=x`);
   }
   return result;
 }
@@ -339,29 +367,31 @@ export async function addCommentAction(_: Result | null, form: FormData): Promis
   if (!body) return { ok: false, error: "Write something first." };
   if (body.length > 280) return { ok: false, error: "Keep it under 280 characters." };
   return guard(async () => {
-    const me = await getMe();
-    const name = me?.name ?? String(form.get("name") ?? "").trim().slice(0, 40);
-    if (!name) return { ok: false, error: "Add your name so they know who's commenting." };
-    if (!(await rateLimit("comment", 60, 60))) return { ok: false, error: "Too many comments from this network — try again shortly." };
     const db = await getDb();
     const post = await db.query.socialPosts.findFirst({ where: eq(schema.socialPosts.id, postId) });
     if (!post || post.hidden) return { ok: false, error: "Post not found." };
+    const me = await getMe(post.eventId);
+    const name = me?.name ?? String(form.get("name") ?? "").trim().slice(0, 40);
+    if (!name) return { ok: false, error: "Add your name so they know who's commenting." };
+    if (!(await rateLimit("comment", 60, 60))) return { ok: false, error: "Too many comments from this network — try again shortly." };
     await db.insert(schema.comments).values({ postId, personId: me?.id ?? null, name, body });
     refresh();
     return { ok: true, message: "Posted." };
   });
 }
 
-export async function deleteCardAction(): Promise<Result> {
+export async function deleteCardAction(eventSlug: string): Promise<Result> {
   const result = await guard(async () => {
-    const me = await getMe();
+    const event = await getEvent(await getDb(), eventSlug);
+    if (!event) return { ok: false, error: "That event wasn't found." };
+    const me = await getMe(event.id);
     if (!me) return { ok: false, error: "No card on this device." };
     await (await getDb()).delete(schema.people).where(eq(schema.people.id, me.id));
-    await clearCardCookie();
+    await clearCardCookie(event.id);
   });
   if (result.ok) {
     refresh();
-    redirect("/");
+    redirect(`/${eventSlug}`);
   }
   return result;
 }
@@ -371,9 +401,8 @@ const AUTO_HIDE_REPORTS = 3;
 export async function reportAction(targetType: "person" | "post" | "comment" | "moment" | "checkin", targetId: string, reason: string): Promise<Result> {
   return guard(async () => {
     if (!(await rateLimit("report", 60, 60))) return { ok: false, error: "Too many reports — try again later." };
-    const me = await getMe();
     const db = await getDb();
-    await db.insert(schema.reports).values({ targetType, targetId, reason: reason.slice(0, 300) || "unspecified", reporterId: me?.id ?? null });
+    await db.insert(schema.reports).values({ targetType, targetId, reason: reason.slice(0, 300) || "unspecified", reporterId: null });
     // Moments and check-ins are open to anyone, so enough reports hide one until an admin looks at it.
     if (targetType === "moment" || targetType === "checkin") {
       const [{ n }] = await db
@@ -415,7 +444,8 @@ export async function importPostsAction(_: Result | null, form: FormData): Promi
     const db = await requireAdmin();
     const { records, errors } = parseImport(String(form.get("records") ?? "").slice(0, 200_000));
     if (!records.length && !errors.length) return { ok: false, error: "Paste at least one X post link." };
-    const results = [...errors, ...(await importPosts(db, records, fetchOEmbed))];
+    const event = await formEvent(form);
+    const results = [...errors, ...(await importPosts(db, event.id, records, fetchOEmbed))];
     const n = (st: string) => results.filter((r) => r.status === st).length;
     refresh();
     return { ok: true, message: `${n("added")} added, ${n("duplicate")} already there, ${n("invalid")} invalid.`, data: results };
@@ -443,11 +473,68 @@ export async function reactAction(momentId: string, kind: string, reactorId: str
   return result as Result & { counts?: ReactionCounts; on?: boolean };
 }
 
+/** "2026-11-27" → that day's start (or end) in Lagos time (UTC+1). */
+function lagosDay(value: string, end: boolean): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const d = new Date(`${value}T00:00:00+01:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  return end ? new Date(d.getTime() + 86_400_000) : d;
+}
+
+/** Admin: add an event, or edit one (name, dates, venue, address on the site…). */
+export async function saveEventAction(_: Result | null, form: FormData): Promise<Result> {
+  return guard(async (): Promise<Result> => {
+    const db = await requireAdmin();
+    const id = String(form.get("id") ?? "");
+    const str = (k: string, max: number) => String(form.get(k) ?? "").trim().slice(0, max) || null;
+    const name = str("name", 120);
+    const slug = String(form.get("slug") ?? "").trim().toLowerCase();
+    if (!name) return { ok: false, error: "Give the event a name.", fields: { name: "Required" } };
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 2 || slug.length > 60) return { ok: false, error: "The address can use lowercase letters, numbers and dashes.", fields: { slug: "e.g. growth-summit-2026" } };
+    if (RESERVED_SLUGS.has(slug)) return { ok: false, error: "That address is used by the site. Pick another.", fields: { slug: "Taken by the site" } };
+    const startDay = String(form.get("startDay") ?? "");
+    const endDay = String(form.get("endDay") ?? "") || startDay;
+    const startsAt = startDay ? lagosDay(startDay, false) : null;
+    const endsAt = endDay ? lagosDay(endDay, true) : null;
+    if ((startDay && !startsAt) || (endDay && !endsAt)) return { ok: false, error: "Check the dates." };
+    if (startsAt && endsAt && endsAt <= startsAt) return { ok: false, error: "The event has to end after it starts.", fields: { endDay: "After the start" } };
+    const values = {
+      name,
+      slug,
+      short: str("short", 30) ?? name.split(/\s+/).slice(0, 2).join(" "),
+      organiser: str("organiser", 120),
+      tagline: str("tagline", 160),
+      dates: str("dates", 80),
+      venue: str("venue", 160),
+      url: str("url", 300),
+      xHandle: str("xHandle", 15)?.replace(/^@/, "") ?? null,
+      hashtag: (() => {
+        const h = str("hashtag", 40);
+        return h ? (h.startsWith("#") ? h : `#${h}`) : null;
+      })(),
+      startsAt,
+      endsAt,
+      position: Number(form.get("position") ?? 100) || 100,
+      hidden: form.get("hidden") === "on",
+    };
+    if (values.url && !/^https?:\/\//i.test(values.url)) values.url = `https://${values.url}`;
+    const clash = await db.query.eventSpaces.findFirst({ where: eq(schema.eventSpaces.slug, slug) });
+    if (clash && clash.id !== id) return { ok: false, error: "Another event already uses that address.", fields: { slug: "Already taken" } };
+    if (id) await db.update(schema.eventSpaces).set(values).where(eq(schema.eventSpaces.id, id));
+    else await db.insert(schema.eventSpaces).values(values);
+    refresh();
+    return { ok: true, message: id ? "Saved." : `Added. It lives at /${slug}.` };
+  });
+}
+
 /** Admin: pin a moment as Featured (one at a time), or unpin it so Featured rotates by engagement again. */
 export async function setFeaturedAction(id: string, on: boolean): Promise<Result> {
   return guard(async () => {
     const db = await requireAdmin();
-    await db.update(schema.moments).set({ featuredAt: null }).where(sql`${schema.moments.featuredAt} is not null`);
+    const [m] = await db.select({ eventId: schema.moments.eventId }).from(schema.moments).where(eq(schema.moments.id, id)).limit(1);
+    if (!m) return { ok: false, error: "That moment isn't here any more." };
+    // One pin per event.
+    await db.update(schema.moments).set({ featuredAt: null }).where(and(eq(schema.moments.eventId, m.eventId), sql`${schema.moments.featuredAt} is not null`));
     if (on) await db.update(schema.moments).set({ featuredAt: new Date() }).where(eq(schema.moments.id, id));
     refresh();
     return { ok: true, message: on ? "Pinned as Featured." : "Unpinned." };
@@ -458,10 +545,11 @@ export async function setFeaturedAction(id: string, on: boolean): Promise<Result
 export async function saveTopAccountsAction(_: Result | null, form: FormData): Promise<Result> {
   return guard(async () => {
     const db = await requireAdmin();
+    const event = await formEvent(form);
     const handles = parseHandles(String(form.get("handles") ?? "").slice(0, 5000));
     await db
       .insert(schema.settings)
-      .values({ key: TOP_ACCOUNTS_KEY, value: handles.join(" ") })
+      .values({ key: topAccountsKey(event.id), value: handles.join(" ") })
       .onConflictDoUpdate({ target: schema.settings.key, set: { value: handles.join(" ") } });
     refresh();
     return { ok: true, message: handles.length ? `Saved ${handles.length} account${handles.length === 1 ? "" : "s"}.` : "Cleared." };

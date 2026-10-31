@@ -8,10 +8,38 @@ const mc = pgSchema(DB_SCHEMA);
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
 // A networking card. There are no accounts: whoever holds the edit token owns the card.
+/** The first event, kept at a fixed id so links and data from before multi-event support still work. */
+export const MOONSHOT_EVENT_ID = "00000000-0000-4000-8000-000000000001";
+
+// Each event has its own space: its own people (Connect), X cards, Moments and Meet up.
+export const eventSpaces = mc.table("event_spaces", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  slug: text("slug").notNull().unique(), // the address, e.g. /moonshot
+  name: text("name").notNull(), // full name, e.g. "Moonshot by TechCabal"
+  short: text("short").notNull(), // for the wordmark, e.g. "Moonshot" → "MOONSHOT CONNECT"
+  organiser: text("organiser"),
+  tagline: text("tagline"),
+  dates: text("dates"), // as shown, e.g. "28–29 October 2026"
+  venue: text("venue"),
+  url: text("url"), // the official site
+  xHandle: text("x_handle"),
+  hashtag: text("hashtag"), // e.g. "#Moonshot2026"
+  startsAt: timestamp("starts_at", { withTimezone: true }), // before this: "who's going"
+  endsAt: timestamp("ends_at", { withTimezone: true }), // after this: "find the people you met"
+  position: integer("position").notNull().default(100), // order on the homepage
+  hidden: boolean("hidden").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type EventSpace = typeof eventSpaces.$inferSelect;
+
 export const people = mc.table(
   "people",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => eventSpaces.id),
     editTokenHash: text("edit_token_hash").notNull(),
     name: text("name").notNull(),
     headline: text("headline").notNull(), // what you do
@@ -79,6 +107,9 @@ export const socialPosts = mc.table(
   "social_posts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => eventSpaces.id),
     externalId: text("external_id").notNull(),
     url: text("url").notNull(),
     authorHandle: text("author_handle"),
@@ -93,7 +124,7 @@ export const socialPosts = mc.table(
     hidden: boolean("hidden").notNull().default(false),
     importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("social_posts_external_key").on(t.externalId), index("social_posts_posted_idx").on(t.postedAt)],
+  (t) => [uniqueIndex("social_posts_event_external_key").on(t.eventId, t.externalId), index("social_posts_posted_idx").on(t.postedAt)],
 );
 
 export const reports = mc.table("reports", {
@@ -182,6 +213,9 @@ export const moments = mc.table(
   "moments",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => eventSpaces.id),
     personId: uuid("person_id").references(() => people.id, { onDelete: "set null" }),
     name: text("name"), // shown when the poster has no card
     xHandle: text("x_handle"),
@@ -238,6 +272,9 @@ export const checkins = mc.table(
   "checkins",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => eventSpaces.id),
     personId: uuid("person_id").references(() => people.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     headline: text("headline"),

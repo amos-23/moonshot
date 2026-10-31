@@ -1,15 +1,18 @@
 import { ImageResponse } from "next/og";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
+import { getEvent } from "@/lib/events";
 import { BRAND, OG_SIZE, fetchAsDataUrl, ogFonts, ogHeaders } from "@/lib/og";
 
-// The preview image for /moments: a strip of the latest photos under a big "Moments".
+// The preview image for an event's Moments (?e=<slug>): its latest photos under a big "Moments".
 export async function GET(req: Request) {
   const db = await getDb();
+  const event = await getEvent(db, new URL(req.url).searchParams.get("e") ?? "moonshot");
+  if (!event) return new Response(null, { status: 404 });
   const rows = await db
     .select({ id: schema.moments.id, uploaded: sql<boolean>`${schema.moments.photoCount} > 0 or ${schema.moments.hasPhoto}`, xMedia: schema.moments.xMedia })
     .from(schema.moments)
-    .where(and(eq(schema.moments.hidden, false), sql`(${schema.moments.photoCount} > 0 or ${schema.moments.hasPhoto} or cardinality(${schema.moments.xMedia}) > 0)`))
+    .where(and(eq(schema.moments.eventId, event.id), eq(schema.moments.hidden, false), sql`(${schema.moments.photoCount} > 0 or ${schema.moments.hasPhoto} or cardinality(${schema.moments.xMedia}) > 0)`))
     .orderBy(desc(schema.moments.createdAt))
     .limit(6);
   const imgs: string[] = [];
@@ -30,7 +33,7 @@ export async function GET(req: Request) {
     (
       <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", position: "relative", fontFamily: "Outfit", color: "white", background: BRAND.ink, overflow: "hidden" }}>
         <div style={{ position: "absolute", top: -420, left: 200, width: 800, height: 800, borderRadius: 800, background: "radial-gradient(circle, rgba(232,80,42,0.6), rgba(232,80,42,0) 70%)", display: "flex" }} />
-        <div style={{ display: "flex", marginTop: 44, fontSize: 24, fontWeight: 800, letterSpacing: 6, color: BRAND.sun }}>MOONSHOT 2026 · LAGOS</div>
+        <div style={{ display: "flex", marginTop: 44, fontSize: 24, fontWeight: 800, letterSpacing: 6, color: BRAND.sun }}>{[event.short, event.dates].filter(Boolean).join(" · ").toUpperCase()}</div>
         <div style={{ display: "flex", fontSize: 120, fontWeight: 800, letterSpacing: -2, lineHeight: 1 }}>MOMENTS</div>
         <div style={{ display: "flex", fontSize: 28, fontWeight: 500, opacity: 0.75, marginTop: 6 }}>Photos and highlights, shared by the people who were there</div>
         <div style={{ display: "flex", gap: 28, marginTop: 34 }}>
@@ -43,7 +46,7 @@ export async function GET(req: Request) {
             ),
           )}
         </div>
-        <div style={{ position: "absolute", bottom: 26, display: "flex", fontSize: 24, fontWeight: 700, opacity: 0.7 }}>{host}/moments</div>
+        <div style={{ position: "absolute", bottom: 26, display: "flex", fontSize: 24, fontWeight: 700, opacity: 0.7 }}>{host}/{event.slug}/moments</div>
       </div>
     ),
     { ...OG_SIZE, fonts: await ogFonts(), headers: ogHeaders },

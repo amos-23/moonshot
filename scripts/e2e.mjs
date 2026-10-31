@@ -10,6 +10,8 @@ import zlib from "node:zlib";
 const { chromium } = createRequire(import.meta.url)("playwright");
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3000";
+// Moonshot's space (the other events live alongside it, e.g. /admarp-growth-summit).
+const EV = `${BASE}/moonshot`;
 const SHOTS = process.env.SCREENSHOTS;
 const ADMIN_KEY = process.env.ADMIN_KEY ?? "test-admin-key-123";
 const SAMPLE_POST = process.env.SAMPLE_POST ?? "https://x.com/Thedanieloreofe/status/2114706863631572995";
@@ -74,8 +76,8 @@ function makePng(w = 48, h = 48) {
   return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr), chunk("IDAT", zlib.deflateSync(Buffer.concat(Array(h).fill(row)))), chunk("IEND", Buffer.alloc(0))]);
 }
 
-async function addCard(page, { name, headline, wants = [], offers = [], contact, where, photo }) {
-  await page.goto(`${BASE}/card`);
+async function addCard(page, { name, headline, wants = [], offers = [], contact, where, photo, event = "moonshot" }) {
+  await page.goto(`${BASE}/${event}/card`);
   await page.getByLabel("Name", { exact: true }).fill(name);
   await page.getByLabel("What you do").fill(headline);
   if (wants.length) {
@@ -110,19 +112,19 @@ async function addCard(page, { name, headline, wants = [], offers = [], contact,
     await page.getByRole("button", { name: "📍 I'm here" }).click();
     await page.waitForURL(/checked=1/);
   }
-  if (photo || where) await page.goto(`${BASE}/?added=card`);
+  if (photo || where) await page.goto(`${EV}?added=card`);
 }
 
 try {
   step("home shows the list and the independence note");
   const anon = await visitor();
-  await anon.page.goto(BASE);
+  await anon.page.goto(EV);
   await anon.page.getByRole("heading", { name: /who.s at moonshot/i }).waitFor();
   assert.ok(await anon.page.getByText(/isn.t run or endorsed by TechCabal/i).isVisible());
 
   step("card form keeps input on error");
   const ada = await visitor();
-  await ada.page.goto(`${BASE}/card`);
+  await ada.page.goto(`${EV}/card`);
   await ada.page.getByLabel("Name", { exact: true }).fill(`Ada ${run}`);
   await ada.page.getByLabel("What you do").fill("Founder, payments startup");
   await ada.page.getByRole("button", { name: "Add me" }).click();
@@ -147,7 +149,7 @@ try {
   assert.ok((await personImg.body()).length > 10_000, "a real preview image");
   await ada.page.goto(`${BASE}${adaPath}?utm_source=x&utm_campaign=card`);
   await ada.page.waitForURL((u) => new URL(u).searchParams.get("q") !== null && new URL(u).searchParams.get("utm_campaign") === "card");
-  await ada.page.goto(`${BASE}/card`);
+  await ada.page.goto(`${EV}/card`);
   assert.equal(await ada.page.locator("#wants").innerText(), "Business partners, Investors", "multi-select keeps both choices");
 
   step("Bola adds herself with an @handle and sees why to meet Ada");
@@ -156,19 +158,19 @@ try {
   const adaCard = card(bola.page, `Ada ${run}`);
   assert.match(await adaCard.innerText(), /You want founders — Ada offers founder experience/);
   assert.match(await adaCard.innerText(), /Catch me at Booth 14, Hall B/);
-  const photoSrc = await adaCard.getByRole("img", { name: `Ada ${run} at Moonshot` }).getAttribute("src");
+  const photoSrc = await adaCard.getByRole("img", { name: `Photo of Ada ${run}` }).getAttribute("src");
   const photoRes = await bola.page.request.get(`${BASE}${photoSrc}`);
   assert.equal(photoRes.headers()["content-type"], "image/jpeg", "photo was resized to JPEG and served");
   assert.match(await adaCard.getByRole("link", { name: "WhatsApp" }).getAttribute("href"), /^https:\/\/wa\.me\/2348030000000\?text=/);
 
   step("Meet up: card holders and visitors without a card check in; others can reach them");
-  await anon.page.goto(`${BASE}/meet`);
+  await anon.page.goto(`${EV}/meet`);
   const adaSpot = anon.page.locator("li", { hasText: `Ada ${run}` });
   await adaSpot.getByText("Booth 14, Hall B").waitFor();
   assert.match(await adaSpot.getByRole("link", { name: "WhatsApp" }).getAttribute("href"), /wa\.me\/2348030000000\?text=.*Booth%2014/);
   const walker = await visitor();
   const wh = `w_${run}`; // a unique X handle
-  await walker.page.goto(`${BASE}/meet`);
+  await walker.page.goto(`${EV}/meet`);
   await walker.page.getByLabel("Where are you?").fill(`Coffee stand ${run}`);
   await walker.page.getByRole("button", { name: "📍 I'm here" }).click();
   await walker.page.getByText(/add your x handle/i).first().waitFor(); // no card: a handle is needed
@@ -186,7 +188,7 @@ try {
   await anon.page.reload();
   assert.equal(await anon.page.locator("li", { hasText: `@${wh}` }).count(), 0, "left people drop off the board");
   // A phone number instead of a handle needs a name (under "More options").
-  await walker.page.goto(`${BASE}/meet`);
+  await walker.page.goto(`${EV}/meet`);
   await walker.page.getByLabel("Where are you?").fill(`Food village ${run}`);
   await walker.page.getByLabel("Your X handle").fill("+2348030001111");
   await walker.page.getByRole("button", { name: "📍 I'm here" }).click();
@@ -200,20 +202,20 @@ try {
   await walker.ctx.close();
 
   step("filters, fresh feed, tag search and invites");
-  await anon.page.goto(`${BASE}/?f=investors`);
+  await anon.page.goto(`${EV}?f=investors`);
   await anon.page.getByText(/want to meet investors/).waitFor();
-  await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`looking for investors ${run}`)}`);
+  await anon.page.goto(`${EV}?q=${encodeURIComponent(`looking for investors ${run}`)}`);
   await card(anon.page, `Ada ${run}`).waitFor();
-  await anon.page.goto(`${BASE}/?sort=new`);
+  await anon.page.goto(`${EV}?sort=new`);
   assert.match(await anon.page.locator("ul.grid > li").first().innerText(), new RegExp(`Bola ${run}[\\s\\S]*joined`), "newest card first, with 'joined'");
   const ghost = `Biliyamin ${run.replace(/\d/g, (d) => "abcdefghij"[d])}`; // letters only, like a real name
-  await anon.page.goto(`${BASE}/?q=${encodeURIComponent(ghost)}`);
+  await anon.page.goto(`${EV}?q=${encodeURIComponent(ghost)}`);
   await anon.page.getByText(`“${ghost}” isn't here yet`).waitFor();
   assert.match(decodeURIComponent(await anon.page.getByRole("link", { name: "Post on X" }).getAttribute("href")), /\/card\?utm_source=x&utm_campaign=invite/);
   await shot(anon.page, "07-invite");
 
   step("Moments: anyone can post photos or an update and tag people; card holders post as themselves");
-  await anon.page.goto(BASE);
+  await anon.page.goto(EV);
   await anon.page.getByRole("link", { name: "📸 Moments" }).click();
   await anon.page.waitForURL(/\/moments/);
   await openShare(anon.page);
@@ -246,7 +248,7 @@ try {
   for (const src of [second.replace(/\?n=1$/, ""), second]) assert.equal((await anon.page.request.get(`${BASE}${src}`)).headers()["content-type"], "image/jpeg");
   // Tagging @bola_grows links the moment to Bola's card.
   await mine.getByText("Follow up:").waitFor();
-  assert.equal(await mine.getByRole("link", { name: /Bola/ }).getAttribute("href"), "/?q=bola_grows");
+  assert.equal(await mine.getByRole("link", { name: /Bola/ }).getAttribute("href"), "/moonshot?q=bola_grows");
   // The viewer has its own link (for sharing) and closes with Escape.
   assert.match(anon.page.url(), /#m-/);
   await anon.page.keyboard.press("Escape");
@@ -283,9 +285,9 @@ try {
   await anon.page.waitForFunction(() => document.querySelectorAll('[aria-label="Moonshot highlights"] .h-1 > .w-full').length >= 1);
   await anon.page.keyboard.press("Escape");
   await story.waitFor({ state: "detached" });
-  await anon.page.goto(`${BASE}/moments?story=1&utm_source=x&utm_campaign=story`);
+  await anon.page.goto(`${EV}/moments?story=1&utm_source=x&utm_campaign=story`);
   await story.waitFor();
-  for (let k = 0; k < 40 && !(await story.getByText("Moonshot 2026 ✨").isVisible()); k++) await anon.page.keyboard.press("ArrowRight");
+  for (let k = 0; k < 40 && !(await story.getByText("Moonshot ✨").isVisible()); k++) await anon.page.keyboard.press("ArrowRight");
   await story.getByRole("link", { name: "Share the highlights on X" }).waitFor();
   await anon.page.keyboard.press("Escape");
 
@@ -298,11 +300,11 @@ try {
   assert.ok((await mImg.body()).length > 10_000);
   for (const og of ["/og/moments", "/og/site"]) assert.equal((await anon.page.request.get(`${BASE}${og}`)).headers()["content-type"], "image/png");
   await anon.page.goto(`${BASE}/m/${momentId}?utm_source=x&utm_campaign=moment`);
-  await anon.page.waitForURL(new RegExp(`/moments\\?.*utm_campaign=moment.*#m-${momentId}$`));
+  await anon.page.waitForURL(new RegExp(`/moonshot/moments\\?.*utm_campaign=moment.*#m-${momentId}$`));
   await anon.page.getByRole("dialog").getByText(`The fintech panel is packed ${run}`).waitFor();
   await anon.page.keyboard.press("Escape");
 
-  await bola.page.goto(`${BASE}/moments`);
+  await bola.page.goto(`${EV}/moments`);
   assert.equal(await bola.page.getByLabel(/what's happening/i).isVisible(), false, "the share form waits behind \"Add your moment\"");
   await openShare(bola.page);
   await bola.page.getByText(`Posting as Bola ${run}`).waitFor();
@@ -311,11 +313,11 @@ try {
   await bola.page.getByRole("button", { name: "Post", exact: true }).click();
   await bola.page.waitForURL(/posted=\d+/);
   await (await openMoment(bola.page, `Grabbing coffee ${run}`)).getByRole("link", { name: `Bola ${run}` }).waitFor();
-  await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`Bola ${run}`)}`);
+  await anon.page.goto(`${EV}?q=${encodeURIComponent(`Bola ${run}`)}`);
   assert.equal(await card(anon.page, `Bola ${run}`).getByText(/catch me at/i).count(), 0, "a moment's place doesn't touch the card");
 
   step("an X post can be shared as a moment");
-  await anon.page.goto(`${BASE}/moments`);
+  await anon.page.goto(`${EV}/moments`);
   await openShare(anon.page);
   await anon.page.getByLabel(/share an x post/i).fill("https://example.com/nope");
   await anon.page.getByRole("button", { name: "Post", exact: true }).click();
@@ -330,16 +332,16 @@ try {
     assert.equal(await xmoment.getByRole("link", { name: /view on x/i }).getAttribute("href"), SAMPLE_POST);
     await anon.page.keyboard.press("Escape");
   } else console.log("  (X unreachable from here; skipped)");
-  await anon.page.goto(BASE);
+  await anon.page.goto(EV);
   await anon.page.getByRole("heading", { name: /moments/i }).waitFor();
   await shot(anon.page, "08-moments-strip");
-  await anon.page.goto(`${BASE}/moments`);
+  await anon.page.goto(`${EV}/moments`);
   await shot(anon.page, "09-moments");
 
   step("3 reports hide a moment automatically");
   for (let i = 0; i < 3; i++) {
     const v = await visitor();
-    await v.page.goto(`${BASE}/moments`);
+    await v.page.goto(`${EV}/moments`);
     v.page.once("dialog", (d) => d.accept("spam"));
     const target = await openMoment(v.page, `Grabbing coffee ${run}`);
     await target.getByRole("button", { name: "Report" }).click();
@@ -347,11 +349,11 @@ try {
     await Promise.race([target.getByText(/we'll take a look/i).waitFor(), target.waitFor({ state: "detached" })]);
     await v.ctx.close();
   }
-  await anon.page.goto(`${BASE}/moments`);
+  await anon.page.goto(`${EV}/moments`);
   assert.equal(await momentTiles(anon.page, `Grabbing coffee ${run}`).count(), 0, "reported moment is hidden");
 
   step("search works");
-  await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`Bola ${run}`)}`);
+  await anon.page.goto(`${EV}?q=${encodeURIComponent(`Bola ${run}`)}`);
   assert.equal(await card(anon.page, `Bola ${run}`).getByRole("link", { name: "@bola_grows" }).getAttribute("href"), "https://x.com/bola_grows");
   // Pressing a contact button counts as "contacted someone" (the X tab it opens is closed straight away).
   const [xTab] = await Promise.all([anon.ctx.waitForEvent("page"), card(anon.page, `Bola ${run}`).getByRole("link", { name: "@bola_grows" }).click()]);
@@ -360,7 +362,7 @@ try {
 
   step("anyone can add a public X post; it shows as a 'From X' card");
   const x = await visitor();
-  await x.page.goto(`${BASE}/card`);
+  await x.page.goto(`${EV}/card`);
   await x.page.getByLabel(/link to your post/i).fill("https://example.com/not-a-post");
   await x.page.getByRole("button", { name: "Add", exact: true }).click();
   await x.page.getByText(/paste a link to a post/i).waitFor();
@@ -382,7 +384,7 @@ try {
   {
     let src = null;
     for (let i = 0; i < 10 && !src; i++) {
-      await anon.page.goto(BASE); // each visit lets the background fill fetch a few posts' images
+      await anon.page.goto(EV); // each visit lets the background fill fetch a few posts' images
       const img = card(anon.page, `@${handle}`).getByRole("img", { name: /image from/i });
       src = (await img.count()) ? await img.getAttribute("src") : null;
       if (!src) await anon.page.waitForTimeout(1500);
@@ -392,7 +394,7 @@ try {
   }
 
   step("comments on an X card: name needed without a card, automatic with one");
-  await anon.page.goto(BASE);
+  await anon.page.goto(EV);
   const xcard = card(anon.page, `@${handle}`);
   if (await xcard.count()) {
     if (!(await xcard.getByPlaceholder("Say hi or ask to meet").isVisible())) await xcard.locator("summary", { hasText: /comment/i }).click();
@@ -404,7 +406,7 @@ try {
     await xcard.getByText(`Hi from anon ${run}`).waitFor();
     assert.equal(await xcard.getByPlaceholder("Say hi or ask to meet").inputValue(), "", "input clears after posting");
 
-    await bola.page.goto(BASE);
+    await bola.page.goto(EV);
     const bcard = card(bola.page, `@${handle}`);
     if (!(await bcard.getByPlaceholder(/comment as/i).isVisible())) await bcard.locator("summary", { hasText: /comment/i }).click();
     await bcard.getByPlaceholder(`Comment as Bola ${run}`).fill(`Let's meet! ${run}`);
@@ -416,7 +418,7 @@ try {
 
   step("edit link restores the card on another device; bad links are refused");
   await ada.ctx.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await ada.page.goto(`${BASE}/card`);
+  await ada.page.goto(`${EV}/card`);
   await ada.page.getByRole("button", { name: "Copy edit link" }).click();
   const editLink = await ada.page.evaluate(() => navigator.clipboard.readText());
   const laptop = await visitor({ viewport: { width: 1280, height: 900 } });
@@ -428,7 +430,7 @@ try {
   await shot(ada.page, "03-my-card");
 
   step("anyone can sign up from the header (optional, nothing needs it)");
-  await anon.page.goto(BASE);
+  await anon.page.goto(EV);
   await anon.page.getByRole("link", { name: "Sign up", exact: true }).click();
   await anon.page.waitForURL(/\/signup/);
   await anon.page.getByLabel("Email").fill("not-an-email");
@@ -438,7 +440,7 @@ try {
   await anon.page.getByLabel(/what do you do/i).fill("=Founder");
   await anon.page.getByRole("button", { name: "Sign up" }).click();
   await anon.page.getByText("You're signed up 🎉").waitFor();
-  await anon.page.goto(BASE);
+  await anon.page.goto(EV);
   assert.equal(await anon.page.getByRole("link", { name: "Sign up", exact: true }).count(), 0, "header link goes away after signing up");
 
   step("admin: wrong key refused; right key hides a card");
@@ -452,13 +454,13 @@ try {
   await admin.page.getByText(/cards ·/).waitFor();
   await card(admin.page, `Bola ${run}`).getByRole("button", { name: "Hide" }).click();
   await card(admin.page, `Bola ${run}`).getByRole("button", { name: "Unhide" }).waitFor();
-  await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`Bola ${run}`)}`);
+  await anon.page.goto(`${EV}?q=${encodeURIComponent(`Bola ${run}`)}`);
   // A name-like search with no result shows an invite instead of "no one matches".
   await anon.page.getByText(/no one matches|isn't here yet/i).waitFor();
 
   const nothing = `zzz-nobody-${run}`;
   // Repeat it so it ranks in the top-10 list even with earlier test searches around.
-  for (let i = 0; i < 5; i++) await anon.page.goto(`${BASE}/?q=${nothing}`);
+  for (let i = 0; i < 5; i++) await anon.page.goto(`${EV}?q=${nothing}`);
   await anon.page.getByText(/no one matches|isn't here yet/i).waitFor();
 
   step("admin sees sign-ups and can download them");
@@ -493,9 +495,9 @@ try {
   await adminMoment.getByLabel(/what's happening/i).fill(`Doors open for day 2 ${run}`);
   await adminMoment.getByRole("button", { name: "Post", exact: true }).click();
   await admin.page.waitForURL(/moment=1/);
-  await anon.page.goto(`${BASE}/moments`);
+  await anon.page.goto(`${EV}/moments`);
   const am = await openMoment(anon.page, `Doors open for day 2 ${run}`);
-  await am.getByText("Someone at Moonshot").waitFor();
+  await am.getByText("Someone at the event").waitFor();
   assert.equal(await am.getByText("Moonshot Connect").count(), 0, "no default credit");
 
   step("admin pins a moment as Featured, sets top accounts, then unpins");
@@ -504,7 +506,7 @@ try {
   await pinRow.getByRole("button", { name: "Feature this" }).click();
   await pinRow.getByRole("button", { name: "Unpin" }).waitFor();
   await admin.page.getByText(/pinned by you/).waitFor();
-  await anon.page.goto(`${BASE}/moments`);
+  await anon.page.goto(`${EV}/moments`);
   // The pinned moment leads the Featured slideshow.
   const featuredTile = anon.page.locator('a[data-track="moments_featured"]').first();
   assert.match(await featuredTile.getAttribute("aria-label"), new RegExp(`Doors open for day 2 ${run}`), "the pinned moment is Featured");
@@ -519,10 +521,10 @@ try {
   await admin.page.getByText(/auto: rotates every 30 minutes/).waitFor();
 
   // Time on page is sent when you move on: spend a little while on Moments, then tap back home.
-  await anon.page.goto(`${BASE}/moments`);
+  await anon.page.goto(`${EV}/moments`);
   await anon.page.waitForTimeout(1600);
   await anon.page.getByRole("link", { name: "Moonshot Connect home" }).click();
-  await anon.page.waitForURL((u) => new URL(u).pathname === "/");
+  await anon.page.waitForURL((u) => new URL(u).pathname === "/moonshot");
   await anon.page.waitForTimeout(300);
 
   step("admin Stats: visits, clicks, searches, devices, Moments, time on site, CSV");
@@ -557,15 +559,75 @@ try {
   await admin.page.getByText("Visits per day").waitFor();
   await shot(admin.page, "06-stats");
 
+  step("events: a hub to pick from, each with its own Connect and Moments; old links still work");
+  const hub = await visitor();
+  await hub.page.goto(BASE);
+  await hub.page.getByRole("heading", { name: /meet the right people at events/i }).waitFor();
+  for (const name of ["Moonshot by TechCabal", "ADMARP Digital Product Growth Summit 2026", "Ogun Digital Summit 2026"]) await hub.page.getByText(name, { exact: true }).waitFor();
+  await hub.page.getByText("June 12 Cultural Centre, Kuto, Abeokuta, Ogun State").waitFor();
+  const admarpCard = hub.page.locator("article", { hasText: "ADMARP Digital Product Growth Summit 2026" });
+  await admarpCard.getByText("27 November 2026").waitFor();
+  await admarpCard.getByRole("link", { name: "📸 Moments" }).click();
+  await hub.page.waitForURL(/\/admarp-growth-summit\/moments$/);
+  await hub.page.getByText("Be the first to share a photo or highlight from ADMARP.").waitFor();
+  // A card at ADMARP shows there, under ADMARP's own name, and not at Moonshot.
+  await addCard(hub.page, { name: `Gina ${run}`, headline: "Growth PM", contact: `gina_${run}`, event: "admarp-growth-summit" });
+  await hub.page.getByRole("link", { name: "ADMARP Connect home" }).waitFor();
+  // Others see Gina at ADMARP (you never see your own card in the list), and not at Moonshot.
+  await bola.page.goto(`${BASE}/admarp-growth-summit`);
+  await card(bola.page, `Gina ${run}`).waitFor();
+  await bola.page.goto(`${EV}?q=${encodeURIComponent(`Gina ${run}`)}`);
+  await bola.page.getByText(/no one matches|isn't here yet/i).waitFor();
+  // Bola's Moonshot card doesn't follow her to ADMARP: there she can still add herself.
+  await bola.page.goto(`${BASE}/admarp-growth-summit`);
+  await bola.page.getByRole("link", { name: "Add yourself" }).first().waitFor();
+  // A moment at ADMARP stays at ADMARP.
+  await hub.page.goto(`${BASE}/admarp-growth-summit/moments`);
+  await openShare(hub.page);
+  await hub.page.getByLabel(/what's happening/i).fill(`Growth summit vibes ${run}`);
+  await hub.page.getByRole("button", { name: "Post", exact: true }).click();
+  await hub.page.waitForURL(/\/admarp-growth-summit\/moments\?posted=/);
+  await momentTiles(hub.page, `Growth summit vibes ${run}`).first().waitFor();
+  await hub.page.goto(`${EV}/moments`);
+  assert.equal(await momentTiles(hub.page, `Growth summit vibes ${run}`).count(), 0, "ADMARP's moment isn't in Moonshot's Moments");
+  // Old Moonshot links (shared before events had their own addresses) land in the right place.
+  await hub.page.goto(`${BASE}/moments`);
+  await hub.page.waitForURL(/\/moonshot\/moments$/);
+  await hub.page.goto(`${BASE}/?q=${encodeURIComponent(`Bola ${run}`)}`);
+  await hub.page.waitForURL((u) => new URL(u).pathname === "/moonshot" && new URL(u).searchParams.get("q") === `Bola ${run}`);
+  assert.equal((await hub.page.request.get(`${BASE}/no-such-event`)).status(), 404);
+  await hub.ctx.close();
+
+  step("admin: switch events and add a new one");
+  await admin.page.goto(`${BASE}/admin?event=admarp-growth-summit`);
+  await admin.page.getByRole("heading", { name: "Admin · ADMARP" }).waitFor();
+  await admin.page.locator("li", { hasText: `Gina ${run}` }).first().waitFor();
+  assert.equal(await admin.page.locator("li", { hasText: `Bola ${run}` }).count(), 0, "only ADMARP's cards");
+  await admin.page.getByText("＋ Add an event").click();
+  const newForm = admin.page.locator("details", { hasText: "＋ Add an event" });
+  await newForm.getByLabel("Name", { exact: true }).fill(`Test Fest ${run}`);
+  await newForm.getByLabel("Address").fill("admin");
+  await newForm.getByRole("button", { name: "Add event" }).click();
+  await newForm.getByText("That address is used by the site. Pick another.").first().waitFor();
+  await newForm.getByLabel("Address").fill(`test-fest-${run}`);
+  await newForm.getByLabel("Venue").fill("Yaba, Lagos");
+  await newForm.getByLabel("First day").fill("2027-03-10");
+  await newForm.getByRole("button", { name: "Add event" }).click();
+  await newForm.getByText(`Added. It lives at /test-fest-${run}.`).waitFor();
+  const fest = await visitor();
+  await fest.page.goto(`${BASE}/test-fest-${run}`);
+  await fest.page.getByRole("heading", { name: new RegExp(`Who.s (going to|at) Test`) }).waitFor();
+  await fest.ctx.close();
+
   step("Ada deletes her card");
   ada.page.once("dialog", (d) => d.accept());
   await ada.page.getByRole("button", { name: "Delete my card" }).click();
-  await ada.page.waitForURL((u) => new URL(u).pathname === "/");
-  await anon.page.goto(`${BASE}/?q=${encodeURIComponent(`Ada ${run}`)}`);
+  await ada.page.waitForURL((u) => new URL(u).pathname === "/moonshot");
+  await anon.page.goto(`${EV}?q=${encodeURIComponent(`Ada ${run}`)}`);
   await anon.page.getByText(/no one matches|isn't here yet/i).waitFor();
 
   if (SHOTS) {
-    await laptop.page.goto(BASE);
+    await laptop.page.goto(EV);
     await shot(laptop.page, "04-home-desktop");
   }
   assert.deepEqual(errors, [], "no uncaught page errors");
