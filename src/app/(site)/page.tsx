@@ -4,7 +4,7 @@ import { eventTheme, themeKind } from "@/lib/theme";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { ArrowRight, CalendarDays, MapPin } from "lucide-react";
 import { getDb, schema } from "@/lib/db";
-import { eventPhase, listEvents, type EventSpace, type Phase } from "@/lib/events";
+import { eventCounts, eventPhase, listEvents, type EventSpace, type Phase } from "@/lib/events";
 import { Notice, cx } from "@/components/ui";
 import { ConnectMark } from "@/components/chrome";
 
@@ -53,13 +53,13 @@ const PHASE: Record<Phase, { label: string; className: string }> = {
   after: { label: "Past event", className: "bg-black/5 text-muted" },
 };
 
-/** People, moments and a cover photo for each event. */
-async function eventStats(ids: string[]) {
+/** People, visits and a cover photo for each event. */
+async function eventStats(events: EventSpace[]) {
   const db = await getDb();
-  if (!ids.length) return new Map<string, { people: number; moments: number; cover: string | null }>();
-  const [people, moments, covers] = await Promise.all([
-    db.select({ id: schema.people.eventId, n: sql<number>`count(*)::int` }).from(schema.people).where(and(inArray(schema.people.eventId, ids), eq(schema.people.hidden, false))).groupBy(schema.people.eventId),
-    db.select({ id: schema.moments.eventId, n: sql<number>`count(*)::int` }).from(schema.moments).where(and(inArray(schema.moments.eventId, ids), eq(schema.moments.hidden, false))).groupBy(schema.moments.eventId),
+  const ids = events.map((e) => e.id);
+  if (!ids.length) return new Map<string, { people: number; visits: number; cover: string | null }>();
+  const [counts, covers] = await Promise.all([
+    eventCounts(db, events),
     // The newest photo moment per event (an uploaded photo, else an image from an X post).
     db
       .selectDistinctOn([schema.moments.eventId], { id: schema.moments.eventId, momentId: schema.moments.id, uploaded: schema.moments.hasPhoto, xMedia: schema.moments.xMedia })
@@ -67,10 +67,8 @@ async function eventStats(ids: string[]) {
       .where(and(inArray(schema.moments.eventId, ids), eq(schema.moments.hidden, false), sql`(${schema.moments.hasPhoto} or cardinality(${schema.moments.xMedia}) > 0)`))
       .orderBy(schema.moments.eventId, desc(schema.moments.createdAt)),
   ]);
-  const out = new Map<string, { people: number; moments: number; cover: string | null }>();
-  for (const id of ids) out.set(id, { people: 0, moments: 0, cover: null });
-  for (const r of people) out.get(r.id)!.people = r.n;
-  for (const r of moments) out.get(r.id)!.moments = r.n;
+  const out = new Map<string, { people: number; visits: number; cover: string | null }>();
+  for (const id of ids) out.set(id, { ...counts.get(id)!, cover: null });
   for (const r of covers) out.get(r.id)!.cover = r.uploaded ? `/moment-photo/${r.momentId}` : (r.xMedia[0] ?? null);
   return out;
 }
@@ -78,7 +76,7 @@ async function eventStats(ids: string[]) {
 export default async function Home({ searchParams }: { searchParams: Promise<{ bad?: string }> }) {
   const { bad } = await searchParams;
   const events = await listEvents(await getDb());
-  const stats = await eventStats(events.map((e) => e.id));
+  const stats = await eventStats(events);
   const rank: Record<Phase, number> = { live: 0, before: 1, after: 2 };
   // Happening now first, then what's coming up soonest, then past events; the admin's order breaks ties.
   const day = (e: EventSpace) => e.startsAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
@@ -139,7 +137,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ b
   );
 }
 
-function EventCard({ event: e, phase, stats }: { event: EventSpace; phase: Phase; stats: { people: number; moments: number; cover: string | null } }) {
+function EventCard({ event: e, phase, stats }: { event: EventSpace; phase: Phase; stats: { people: number; visits: number; cover: string | null } }) {
   const base = `/${e.slug}`;
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-3xl border border-line bg-surface shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
@@ -172,7 +170,7 @@ function EventCard({ event: e, phase, stats }: { event: EventSpace; phase: Phase
         <p className="text-sm">
           <span className="font-semibold">{stats.people.toLocaleString()}</span> <span className="text-muted">{stats.people === 1 ? "person" : "people"}</span>
           <span className="text-muted"> · </span>
-          <span className="font-semibold">{stats.moments.toLocaleString()}</span> <span className="text-muted">{stats.moments === 1 ? "moment" : "moments"}</span>
+          <span className="font-semibold">{stats.visits.toLocaleString()}</span> <span className="text-muted">{stats.visits === 1 ? "visit" : "visits"}</span>
         </p>
         <div className="mt-auto grid grid-cols-2 gap-2 pt-1">
           <Link href={base} data-track="hub_connect" className="inline-flex h-11 items-center justify-center gap-1.5 rounded-full bg-ink text-sm font-semibold text-white hover:bg-black">

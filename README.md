@@ -7,6 +7,7 @@ A minimal, no-sign-up way to find the people worth meeting at events, reach them
 | Moonshot by TechCabal (National Theatre, Lagos, 28–29 October 2026) | `/moonshot` |
 | ADMARP Digital Product Growth Summit 2026 (157 Gardens Event Centre, Ilupeju, Lagos, 27 November 2026) | `/admarp-growth-summit` |
 | Ogun Digital Summit 2026 (June 12 Cultural Centre, Kuto, Abeokuta, 26 November 2026) | `/ogun-digital-summit` |
+| African Workforce Summit Lagos 2026 (Lagos, 21 November 2026) | `/african-workforce-summit` |
 
 Each event has its own **Connect** (people and "From X" cards), **Moments**, Featured, top accounts and Meet up; nothing is shared between events, and a card made at one event is separate from a card at another. Each event page follows its dates: before it, "Who's going"; during it, Meet up opens; after it, "Find the people you met". Admins add and edit events (name, address, dates, venue, official site, hashtag…) at the bottom of `/admin`, and pick which event the rest of the admin page is about at the top.
 

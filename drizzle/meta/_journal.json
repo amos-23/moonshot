@@ -129,6 +129,13 @@
       "breakpoints": true
     },
     {
+      "idx": 18,
+      "version": "7",
+      "when": 1793565489425,
+      "tag": "0018_african_workforce_summit",
+      "breakpoints": true
+    },
+    {
       "idx": 19,
       "version": "7",
       "when": 1793568909527,

@@ -8,7 +8,7 @@ import * as schema from "@/lib/db/schema";
 import type { DB } from "@/lib/db";
 import { backfillDetails, commentsFor, importPosts, listMoments, listPeople, listXCards, momentPeople, reactionCounts, refreshMomentStats } from "@/lib/data";
 import { pickFeatured, topAccountsKey } from "@/lib/featured";
-import { eventPhase, getEvent, listEvents } from "@/lib/events";
+import { eventCounts, eventPhase, getEvent, listEvents } from "@/lib/events";
 
 const E = schema.MOONSHOT_EVENT_ID;
 import { siteStats } from "@/lib/stats";
@@ -283,10 +283,45 @@ describe("reactions", () => {
 });
 
 describe("events", () => {
-  it("starts with Moonshot, ADMARP, Ogun Digital Summit and November's Nigerian events, and keeps each event's people and moments apart", async () => {
+  it("counts each event's people (cards plus From X authors) and visits, giving Moonshot the views from before events had addresses", async () => {
+    const ogun = (await getEvent(db, "ogun-digital-summit"))!;
+    const moonshot = (await getEvent(db, "moonshot"))!;
+    const before = await eventCounts(db, [ogun, moonshot]);
+
+    await db.insert(schema.people).values([
+      { eventId: ogun.id, editTokenHash: "count-1", name: "Ade", headline: "Founder", email: "ade@x.io", xHandle: "ade_builds" },
+      { eventId: ogun.id, editTokenHash: "count-2", name: "Hidden Hal", headline: "PM", email: "hal@x.io", hidden: true },
+    ]);
+    // Two posts by one author count once; Ade already has a card, so his post doesn't add a person.
+    await importPosts(db, ogun.id, [
+      { url: "https://x.com/kemi_ogun/status/1870000000000000101", content: "At Ogun Digital" },
+      { url: "https://x.com/kemi_ogun/status/1870000000000000102", content: "Day 2" },
+      { url: "https://x.com/ade_builds/status/1870000000000000103", content: "Come say hi" },
+    ]);
+    const first = new Date("2026-10-29T10:00:00Z");
+    await db.insert(schema.events).values([
+      { type: "view", path: "/ogun-digital-summit", visitor: "o1" },
+      { type: "view", path: "/ogun-digital-summit/moments", visitor: "o1" },
+      { type: "view", path: "/ogun-digital-summit-x", visitor: "o2" },
+      { type: "click", path: "/ogun-digital-summit", visitor: "o1", target: "whatsapp" },
+      { type: "view", path: "/moments", visitor: "early", createdAt: new Date(first.getTime() - 3_600_000) },
+      { type: "view", path: "/moonshot", visitor: "m1", createdAt: first },
+    ]);
+
+    const after = await eventCounts(db, [ogun, moonshot]);
+    expect(after.get(ogun.id)!.people - before.get(ogun.id)!.people).toBe(2);
+    expect(after.get(ogun.id)!.visits - before.get(ogun.id)!.visits).toBe(2);
+    expect(after.get(moonshot.id)!.visits - before.get(moonshot.id)!.visits).toBeGreaterThanOrEqual(2);
+    expect((await eventCounts(db, [])).size).toBe(0);
+  });
+
+  it("starts with Moonshot, ADMARP, Ogun Digital Summit, African Workforce Summit and November's Nigerian events, and keeps each event's people and moments apart", async () => {
     const events = await listEvents(db);
-    expect(events.map((e) => e.slug)).toEqual(["moonshot", "admarp-growth-summit", "ogun-digital-summit", "afriff-film-market", "national-advertising-conference", "neclive", "devfest-lagos", "entertainment-week-africa", "growth-africa-summit"]);
+    expect(events.map((e) => e.slug)).toEqual(["moonshot", "admarp-growth-summit", "ogun-digital-summit", "african-workforce-summit", "afriff-film-market", "national-advertising-conference", "neclive", "devfest-lagos", "entertainment-week-africa", "growth-africa-summit"]);
     expect((await getEvent(db, "devfest-lagos"))!).toMatchObject({ dates: "13–14 November 2026", venue: "Landmark Event Centre, Victoria Island, Lagos", url: "https://devfestlagos.com/", listed: true });
+    const aws = (await getEvent(db, "african-workforce-summit"))!;
+    expect(aws).toMatchObject({ dates: "21 November 2026", venue: "Lagos" });
+    expect(eventPhase(aws, new Date("2026-11-21T09:00:00Z"))).toBe("live");
     const ogun = (await getEvent(db, "ogun-digital-summit"))!;
     expect(ogun).toMatchObject({ dates: "26 November 2026", venue: "June 12 Cultural Centre, Kuto, Abeokuta, Ogun State" });
     expect(eventPhase(ogun, new Date("2026-11-26T10:00:00Z"))).toBe("live");
