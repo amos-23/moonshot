@@ -4,6 +4,7 @@
 import { createRequire } from "node:module";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import http from "node:http";
 import zlib from "node:zlib";
 
 // Resolved via require so a globally installed Playwright (NODE_PATH) also works.
@@ -618,6 +619,28 @@ try {
   await fest.page.goto(`${BASE}/test-fest-${run}`);
   await fest.page.getByRole("heading", { name: new RegExp(`Who.s (going to|at) Test`) }).waitFor();
   await fest.ctx.close();
+
+  step("the old domain (moonshot.latars.xyz) 301s everything to events.latars.xyz/moonshot; other hosts are untouched");
+  const viaHost = (host, path, method = "GET") =>
+    new Promise((resolve, reject) => {
+      const u = new URL(path, BASE);
+      const req = http.request({ hostname: u.hostname, port: u.port, path: u.pathname + u.search, method, headers: { host } }, (res) => {
+        res.resume();
+        resolve({ status: res.statusCode, location: res.headers.location });
+      });
+      req.on("error", reject);
+      req.end();
+    });
+  for (const path of ["/", "/moments", "/m/2d2b3c55-0000-4000-8000-000000000000", "/api/health", "/admin"]) {
+    const r = await viaHost("moonshot.latars.xyz", path);
+    assert.equal(r.status, 301, `old domain ${path}`);
+    assert.equal(r.location, "https://events.latars.xyz/moonshot");
+  }
+  assert.equal((await viaHost("moonshot.latars.xyz", "/moments", "POST")).status, 301);
+  for (const [host, path] of [["events.latars.xyz", "/"], ["events.latars.xyz", "/moonshot"], ["events.latars.xyz", "/moonshot/moments"], ["other.latars.xyz", "/"]]) {
+    const r = await viaHost(host, path);
+    assert.equal(r.status, 200, `${host}${path} is served, not redirected`);
+  }
 
   step("Ada deletes her card");
   ada.page.once("dialog", (d) => d.accept());

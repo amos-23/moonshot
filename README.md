@@ -58,6 +58,10 @@ Tracking is built in and cookie-free. Each visitor is counted with an anonymous 
 
 Nothing is scraped and nothing is invented.
 
+## Domains
+
+The site lives at **https://events.latars.xyz**. The old domain, **moonshot.latars.xyz**, answers every request (any path, HTTP or HTTPS) with a **301** to `https://events.latars.xyz/moonshot`. This is the first rule in `next.config.ts` and matches that exact host only, so no other domain is affected. Keep both domains attached to the Railway service, and set `NEXT_PUBLIC_SITE_URL=https://events.latars.xyz` so share links and previews use the new domain.
+
 ## Deploy on Railway
 
 1. **+ New → Database → PostgreSQL**

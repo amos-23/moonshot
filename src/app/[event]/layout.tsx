@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { getDb } from "@/lib/db";
+import { MOONSHOT_EVENT_ID } from "@/lib/db/schema";
 import { getMe } from "@/lib/me";
 import { eventPhase, getEvent } from "@/lib/events";
 import { SIGNUP_COOKIE } from "@/lib/constants";
@@ -25,6 +26,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
       phase === "after"
         ? `Find and follow up with the people you met at ${e.name}${where ? ` (${where})` : ""}. No sign-up.`
         : `See who's going to ${e.name}${where ? ` (${where})` : ""} and reach the people worth meeting. No sign-up.`,
+    // Moonshot keeps its sunrise as the tab icon; other events use Event Connect's.
+    ...(e.id === MOONSHOT_EVENT_ID ? { icons: { icon: "/moonshot-icon.svg" } } : {}),
     openGraph: { images: [image], siteName: `${e.short} Connect` },
     twitter: { card: "summary_large_image", images: [image] },
   };

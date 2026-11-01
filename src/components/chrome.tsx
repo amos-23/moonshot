@@ -1,15 +1,34 @@
 import Link from "next/link";
 import { UserRound } from "lucide-react";
 import type { EventSpace, Phase } from "@/lib/events";
+import { MOONSHOT_EVENT_ID } from "@/lib/db/schema";
 
-/** The logo: a sunrise in Moonshot colours, then e.g. "MOONSHOT CONNECT" or "EVENT CONNECT". */
-export function Wordmark({ label, compact }: { label: string; compact?: boolean }) {
+/** Event Connect's mark: two linked rings (people meeting) on a dark tile. */
+export function ConnectMark({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
+      <rect width="32" height="32" rx="8" fill="#1e1f26" />
+      <circle cx="12.5" cy="16" r="6.5" fill="none" stroke="#e8502a" strokeWidth="3" />
+      <circle cx="19.5" cy="16" r="6.5" fill="none" stroke="#f6a821" strokeWidth="3" />
+    </svg>
+  );
+}
+
+/** Moonshot's own mark: a sunrise in its colours (used only inside the Moonshot event). */
+export function SunriseMark({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
+      <rect width="32" height="32" rx="8" fill="#e8502a" />
+      <circle cx="16" cy="24" r="11" fill="#f6a821" />
+    </svg>
+  );
+}
+
+/** The logo, then e.g. "EVENT CONNECT" or "MOONSHOT CONNECT". */
+export function Wordmark({ label, compact, sunrise }: { label: string; compact?: boolean; sunrise?: boolean }) {
   return (
     <span className="inline-flex items-center gap-2">
-      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden>
-        <rect width="32" height="32" rx="8" fill="#e8502a" />
-        <circle cx="16" cy="24" r="11" fill="#f6a821" />
-      </svg>
+      {sunrise ? <SunriseMark /> : <ConnectMark />}
       <span className={`text-[15px] font-extrabold uppercase tracking-[0.12em] ${compact ? "hidden min-[440px]:inline" : ""}`}>
         {label} <span className="text-flame-700">Connect</span>
       </span>
@@ -62,7 +81,7 @@ export function EventHeader({ event, phase, hasCard, signedUp }: { event: EventS
     <header className={headerClass}>
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-2 px-4">
         <Link href={base} aria-label={`${event.short} Connect home`} className="min-w-0">
-          <Wordmark label={event.short} compact />
+          <Wordmark label={event.short} compact sunrise={event.id === MOONSHOT_EVENT_ID} />
         </Link>
         <div className="flex items-center gap-2">
           <SignUpLink signedUp={signedUp} eventSlug={event.slug} />

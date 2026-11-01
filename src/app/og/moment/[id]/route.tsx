@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
+import { MOONSHOT_EVENT_ID } from "@/lib/db/schema";
 import { BRAND, OG_SIZE, clip, fetchAsDataUrl, ogFonts, ogHeaders } from "@/lib/og";
 import { cleanPostText } from "@/lib/share";
 
@@ -10,7 +11,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const db = await getDb();
   const [row] = /^[0-9a-f-]{36}$/i.test(id)
     ? await db
-        .select({ m: schema.moments, author: schema.people.name, short: schema.eventSpaces.short, eventName: schema.eventSpaces.name })
+        .select({ m: schema.moments, author: schema.people.name, eventId: schema.eventSpaces.id, short: schema.eventSpaces.short, eventName: schema.eventSpaces.name })
         .from(schema.moments)
         .innerJoin(schema.eventSpaces, eq(schema.eventSpaces.id, schema.moments.eventId))
         .leftJoin(schema.people, eq(schema.people.id, schema.moments.personId))
@@ -34,9 +35,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         {img && <img src={img} alt="" width={1200} height={630} style={{ position: "absolute", top: 0, left: 0, width: 1200, height: 630, objectFit: "cover", objectPosition: "center 30%" }} />}
         <div style={{ position: "absolute", top: 0, left: 0, width: 1200, height: 630, display: "flex", background: img ? "linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.25) 55%, rgba(0,0,0,0.45) 100%)" : "linear-gradient(to top, rgba(0,0,0,0.35), rgba(0,0,0,0))" }} />
         <div style={{ position: "absolute", top: 48, left: 56, display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: img ? BRAND.flame : BRAND.ink, display: "flex", alignItems: "flex-end", justifyContent: "center", overflow: "hidden" }}>
-            <div style={{ width: 32, height: 32, borderRadius: 32, background: BRAND.sun, marginBottom: -8 }} />
-          </div>
+          {row?.eventId === MOONSHOT_EVENT_ID ? (
+            // Moonshot's sunrise.
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: img ? BRAND.flame : BRAND.ink, display: "flex", alignItems: "flex-end", justifyContent: "center", overflow: "hidden" }}>
+              <div style={{ width: 32, height: 32, borderRadius: 32, background: BRAND.sun, marginBottom: -8 }} />
+            </div>
+          ) : (
+            // Event Connect's linked rings.
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: BRAND.ink, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+              <div style={{ position: "absolute", left: 8, top: 13, width: 18, height: 18, borderRadius: 18, border: `4px solid ${BRAND.flame}`, display: "flex" }} />
+              <div style={{ position: "absolute", left: 18, top: 13, width: 18, height: 18, borderRadius: 18, border: `4px solid ${BRAND.sun}`, display: "flex" }} />
+            </div>
+          )}
           <div style={{ display: "flex", fontSize: 26, fontWeight: 800, letterSpacing: 4, color: img ? BRAND.sun : "white" }}>MOMENTS · {(row?.short ?? "Event Connect").toUpperCase()}</div>
         </div>
         <div style={{ position: "absolute", left: 56, right: 56, bottom: 52, display: "flex", flexDirection: "column", gap: 18 }}>
