@@ -16,7 +16,7 @@ import { parsePhoto } from "@/lib/photo";
 import { clientIp, visitorHash } from "@/lib/track";
 import { MAX_MOMENT_PHOTOS } from "@/lib/constants";
 import { parseHandles, topAccountsKey } from "@/lib/featured";
-import { checkinCookie, eventPhase, getEvent } from "@/lib/events";
+import { checkinCookie, cleanColor, eventPhase, getEvent } from "@/lib/events";
 import { getAccount } from "@/lib/auth";
 
 export type Result = { ok: true; message?: string; data?: unknown } | { ok: false; error: string; fields?: Record<string, string> };
@@ -458,7 +458,12 @@ export async function saveEventAction(_: Result | null, form: FormData): Promise
     const id = String(form.get("id") ?? "");
     const parsed = parseEventForm(form);
     if (!parsed.ok) return parsed;
-    const values = { ...parsed.values, position: Number(form.get("position") ?? 100) || 100, hidden: form.get("hidden") === "on", listed: form.get("listed") === "on" };
+    const logo = String(form.get("logo") ?? "").trim().slice(0, 300) || null;
+    if (logo && !/^(\/brands\/[\w.-]+|https:\/\/\S+)$/.test(logo)) return { ok: false, error: "The logo should be a /brands/… file or an https:// link.", fields: { logo: "e.g. /brands/my-event.png" } };
+    const rawBg = String(form.get("logoBg") ?? "").trim();
+    const logoBg = cleanColor(rawBg);
+    if (rawBg && !logoBg) return { ok: false, error: "Pick a backing colour like #1b2a52.", fields: { logoBg: "e.g. #1b2a52" } };
+    const values = { ...parsed.values, logo, logoBg, position: Number(form.get("position") ?? 100) || 100, hidden: form.get("hidden") === "on", listed: form.get("listed") === "on" };
     const clash = await db.query.eventSpaces.findFirst({ where: eq(schema.eventSpaces.slug, values.slug) });
     if (clash && clash.id !== id) return { ok: false, error: "Another event already uses that address.", fields: { slug: "Already taken" } };
     if (id) await db.update(schema.eventSpaces).set(values).where(eq(schema.eventSpaces.id, id));

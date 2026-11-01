@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { getDb } from "@/lib/db";
 import { eventPhase, getEvent } from "@/lib/events";
 import { BRAND, OG_SIZE, clip, ogFonts, ogHeaders } from "@/lib/og";
-import { themeKind } from "@/lib/theme";
+import { eventTheme, themeKind } from "@/lib/theme";
 
 // The default preview image, in the hero's colours: for an event (?e=<slug>), or for Event Connect.
 export async function GET(req: Request) {
@@ -24,6 +24,12 @@ export async function GET(req: Request) {
     ogun: { bg: "#0e1411", kicker: "#03be5e", foot: "#b9fbc0" },
     default: { bg: BRAND.ink, kicker: BRAND.sun, foot: BRAND.sun },
   }[kind ?? "default"];
+  // Events with their own colour (set by organisers, or taken from their site) use it as the background.
+  if (event && kind === "default" && event.brandColor) {
+    const t = eventTheme(event);
+    if (t.onPrimary === "#ffffff") Object.assign(look, { bg: t.primary, kicker: "#ffffff", foot: "#ffffff" });
+    else Object.assign(look, { kicker: t.primary, foot: t.primary });
+  }
   const sub = event ? "Search a name and follow up. No sign-up." : "Find people worth meeting, reach them directly, and relive the moments.";
   return new ImageResponse(
     (

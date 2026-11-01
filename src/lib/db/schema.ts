@@ -34,6 +34,8 @@ export const eventSpaces = mc.table("event_spaces", {
   // Who created it (null: added by an admin). The owner can edit it and moderate it.
   ownerId: uuid("owner_id"),
   brandColor: text("brand_color"), // e.g. "#5b3df5", for events without a built-in theme
+  logo: text("logo"), // the event's own logo, e.g. "/brands/neclive.png"
+  logoBg: text("logo_bg"), // a backing colour for a light logo, e.g. "#1b2a52"; none for logos made for light backgrounds
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

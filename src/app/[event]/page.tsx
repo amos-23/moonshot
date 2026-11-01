@@ -17,7 +17,7 @@ import { ShareButtons, XLogo } from "@/components/share";
 import { cleanPostText, withUtm, xIntent } from "@/lib/share";
 import { ScrollIntoView } from "@/components/client";
 import { Button, Card, Empty, LinkButton, Notice, cx, inputClass } from "@/components/ui";
-import { EventHeroBackdrop, displayFont } from "@/components/event-brand";
+import { EventHeroBackdrop, EventLogo, displayFont } from "@/components/event-brand";
 import { eventTheme } from "@/lib/theme";
 
 type SP = { q?: string; added?: string; f?: string; sort?: string };
@@ -111,6 +111,13 @@ export default async function EventHome({ params, searchParams }: { params: Prom
             </>
           ) : (
             <>
+            {theme.kind === "default" && event.logo && (
+              <div className="mb-4 flex justify-center">
+                <span className="rounded-2xl px-3 py-2 shadow-sm" style={{ background: event.logoBg ?? "#ffffff" }}>
+                  <EventLogo event={{ ...event, logoBg: null }} className="h-10 max-w-[220px] sm:h-12" />
+                </span>
+              </div>
+            )}
             <p className="text-xs font-bold uppercase tracking-[0.2em]" style={{ color: theme.heroHighlight }}>
               {[event.dates, event.venue].filter(Boolean).join(" · ") || event.name}
             </p>

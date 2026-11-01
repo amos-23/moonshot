@@ -77,10 +77,17 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ b
   const { bad } = await searchParams;
   const events = await listEvents(await getDb());
   const stats = await eventStats(events);
+  // The most active events first: people count for more than visits (a card is a real person). Events with the
+  // same activity (often none yet) go happening now, then soonest upcoming, then past; the admin's order breaks ties.
+  const activity = (e: EventSpace) => {
+    const st = stats.get(e.id)!;
+    return st.people * 10 + st.visits;
+  };
   const rank: Record<Phase, number> = { live: 0, before: 1, after: 2 };
-  // Happening now first, then what's coming up soonest, then past events; the admin's order breaks ties.
   const day = (e: EventSpace) => e.startsAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
-  const sorted = [...events].sort((a, b) => rank[eventPhase(a)] - rank[eventPhase(b)] || (eventPhase(a) === "after" ? day(b) - day(a) : day(a) - day(b)) || a.position - b.position);
+  const sorted = [...events].sort(
+    (a, b) => activity(b) - activity(a) || rank[eventPhase(a)] - rank[eventPhase(b)] || (eventPhase(a) === "after" ? day(b) - day(a) : day(a) - day(b)) || a.position - b.position,
+  );
 
   return (
     <div>
@@ -163,11 +170,14 @@ function EventCard({ event: e, phase, stats }: { event: EventSpace; phase: Phase
             </p>
           )}
         </div>
-        <p className="text-sm">
-          <span className="font-semibold">{stats.people.toLocaleString()}</span> <span className="text-muted">{stats.people === 1 ? "person" : "people"}</span>
-          <span className="text-muted"> · </span>
-          <span className="font-semibold">{stats.visits.toLocaleString()}</span> <span className="text-muted">{stats.visits === 1 ? "visit" : "visits"}</span>
-        </p>
+        {/* Counts only once there are some, so a new event doesn't read "0 people · 0 visits". */}
+        {(stats.people > 0 || stats.visits > 0) && (
+          <p className="text-sm">
+            <span className="font-semibold">{stats.people.toLocaleString()}</span> <span className="text-muted">{stats.people === 1 ? "person" : "people"}</span>
+            <span className="text-muted"> · </span>
+            <span className="font-semibold">{stats.visits.toLocaleString()}</span> <span className="text-muted">{stats.visits === 1 ? "visit" : "visits"}</span>
+          </p>
+        )}
         <div className="mt-auto grid grid-cols-2 gap-2 pt-1">
           <Link href={base} data-track="hub_connect" className="inline-flex h-11 items-center justify-center gap-1.5 rounded-full bg-ink text-sm font-semibold text-white hover:bg-black">
             {phase === "after" ? "Find people" : "Connect"}

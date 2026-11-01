@@ -4,7 +4,18 @@ import { ConnectMark, SunriseMark } from "./chrome-marks";
 import { Sunburst } from "./ui";
 import { cx } from "./ui";
 
-type Ev = { id: string; slug: string; short: string; name: string; brandColor?: string | null };
+type Ev = { id: string; slug: string; short: string; name: string; brandColor?: string | null; logo?: string | null; logoBg?: string | null };
+
+/** The event's own logo (from its site), on a backing of its colour when the logo is light. */
+export function EventLogo({ event, className }: { event: Ev; className?: string }) {
+  if (!event.logo) return null;
+  return (
+    <span className={cx("inline-flex shrink-0 items-center", event.logoBg && "rounded-lg px-2 py-1")} style={event.logoBg ? { background: event.logoBg } : undefined}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={event.logo} alt={event.name} className={cx("w-auto object-contain", className ?? "h-8 max-w-[150px]")} />
+    </span>
+  );
+}
 
 export const displayFont = (t: EventTheme): CSSProperties | undefined =>
   t.display === "playfair" ? { fontFamily: "'Playfair Display', Georgia, serif" } : t.display === "platypi" ? { fontFamily: "Platypi, Georgia, serif" } : undefined;
@@ -37,11 +48,20 @@ export function EventWordmark({ event }: { event: Ev }) {
         {connectWord("#178a2d", true)}
       </span>
     );
+  const accent = t.kind === "default" && event.brandColor ? (t.onPrimary === "#ffffff" ? t.primary : "#1e1f26") : "#c23f1c";
+  if (t.kind === "default" && event.logo)
+    return (
+      <span className="inline-flex items-center gap-2.5">
+        <EventLogo event={event} className="h-7 max-w-[120px] min-[420px]:max-w-[150px]" />
+        <span aria-hidden className="hidden h-5 w-px bg-line min-[420px]:block" />
+        {connectWord(accent, true)}
+      </span>
+    );
   return (
     <span className="inline-flex items-center gap-2">
       {t.kind === "moonshot" ? <SunriseMark /> : <ConnectMark />}
       <span className="hidden text-[15px] font-extrabold uppercase tracking-[0.12em] min-[440px]:inline">
-        {event.short} <span style={{ color: t.kind === "default" && event.brandColor ? (t.onPrimary === "#ffffff" ? t.primary : "#1e1f26") : "#c23f1c" }}>Connect</span>
+        {event.short} <span style={{ color: accent }}>Connect</span>
       </span>
     </span>
   );
@@ -127,5 +147,14 @@ export function EventCover({ event }: { event: Ev }) {
         <Sunburst className="absolute inset-0 h-full w-full" />
       </span>
     );
-  return <span aria-hidden className="absolute inset-0" style={{ background: `linear-gradient(135deg, #1e1f26 10%, ${event.brandColor ? t.primary : "#7a5cff"})` }} />;
+  return (
+    <span aria-hidden className="absolute inset-0" style={{ background: `linear-gradient(135deg, #1e1f26 10%, ${event.brandColor ? t.primary : "#7a5cff"})` }}>
+      {event.logo && (
+        <span className="absolute right-4 top-4 rounded-xl px-2.5 py-2 shadow-sm" style={{ background: event.logoBg ?? "#ffffff" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={event.logo} alt="" className="h-9 w-auto max-w-[170px] object-contain" />
+        </span>
+      )}
+    </span>
+  );
 }

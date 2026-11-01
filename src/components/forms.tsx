@@ -411,6 +411,8 @@ export function EventForm({ event }: { event: EventSpace | null }) {
         {f("xHandle", "X handle", { value: event?.xHandle, placeholder: "@organiser" })}
         {f("position", "Order on the homepage", { value: String(event?.position ?? 100), type: "number" })}
         {f("brandColor", "Brand colour", { value: event?.brandColor, placeholder: "#5b3df5", hint: "For events without a built-in look" })}
+        {f("logo", "Logo", { value: event?.logo, placeholder: "/brands/my-event.png or https://…", hint: "The event's own logo" })}
+        {f("logoBg", "Logo backing colour", { value: event?.logoBg, placeholder: "#1b2a52", hint: "Only for a white or light logo" })}
         <label className="flex items-center gap-2 self-end pb-3 text-sm">
           <input type="checkbox" name="listed" defaultChecked={event?.listed ?? true} className="h-4 w-4 accent-[var(--color-flame-700)]" /> On the homepage
         </label>

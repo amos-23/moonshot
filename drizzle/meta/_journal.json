@@ -141,6 +141,13 @@
       "when": 1793568909527,
       "tag": "0019_nigeria_november_events",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793569940744,
+      "tag": "0020_event_logos",
+      "breakpoints": true
     }
   ]
 }
