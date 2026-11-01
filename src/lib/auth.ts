@@ -108,6 +108,21 @@ export const getAccount = cache(async (): Promise<Account | null> => {
   }
 });
 
+/** Records that this account has proven it owns its inbox (it came back through an email link or code). */
+export async function markEmailVerified(id: string) {
+  await (await getDb()).update(schema.accounts).set({ emailVerifiedAt: new Date() }).where(eq(schema.accounts.id, id));
+}
+
+/**
+ * Admin by email: the email is in ADMIN_EMAILS and the account has proven it owns that inbox, so signing up
+ * with someone else's address (possible when Supabase doesn't confirm emails) never grants admin. The built-in
+ * local sign-in (development and tests only) sends no emails, so it skips the proof.
+ */
+export function isAdminAccount(account: Account | null | undefined): boolean {
+  if (!account || !isAdminEmail(account.email)) return false;
+  return authMode() === "local" || !!account.emailVerifiedAt;
+}
+
 /** Emails in ADMIN_EMAILS get admin when signed in (alongside the ADMIN_KEY). */
 export function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;

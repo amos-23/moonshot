@@ -16,6 +16,11 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
   const mode = authMode();
   return (
     <AuthShell title="Sign in" sub="Keep your cards across devices and events. Everything else works without an account.">
+      {sp.error === "verify" && (
+        <div className="mb-4">
+          <Notice tone="info">We&apos;ll email you a link and code. Using either one proves the inbox is yours.</Notice>
+        </div>
+      )}
       {(sp.error === "link" || sp.error === "expired") && (
         <div className="mb-4">
           <Notice tone="danger">

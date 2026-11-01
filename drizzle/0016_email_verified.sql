@@ -1,0 +1,1 @@
+ALTER TABLE "connect"."accounts" ADD COLUMN "email_verified_at" timestamp with time zone;

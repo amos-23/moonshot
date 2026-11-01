@@ -9,7 +9,7 @@ import { z } from "zod";
 import { getDb, schema } from "@/lib/db";
 import { rateLimit, claimDeviceCards } from "@/lib/me";
 import { siteOrigin } from "@/lib/site";
-import { LOCAL_SESSION_COOKIE, authMode, checkPassword, getAccount, hashPassword, setLocalSession, supabaseServer, upsertAccount } from "@/lib/auth";
+import { LOCAL_SESSION_COOKIE, authMode, checkPassword, getAccount, hashPassword, markEmailVerified, setLocalSession, supabaseServer, upsertAccount } from "@/lib/auth";
 import type { Result } from "@/lib/actions";
 
 /** Only same-site paths, so a sign-in link can't bounce anyone elsewhere. */
@@ -131,6 +131,7 @@ export async function verifyCodeAction(_: Result | null, form: FormData): Promis
   const { data, error } = await (await supabaseServer()).auth.verifyOtp({ email: mail.data, token, type: "email" });
   if (error || !data.user?.email) return { ok: false, error: /expired|invalid/i.test(error?.message ?? "") ? "That code has expired or isn't right. Send a new one." : friendly(error?.message ?? ""), fields: { token: "Not accepted" } };
   await upsertAccount(data.user.id, data.user.email, { name: (data.user.user_metadata?.name as string | undefined) ?? null });
+  await markEmailVerified(data.user.id);
   await claimDeviceCards(data.user.id);
   revalidatePath("/", "layout");
   redirect(safeNext(form.get("next")));

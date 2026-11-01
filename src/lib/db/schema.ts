@@ -43,6 +43,9 @@ export const accounts = mc.table("accounts", {
   emailOptIn: boolean("email_opt_in").notNull().default(false), // agreed to hear about new events
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   lastSignInAt: timestamp("last_sign_in_at", { withTimezone: true }),
+  // Set the first time they finish an email link or code, which proves they own the inbox. Admin by
+  // email (ADMIN_EMAILS) needs it, because without Supabase's "Confirm email" anyone can sign up as anyone.
+  emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
 });
 
 export type Account = typeof accounts.$inferSelect;

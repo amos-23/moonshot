@@ -4,7 +4,7 @@ import { cookies, headers } from "next/headers";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { MOONSHOT_EVENT_ID, type Person } from "@/lib/db/schema";
-import { getAccount, isAdminEmail } from "@/lib/auth";
+import { getAccount, isAdminAccount } from "@/lib/auth";
 
 // No account needed. Creating a card issues a random edit token; its hash is stored, the token lives
 // in an httpOnly cookie and in a private edit link the person can open on another device.
@@ -94,5 +94,5 @@ export function isAdminKey(key: string | undefined | null): boolean {
 
 export async function isAdmin(): Promise<boolean> {
   if (isAdminKey((await cookies()).get("mc_admin")?.value)) return true;
-  return isAdminEmail((await getAccount())?.email);
+  return isAdminAccount(await getAccount());
 }

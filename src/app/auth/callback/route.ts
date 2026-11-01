@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
-import { authMode, supabaseServer, upsertAccount } from "@/lib/auth";
+import { authMode, markEmailVerified, supabaseServer, upsertAccount } from "@/lib/auth";
 import { claimDeviceCards } from "@/lib/me";
 
 // Where Supabase's email links land (confirm your account, magic link, reset password): turns the link
@@ -29,6 +29,8 @@ export async function GET(req: NextRequest) {
       : { data: { user: null }, error: new Error("missing code") };
   if (error || !data.user?.email) return NextResponse.redirect(new URL("/signin?error=link", base));
   await upsertAccount(data.user.id, data.user.email, { name: (data.user.user_metadata?.name as string | undefined) ?? null });
+  // Every way here (confirm, sign-in link, password reset) came from an email, so they own the inbox.
+  await markEmailVerified(data.user.id);
   await claimDeviceCards(data.user.id);
   return NextResponse.redirect(new URL(next, base));
 }
