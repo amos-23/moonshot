@@ -82,7 +82,7 @@ export default async function AccountPage() {
       <Card className="p-5 sm:p-6">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="font-bold">Your events</h2>
-          <Link href="/new-event" data-track="account_new_event" className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white">
+          <Link href="/new-event" data-track="account_new_event" className="text-sm font-semibold text-flame-700 underline-offset-4 hover:underline">
             ＋ Create an event
           </Link>
         </div>

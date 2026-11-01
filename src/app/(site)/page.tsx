@@ -50,7 +50,7 @@ export const metadata = { title: "Event Connect — meet the right people at eve
 const PHASE: Record<Phase, { label: string; className: string }> = {
   before: { label: "Coming up", className: "bg-sun-100 text-[#7a4b00]" },
   live: { label: "Happening now", className: "bg-emerald-100 text-emerald-800" },
-  after: { label: "Past event", className: "bg-black/5 text-muted" },
+  after: { label: "Past event", className: "bg-white/90 text-ink" },
 };
 
 /** People, visits and a cover photo for each event. */
@@ -99,9 +99,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ b
             <a href="#events" className="inline-flex h-12 items-center gap-2 rounded-full bg-white px-6 font-semibold text-ink hover:bg-white/90">
               Pick your event <ArrowRight size={18} aria-hidden />
             </a>
-            <Link href="/new-event" data-track="hub_new_event_hero" className="inline-flex h-12 items-center gap-2 rounded-full border border-white/25 px-6 font-semibold text-white hover:bg-white/10">
-              Create your event
-            </Link>
           </div>
         </div>
       </section>
@@ -123,15 +120,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ b
                 <EventCard event={e} phase={eventPhase(e)} stats={stats.get(e.id)!} />
               </li>
             ))}
-            <li>
-              <Link href="/new-event" data-track="hub_new_event" className="flex h-full min-h-64 flex-col items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-line p-6 text-center transition hover:border-ink/30 hover:bg-white">
-                <span className="grid h-12 w-12 place-items-center rounded-full bg-ink text-2xl text-white">＋</span>
-                <span className="text-lg font-extrabold">Running an event?</span>
-                <span className="max-w-xs text-sm text-muted">Create a free page where your guests find each other and share the moments.</span>
-              </Link>
-            </li>
           </ul>
         )}
+        <p className="mt-8 text-center text-sm text-muted">
+          Running an event?{" "}
+          <Link href="/new-event" data-track="hub_new_event" className="font-semibold text-ink underline-offset-4 hover:underline">
+            Create a page for it
+          </Link>
+        </p>
       </section>
     </div>
   );
