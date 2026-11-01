@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { UserRound } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, UserRound } from "lucide-react";
 import type { EventSpace, Phase } from "@/lib/events";
 import { MOONSHOT_EVENT_ID } from "@/lib/db/schema";
 
@@ -93,13 +93,15 @@ export function EventHeader({ event, phase, hasCard, account }: { event: EventSp
           <Wordmark label={event.short} compact sunrise={event.id === MOONSHOT_EVENT_ID} />
         </Link>
         <div className="flex items-center gap-2">
-          <AccountLink account={account} next={base} />
+          <span className="hidden sm:inline-flex">
+            <AccountLink account={account} next={base} />
+          </span>
           {phase === "live" && (
-            <Link href={`${base}/meet`} data-track="meet_header" className="inline-flex h-10 items-center rounded-full bg-sun px-3.5 text-sm font-semibold text-ink hover:bg-[#ffb93d]">
+            <Link href={`${base}/meet`} data-track="meet_header" className="inline-flex h-10 items-center whitespace-nowrap rounded-full bg-sun px-3.5 text-sm font-semibold text-ink hover:bg-[#ffb93d]">
               📍 Meet up
             </Link>
           )}
-          <Link href={`${base}/moments`} data-track="moments_header" className="inline-flex h-10 items-center rounded-full bg-flame-700 px-3.5 text-sm font-semibold text-white hover:bg-flame">
+          <Link href={`${base}/moments`} data-track="moments_header" className="inline-flex h-10 items-center whitespace-nowrap rounded-full bg-flame-700 px-3.5 text-sm font-semibold text-white hover:bg-flame">
             📸 Moments
           </Link>
           <Link
@@ -114,6 +116,24 @@ export function EventHeader({ event, phase, hasCard, account }: { event: EventSp
           </Link>
         </div>
       </div>
+      <nav aria-label="Event links" className="border-t border-line/70">
+        <div className="mx-auto flex h-9 max-w-6xl items-center justify-between gap-3 px-4 text-xs font-semibold">
+          <Link href="/" data-track="all_events" className="inline-flex items-center gap-1 text-muted hover:text-ink">
+            <ArrowLeft size={14} aria-hidden /> All events
+          </Link>
+          <span className="flex min-w-0 items-center gap-4">
+            {event.url && (
+              <a href={event.url} target="_blank" rel="noopener noreferrer" data-track="official_site" className="inline-flex min-w-0 items-center gap-1 text-muted hover:text-ink">
+                <span className="truncate">{event.short} official site</span>
+                <ArrowUpRight size={14} aria-hidden className="shrink-0" />
+              </a>
+            )}
+            <Link href={account ? "/account" : `/signin?next=${encodeURIComponent(base)}`} data-track="signin_header" className="shrink-0 text-ink hover:underline sm:hidden">
+              {account ? "Your account" : "Sign in"}
+            </Link>
+          </span>
+        </div>
+      </nav>
     </header>
   );
 }

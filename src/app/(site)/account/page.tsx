@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import { authMode, getAccount } from "@/lib/auth";
+import { authMode, getAccount, isAdminEmail } from "@/lib/auth";
 import { signOutAction } from "@/lib/auth-actions";
 import { AccountForm, PasswordForm } from "@/components/auth-forms";
 import { Button, Card, PageTitle } from "@/components/ui";
@@ -26,11 +26,18 @@ export default async function AccountPage() {
         title="Your account"
         sub={account.email}
         action={
-          <form action={signOutAction}>
-            <Button type="submit" variant="secondary" size="sm">
-              Sign out
-            </Button>
-          </form>
+          <div className="flex items-center gap-2">
+            {isAdminEmail(account.email) && (
+              <Link href="/admin" className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white">
+                Admin
+              </Link>
+            )}
+            <form action={signOutAction}>
+              <Button type="submit" variant="secondary" size="sm">
+                Sign out
+              </Button>
+            </form>
+          </div>
         }
       />
       <Card className="p-5 sm:p-6">

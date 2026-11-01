@@ -340,7 +340,7 @@ export function ScrollIntoView({ children, className }: { children: ReactNode; c
     ref.current?.scrollIntoView({ block: "start", behavior: "smooth" });
   }, []);
   return (
-    <div ref={ref} className={cx("scroll-mt-20", className)}>
+    <div ref={ref} className={cx("scroll-mt-28", className)}>
       {children}
     </div>
   );

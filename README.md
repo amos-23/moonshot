@@ -44,7 +44,18 @@ Accounts use **Supabase Auth**. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_
 
 Every sign-in or confirmation email can also be finished with its code, typed on the site (this works on any device, and email scanners can't use it up). Supabase's default emails only contain the link, so under **Authentication → Email Templates**, add `Or enter this code: {{ .Token }}` to the **Magic Link** and **Confirm signup** templates. If a link fails, Supabase sends people back with an error; the site catches that on any page and shows a clear message on the sign-in page.
 
-The site keeps its own `accounts` row for each Supabase user (same id), so cards link to it. People in `ADMIN_EMAILS` get `/admin` when signed in, as well as anyone with the `ADMIN_KEY`.
+The site keeps its own `accounts` row for each Supabase user (same id), so cards link to it. People in `ADMIN_EMAILS` get `/admin` when signed in (their account page shows an Admin button), as well as anyone with the `ADMIN_KEY`.
+
+## Admin
+
+`/admin` has tabs for one event at a time: **Overview** (totals, add moments, latest activity, reports), **Moments** (Featured, pin, hide), **People** (check-ins, cards, X posts, comments), **Accounts** (accounts and the mailing list CSV), **Events** (edit or add events) and **Stats**.
+
+To everyone who isn't an admin, `/admin` and everything under it is a plain 404, so there's nothing to find or guess at. Admins get in two ways:
+
+- **Sign in** with an email listed in `ADMIN_EMAILS` (the best option: a real login, per person, and nothing to share).
+- **The admin key** at a secret address: set `ADMIN_ENTRY` (e.g. `k7q2-front-door`) and the key form lives at `/admin/k7q2-front-door`. Key attempts are rate-limited.
+
+Until `ADMIN_ENTRY` is set, the key form stays on `/admin` so nobody is locked out.
 
 Without the Supabase settings, sign-in is hidden in production. For local work and tests, `LOCAL_AUTH=true` (or `npm run dev`) turns on a small built-in email + password sign-in instead.
 

@@ -404,6 +404,7 @@ async function requireAdmin() {
 export async function adminLoginAction(_: Result | null, form: FormData): Promise<Result> {
   if (!process.env.ADMIN_KEY) return { ok: false, error: "Set the ADMIN_KEY variable (12+ characters) to enable admin." };
   const key = String(form.get("key") ?? "");
+  if (!(await rateLimit("admin_key", 10, 15))) return { ok: false, error: "Too many tries. Wait a few minutes." };
   if (!isAdminKey(key)) return { ok: false, error: "That key isn't right." };
   (await cookies()).set("mc_admin", key, { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 14 });
   redirect("/admin");

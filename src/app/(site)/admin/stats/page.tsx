@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { getDb } from "@/lib/db";
-import { isAdmin } from "@/lib/me";
+import { adminGate } from "@/components/admin-gate";
+import { AdminNav } from "@/components/admin-nav";
 import { RANGES, siteStats, type Range, type Totals } from "@/lib/stats";
-import { AdminLogin } from "@/components/forms";
 import { Card, PageTitle, cx } from "@/components/ui";
 
 export const metadata = { title: "Stats", robots: { index: false } };
@@ -188,14 +188,8 @@ function Funnel({ title, sub, steps, base }: { title: string; sub: string; steps
 }
 
 export default async function StatsPage({ searchParams }: { searchParams: Promise<{ days?: string }> }) {
-  if (!(await isAdmin())) {
-    return (
-      <div className="mx-auto max-w-xl px-4 py-12">
-        <PageTitle title="Admin" />
-        <AdminLogin />
-      </div>
-    );
-  }
+  const gate = await adminGate();
+  if (gate) return gate;
   const { days: d } = await searchParams;
   const days = (RANGES.find((r) => String(r.days) === d)?.days ?? 7) as Range;
   const st = await siteStats(await getDb(), days);
@@ -209,7 +203,9 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
   const compare = days ? `vs the ${rangeLabel} before` : "";
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
+    <>
+      <AdminNav events={[]} tab="stats" />
+      <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
       <PageTitle
         title="Stats"
         sub="Visits and clicks on the public site. Admin pages and bots aren't counted; nothing identifies a person."
@@ -218,9 +214,6 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
             <a href={`/admin/stats.csv?days=${days}`} className="text-flame-700 hover:underline">
               Download CSV
             </a>
-            <Link href="/admin" className="text-flame-700 hover:underline">
-              ← Admin
-            </Link>
           </div>
         }
       />
@@ -425,6 +418,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
           ))}
         </dl>
       </Card>
-    </div>
+      </div>
+    </>
   );
 }

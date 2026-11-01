@@ -56,7 +56,7 @@ export default async function MomentsPage({ params, searchParams }: Params & { s
   return (
     <div data-dark-page className="-mb-12 min-h-dvh bg-[#121116] text-white">
       {sp.posted && (
-        <div role="status" className="moment-fade sticky top-16 z-20 mx-auto flex w-fit max-w-[calc(100%-2rem)] translate-y-3 flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white shadow-lg">
+        <div role="status" className="moment-fade sticky top-[6.25rem] z-20 mx-auto flex w-fit max-w-[calc(100%-2rem)] translate-y-3 flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white shadow-lg">
           <span>Posted — thanks for sharing ✨</span>
           {sp.m && /^[0-9a-f-]{36}$/i.test(sp.m) && (
             <a href={xIntent(`Just shared a moment from ${eventTag(event) || event.name} 📸`, withUtm(`${origin}/m/${sp.m}`, "x", "posted"))} target="_blank" rel="noopener noreferrer" data-track="posted_share_x" data-track-id={sp.m} className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-ink hover:bg-white/90">
