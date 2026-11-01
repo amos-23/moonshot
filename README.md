@@ -39,6 +39,8 @@ This is an independent, community-made tool. It isn't run or endorsed by TechCab
 
 Every event page wears its own branding, taken from its official site: Moonshot keeps its sunrise; ADMARP uses its navy, blue and gold with Playfair Display and its AD**MARP** wordmark; Ogun Digital Summit uses its greens, circle pattern, Platypi headline and logo. The look covers the header logo, hero, buttons, homepage card and share images (`src/lib/theme.ts`, `src/components/event-brand.tsx`). Each event page links back to **All events** and out to the event's **official site**. Other events use their own logo (in `public/brands/`, set per event in admin as *Logo*, with a *Logo backing colour* for white logos) and brand colour for the header, hero, buttons, homepage card and share image.
 
+**Featured ads:** an event marked *Featured ad* in admin (like the Growth & Acquisition Workshop) shows as a banner at the top of the homepage in its own look, links straight to its site (its address here redirects there too), and disappears once it has ended.
+
 The homepage lists the most active events first (people count ten times a visit), then the rest by date. A card shows its people and visits once it has some.
 
 ## Events people create

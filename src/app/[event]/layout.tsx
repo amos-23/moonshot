@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getDb } from "@/lib/db";
 import { MOONSHOT_EVENT_ID } from "@/lib/db/schema";
 import { getMe } from "@/lib/me";
@@ -41,6 +41,8 @@ export default async function EventLayout({ children, params }: Params & { child
   // Hidden events are drafts: only their organiser and admins can open them.
   const manage = await canManageEvent(event);
   if (event.hidden && !manage) notFound();
+  // A featured ad has no page of its own here: its address goes straight to its site.
+  if (event.promo && event.url && !manage) redirect(event.url);
   const [me, account] = await Promise.all([getMe(event.id).catch(() => null), getAccount()]);
   return (
     <>

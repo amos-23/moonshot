@@ -35,6 +35,9 @@ export const eventSpaces = mc.table("event_spaces", {
   ownerId: uuid("owner_id"),
   brandColor: text("brand_color"), // e.g. "#5b3df5", for events without a built-in theme
   logo: text("logo"), // the event's own logo, e.g. "/brands/neclive.png"
+  // A featured ad (e.g. a workshop): a banner at the top of the homepage that links straight to its own site
+  // and disappears once it has ended. It has no Connect or Moments of its own.
+  promo: boolean("promo").notNull().default(false),
   logoBg: text("logo_bg"), // a backing colour for a light logo, e.g. "#1b2a52"; none for logos made for light backgrounds
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

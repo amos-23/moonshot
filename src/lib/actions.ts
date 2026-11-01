@@ -463,7 +463,7 @@ export async function saveEventAction(_: Result | null, form: FormData): Promise
     const rawBg = String(form.get("logoBg") ?? "").trim();
     const logoBg = cleanColor(rawBg);
     if (rawBg && !logoBg) return { ok: false, error: "Pick a backing colour like #1b2a52.", fields: { logoBg: "e.g. #1b2a52" } };
-    const values = { ...parsed.values, logo, logoBg, position: Number(form.get("position") ?? 100) || 100, hidden: form.get("hidden") === "on", listed: form.get("listed") === "on" };
+    const values = { ...parsed.values, logo, logoBg, position: Number(form.get("position") ?? 100) || 100, hidden: form.get("hidden") === "on", listed: form.get("listed") === "on", promo: form.get("promo") === "on" };
     const clash = await db.query.eventSpaces.findFirst({ where: eq(schema.eventSpaces.slug, values.slug) });
     if (clash && clash.id !== id) return { ok: false, error: "Another event already uses that address.", fields: { slug: "Already taken" } };
     if (id) await db.update(schema.eventSpaces).set(values).where(eq(schema.eventSpaces.id, id));

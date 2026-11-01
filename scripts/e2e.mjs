@@ -665,6 +665,17 @@ try {
   await admarpCard.getByRole("link", { name: "📸 Moments" }).click();
   await hub.page.waitForURL(/\/admarp-growth-summit\/moments$/);
   await hub.page.getByText("Be the first to share a photo or highlight from ADMARP.").waitFor();
+  // The featured workshop banner leads the homepage until it ends, links to its own site, and its address redirects there.
+  if (Date.now() < Date.parse("2026-11-07T23:00:00Z")) {
+    await hub.page.goto(BASE);
+    const promo = hub.page.locator('a[data-track="promo_click"]');
+    await promo.getByText("Featured").waitFor();
+    assert.match(await promo.getAttribute("href"), /^https:\/\/www\.growthworkshop\.xyz\/\?utm_source=eventconnect/);
+    assert.equal(await hub.page.locator("article", { hasText: "Growth & Acquisition Workshop" }).count(), 0, "not a normal event card");
+    const r = await hub.page.request.get(`${BASE}/growth-workshop`, { maxRedirects: 0 });
+    assert.equal(r.headers().location, "https://www.growthworkshop.xyz/");
+    await hub.page.goto(`${BASE}/admarp-growth-summit/moments`);
+  }
   // Every event page links back to all events and out to the event's own site.
   assert.equal(await hub.page.getByRole("link", { name: /Official site/ }).getAttribute("href"), "https://admarp.com/digital-product-growth-summit-2026/");
   await hub.page.getByRole("link", { name: "All events" }).click();

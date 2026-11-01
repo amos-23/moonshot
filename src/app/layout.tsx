@@ -6,6 +6,9 @@ import "@fontsource/playfair-display/900.css";
 import "@fontsource/playfair-display/900-italic.css";
 import "@fontsource/platypi/600.css";
 import "@fontsource/platypi/600-italic.css";
+// The featured workshop banner uses its own Oswald.
+import "@fontsource/oswald/600.css";
+import "@fontsource/oswald/700.css";
 import { Tracker } from "@/components/tracker";
 import { siteOrigin } from "@/lib/site";
 

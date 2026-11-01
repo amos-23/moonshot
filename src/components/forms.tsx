@@ -417,6 +417,9 @@ export function EventForm({ event }: { event: EventSpace | null }) {
           <input type="checkbox" name="listed" defaultChecked={event?.listed ?? true} className="h-4 w-4 accent-[var(--color-flame-700)]" /> On the homepage
         </label>
         <label className="flex items-center gap-2 self-end pb-3 text-sm">
+          <input type="checkbox" name="promo" defaultChecked={event?.promo ?? false} className="h-4 w-4 accent-[var(--color-flame-700)]" /> Featured ad (a banner at the top of the homepage, linking to its site, until it ends)
+        </label>
+        <label className="flex items-center gap-2 self-end pb-3 text-sm">
           <input type="checkbox" name="hidden" defaultChecked={event?.hidden ?? false} className="h-4 w-4 accent-[var(--color-flame-700)]" /> Hidden (a draft only admins can open)
         </label>
       </div>

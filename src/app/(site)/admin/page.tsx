@@ -529,6 +529,7 @@ export default async function AdminPage({
                       · /{e.slug}
                       {e.hidden ? " · hidden" : ""}
                       {!e.listed ? " · not on the homepage" : ""}
+                      {e.promo ? " · featured ad" : ""}
                       {e.dates ? ` · ${e.dates}` : ""}
                     </span>
                   </summary>

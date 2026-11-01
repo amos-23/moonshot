@@ -17,6 +17,7 @@
   "dependencies": {
     "@electric-sql/pglite": "^0.5.12",
     "@fontsource-variable/outfit": "^5.3.0",
+    "@fontsource/oswald": "^5.3.0",
     "@fontsource/outfit": "^5.3.0",
     "@fontsource/platypi": "^5.3.0",
     "@fontsource/playfair-display": "^5.3.0",
