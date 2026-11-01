@@ -2,7 +2,7 @@ import Link from "next/link";
 import { desc, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { adminGate } from "@/components/admin-gate";
-import { removePhotoAction, resolveReportAction, setFeaturedAction, setHiddenAction } from "@/lib/actions";
+import { approveEventAction, removePhotoAction, resolveReportAction, setFeaturedAction, setHiddenAction } from "@/lib/actions";
 import { formatTime, timeAgo } from "@/lib/time";
 import { AdminMomentForm, EventForm, ImportForm, TopAccountsForm } from "@/components/forms";
 import { listEvents } from "@/lib/events";
@@ -156,6 +156,8 @@ export default async function AdminPage({
   const shownAccounts = accountRows.filter((a) => match(a.name, a.email));
   const shownSignups = signups.filter((u) => match(u.name, u.email, u.about));
   const openReports = reports.length;
+  const pending = events.filter((e) => !e.listed && !e.hidden);
+  const ownerEmail = new Map(accountRows.map((a) => [a.id, a.email] as const));
 
   const tiles: {
     label: string;
@@ -262,7 +264,7 @@ export default async function AdminPage({
 
   return (
     <div>
-      <AdminNav events={events} current={event} tab={tab} badges={{ home: openReports }} />
+      <AdminNav events={events} current={event} tab={tab} badges={{ home: openReports, events: pending.length }} />
       <div className="mx-auto max-w-6xl space-y-8 px-4 py-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -493,6 +495,31 @@ export default async function AdminPage({
             title="Events"
             note={<>Each event has its own Connect (people) and Moments at its own address. Dates set what the event page shows: before (“Who&apos;s going”), during (Meet up) and after (“Find the people you met”).</>}
           >
+            {pending.length > 0 && (
+              <div className="mb-6">
+                <h3 className="mb-2 font-bold">Waiting for approval · {pending.length}</h3>
+                <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-sun/60 bg-sun-100/40">
+                  {pending.map((e) => (
+                    <li key={e.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+                      <span className="min-w-0 flex-1">
+                        <Link href={`/${e.slug}`} target="_blank" className="font-semibold hover:underline">
+                          {e.name}
+                        </Link>
+                        <span className="text-muted">
+                          {" "}
+                          · /{e.slug}
+                          {e.dates ? ` · ${e.dates}` : ""}
+                          {e.venue ? ` · ${e.venue}` : ""} · by {ownerEmail.get(e.ownerId ?? "") ?? "an account"} · {timeAgo(e.createdAt)}
+                        </span>
+                      </span>
+                      <ActionButton action={approveEventAction.bind(null, e.id)} variant="secondary">
+                        Approve
+                      </ActionButton>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="space-y-3">
               {events.map((e) => (
                 <details key={e.id} className="rounded-3xl border border-line bg-surface p-4">
@@ -501,6 +528,7 @@ export default async function AdminPage({
                     <span className="font-normal text-muted">
                       · /{e.slug}
                       {e.hidden ? " · hidden" : ""}
+                      {!e.listed ? " · not on the homepage" : ""}
                       {e.dates ? ` · ${e.dates}` : ""}
                     </span>
                   </summary>

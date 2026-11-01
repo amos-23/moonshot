@@ -1,5 +1,7 @@
 "use server";
 
+import { parseEventForm } from "@/lib/event-form";
+
 import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -14,7 +16,7 @@ import { parsePhoto } from "@/lib/photo";
 import { clientIp, visitorHash } from "@/lib/track";
 import { MAX_MOMENT_PHOTOS } from "@/lib/constants";
 import { parseHandles, topAccountsKey } from "@/lib/featured";
-import { RESERVED_SLUGS, checkinCookie, eventPhase, getEvent } from "@/lib/events";
+import { checkinCookie, eventPhase, getEvent } from "@/lib/events";
 import { getAccount } from "@/lib/auth";
 
 export type Result = { ok: true; message?: string; data?: unknown } | { ok: false; error: string; fields?: Record<string, string> };
@@ -449,57 +451,29 @@ export async function reactAction(momentId: string, kind: string, reactorId: str
   return result as Result & { counts?: ReactionCounts; on?: boolean };
 }
 
-/** "2026-11-27" → that day's start (or end) in Lagos time (UTC+1). */
-function lagosDay(value: string, end: boolean): Date | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const d = new Date(`${value}T00:00:00+01:00`);
-  if (Number.isNaN(d.getTime())) return null;
-  return end ? new Date(d.getTime() + 86_400_000) : d;
-}
-
 /** Admin: add an event, or edit one (name, dates, venue, address on the site…). */
 export async function saveEventAction(_: Result | null, form: FormData): Promise<Result> {
   return guard(async (): Promise<Result> => {
     const db = await requireAdmin();
     const id = String(form.get("id") ?? "");
-    const str = (k: string, max: number) => String(form.get(k) ?? "").trim().slice(0, max) || null;
-    const name = str("name", 120);
-    const slug = String(form.get("slug") ?? "").trim().toLowerCase();
-    if (!name) return { ok: false, error: "Give the event a name.", fields: { name: "Required" } };
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 2 || slug.length > 60) return { ok: false, error: "The address can use lowercase letters, numbers and dashes.", fields: { slug: "e.g. growth-summit-2026" } };
-    if (RESERVED_SLUGS.has(slug)) return { ok: false, error: "That address is used by the site. Pick another.", fields: { slug: "Taken by the site" } };
-    const startDay = String(form.get("startDay") ?? "");
-    const endDay = String(form.get("endDay") ?? "") || startDay;
-    const startsAt = startDay ? lagosDay(startDay, false) : null;
-    const endsAt = endDay ? lagosDay(endDay, true) : null;
-    if ((startDay && !startsAt) || (endDay && !endsAt)) return { ok: false, error: "Check the dates." };
-    if (startsAt && endsAt && endsAt <= startsAt) return { ok: false, error: "The event has to end after it starts.", fields: { endDay: "After the start" } };
-    const values = {
-      name,
-      slug,
-      short: str("short", 30) ?? name.split(/\s+/).slice(0, 2).join(" "),
-      organiser: str("organiser", 120),
-      tagline: str("tagline", 160),
-      dates: str("dates", 80),
-      venue: str("venue", 160),
-      url: str("url", 300),
-      xHandle: str("xHandle", 15)?.replace(/^@/, "") ?? null,
-      hashtag: (() => {
-        const h = str("hashtag", 40);
-        return h ? (h.startsWith("#") ? h : `#${h}`) : null;
-      })(),
-      startsAt,
-      endsAt,
-      position: Number(form.get("position") ?? 100) || 100,
-      hidden: form.get("hidden") === "on",
-    };
-    if (values.url && !/^https?:\/\//i.test(values.url)) values.url = `https://${values.url}`;
-    const clash = await db.query.eventSpaces.findFirst({ where: eq(schema.eventSpaces.slug, slug) });
+    const parsed = parseEventForm(form);
+    if (!parsed.ok) return parsed;
+    const values = { ...parsed.values, position: Number(form.get("position") ?? 100) || 100, hidden: form.get("hidden") === "on", listed: form.get("listed") === "on" };
+    const clash = await db.query.eventSpaces.findFirst({ where: eq(schema.eventSpaces.slug, values.slug) });
     if (clash && clash.id !== id) return { ok: false, error: "Another event already uses that address.", fields: { slug: "Already taken" } };
     if (id) await db.update(schema.eventSpaces).set(values).where(eq(schema.eventSpaces.id, id));
     else await db.insert(schema.eventSpaces).values(values);
     refresh();
-    return { ok: true, message: id ? "Saved." : `Added. It lives at /${slug}.` };
+    return { ok: true, message: id ? "Saved." : `Added. It lives at /${values.slug}.` };
+  });
+}
+
+/** Admin: put an event someone created on the homepage list. */
+export async function approveEventAction(id: string): Promise<Result> {
+  return guard(async () => {
+    await (await requireAdmin()).update(schema.eventSpaces).set({ listed: true, hidden: false }).where(eq(schema.eventSpaces.id, id));
+    refresh();
+    return { ok: true, message: "Approved: it's on the homepage." };
   });
 }
 

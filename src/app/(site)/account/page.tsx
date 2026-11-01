@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
+import { ownedEvents } from "@/lib/events";
 import { authMode, getAccount, isAdminAccount, isAdminEmail } from "@/lib/auth";
 import { signOutAction } from "@/lib/auth-actions";
 import { AccountForm, PasswordForm } from "@/components/auth-forms";
@@ -20,6 +21,7 @@ export default async function AccountPage() {
     .innerJoin(schema.eventSpaces, eq(schema.eventSpaces.id, schema.people.eventId))
     .where(eq(schema.people.accountId, account.id))
     .orderBy(desc(schema.people.updatedAt));
+  const events = await ownedEvents(db, account.id);
   return (
     <div className="mx-auto max-w-xl space-y-6 px-4 py-8">
       <PageTitle
@@ -71,6 +73,36 @@ export default async function AccountPage() {
                 </span>
                 <Link href={`/${c.slug}/card`} className="text-sm font-semibold text-flame-700 underline">
                   Edit card
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+      <Card className="p-5 sm:p-6">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="font-bold">Your events</h2>
+          <Link href="/new-event" data-track="account_new_event" className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white">
+            ＋ Create an event
+          </Link>
+        </div>
+        {events.length === 0 ? (
+          <p className="text-sm text-muted">Running an event? Give your guests a page to find each other, plus Moments for the photos.</p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {events.map((e) => (
+              <li key={e.id} className="flex items-center justify-between gap-3 py-2.5">
+                <span className="min-w-0">
+                  <Link href={`/${e.slug}`} className="block truncate font-semibold hover:underline">
+                    {e.name}
+                  </Link>
+                  <span className="block truncate text-sm text-muted">
+                    /{e.slug}
+                    {e.listed ? " · on the homepage" : " · waiting for approval"}
+                  </span>
+                </span>
+                <Link href={`/${e.slug}/manage`} className="text-sm font-semibold text-flame-700 underline">
+                  Manage
                 </Link>
               </li>
             ))}

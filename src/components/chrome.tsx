@@ -1,28 +1,12 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowUpRight, UserRound } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Settings, UserRound } from "lucide-react";
 import type { EventSpace, Phase } from "@/lib/events";
-import { MOONSHOT_EVENT_ID } from "@/lib/db/schema";
 
-/** Event Connect's mark: two linked rings (people meeting) on a dark tile. */
-export function ConnectMark({ size = 28 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
-      <rect width="32" height="32" rx="8" fill="#1e1f26" />
-      <circle cx="12.5" cy="16" r="6.5" fill="none" stroke="#e8502a" strokeWidth="3" />
-      <circle cx="19.5" cy="16" r="6.5" fill="none" stroke="#f6a821" strokeWidth="3" />
-    </svg>
-  );
-}
-
-/** Moonshot's own mark: a sunrise in its colours (used only inside the Moonshot event). */
-export function SunriseMark({ size = 28 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
-      <rect width="32" height="32" rx="8" fill="#e8502a" />
-      <circle cx="16" cy="24" r="11" fill="#f6a821" />
-    </svg>
-  );
-}
+export { ConnectMark, SunriseMark } from "./chrome-marks";
+import { ConnectMark, SunriseMark } from "./chrome-marks";
+import { EventWordmark } from "./event-brand";
+import { eventTheme } from "@/lib/theme";
+import { cx } from "./ui";
 
 /** The logo, then e.g. "EVENT CONNECT" or "MOONSHOT CONNECT". */
 export function Wordmark({ label, compact, sunrise }: { label: string; compact?: boolean; sunrise?: boolean }) {
@@ -39,12 +23,18 @@ export function Wordmark({ label, compact, sunrise }: { label: string; compact?:
 const headerClass = "site-header sticky top-0 z-30 border-b border-line bg-canvas/90 backdrop-blur";
 
 /** Signed out: a quiet "Sign in". Signed in: your initial, to your account. */
+/** Signed out: "Sign up" (most people are new), with a quiet "Sign in" beside it on wider screens. Signed in: your initial. */
 function AccountLink({ account, next }: { account: { email: string; name: string | null } | null; next: string }) {
   if (!account)
     return (
-      <Link href={`/signin?next=${encodeURIComponent(next)}`} data-track="signin_header" className="px-1.5 text-sm font-semibold text-muted hover:text-ink">
-        Sign in
-      </Link>
+      <span className="inline-flex items-center gap-1">
+        <Link href={`/signin?next=${encodeURIComponent(next)}`} data-track="signin_header" className="hidden px-2 text-sm font-semibold text-muted hover:text-ink md:inline">
+          Sign in
+        </Link>
+        <Link href={`/signup?next=${encodeURIComponent(next)}`} data-track="signup_header" className="inline-flex h-10 items-center whitespace-nowrap rounded-full border border-line bg-white px-3.5 text-sm font-semibold text-ink hover:border-ink/40">
+          Sign up
+        </Link>
+      </span>
     );
   const initial = (account.name || account.email).trim()[0]?.toUpperCase() ?? "•";
   return (
@@ -84,24 +74,26 @@ export function SiteFooter() {
 }
 
 /** Header inside an event: that event's Connect (people), Moments, Meet up while it's on, and your card. */
-export function EventHeader({ event, phase, hasCard, account }: { event: EventSpace; phase: Phase; hasCard: boolean; account: HeaderAccount }) {
+export function EventHeader({ event, phase, hasCard, account, manage = false }: { event: EventSpace; phase: Phase; hasCard: boolean; account: HeaderAccount; manage?: boolean }) {
   const base = `/${event.slug}`;
+  const t = eventTheme(event);
+  const pill = "inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-white px-3.5 text-sm font-semibold text-ink shadow-sm hover:border-ink/40";
   return (
     <header className={headerClass}>
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-2 px-4">
         <Link href={base} aria-label={`${event.short} Connect home`} className="min-w-0">
-          <Wordmark label={event.short} compact sunrise={event.id === MOONSHOT_EVENT_ID} />
+          <EventWordmark event={event} />
         </Link>
         <div className="flex items-center gap-2">
           <span className="hidden sm:inline-flex">
             <AccountLink account={account} next={base} />
           </span>
           {phase === "live" && (
-            <Link href={`${base}/meet`} data-track="meet_header" className="inline-flex h-10 items-center whitespace-nowrap rounded-full bg-sun px-3.5 text-sm font-semibold text-ink hover:bg-[#ffb93d]">
+            <Link href={`${base}/meet`} data-track="meet_header" style={{ background: t.meetBtn[0], color: t.meetBtn[1] }} className="inline-flex h-10 items-center whitespace-nowrap rounded-full px-3.5 text-sm font-semibold hover:opacity-90">
               📍 Meet up
             </Link>
           )}
-          <Link href={`${base}/moments`} data-track="moments_header" className="inline-flex h-10 items-center whitespace-nowrap rounded-full bg-flame-700 px-3.5 text-sm font-semibold text-white hover:bg-flame">
+          <Link href={`${base}/moments`} data-track="moments_header" style={{ background: t.momentsBtn[0], color: t.momentsBtn[1] }} className="inline-flex h-10 items-center whitespace-nowrap rounded-full px-3.5 text-sm font-semibold hover:opacity-90">
             📸 Moments
           </Link>
           <Link
@@ -117,19 +109,26 @@ export function EventHeader({ event, phase, hasCard, account }: { event: EventSp
         </div>
       </div>
       <nav aria-label="Event links" className="border-t border-line/70">
-        <div className="mx-auto flex h-9 max-w-6xl items-center justify-between gap-3 px-4 text-xs font-semibold">
-          <Link href="/" data-track="all_events" className="inline-flex items-center gap-1 text-muted hover:text-ink">
-            <ArrowLeft size={14} aria-hidden /> All events
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4">
+          <Link href="/" data-track="all_events" className={pill}>
+            <ArrowLeft size={16} aria-hidden /> All events
           </Link>
-          <span className="flex min-w-0 items-center gap-4">
+          <span className="flex min-w-0 items-center gap-2">
+            {manage && (
+              <Link href={`${base}/manage`} data-track="manage_event" aria-label="Manage event" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-ink px-3.5 text-sm font-semibold text-white shadow-sm hover:bg-black">
+                <Settings size={15} aria-hidden /> <span className="hidden sm:inline">Manage</span>
+              </Link>
+            )}
             {event.url && (
-              <a href={event.url} target="_blank" rel="noopener noreferrer" data-track="official_site" className="inline-flex min-w-0 items-center gap-1 text-muted hover:text-ink">
-                <span className="truncate">{event.short} official site</span>
-                <ArrowUpRight size={14} aria-hidden className="shrink-0" />
+              <a href={event.url} target="_blank" rel="noopener noreferrer" data-track="official_site" className={cx(pill, "min-w-0")}>
+                <span className="truncate">
+                  <span className="hidden sm:inline">{event.short} </span>Official site
+                </span>
+                <ArrowUpRight size={16} aria-hidden className="shrink-0" />
               </a>
             )}
-            <Link href={account ? "/account" : `/signin?next=${encodeURIComponent(base)}`} data-track="signin_header" className="shrink-0 text-ink hover:underline sm:hidden">
-              {account ? "Your account" : "Sign in"}
+            <Link href={account ? "/account" : `/signup?next=${encodeURIComponent(base)}`} data-track={account ? "account_header" : "signup_header"} aria-label={account ? "Your account" : undefined} className="shrink-0 px-1 text-sm font-semibold text-ink hover:underline sm:hidden">
+              {account ? "Account" : "Sign up"}
             </Link>
           </span>
         </div>

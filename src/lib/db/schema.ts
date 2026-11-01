@@ -28,6 +28,12 @@ export const eventSpaces = mc.table("event_spaces", {
   endsAt: timestamp("ends_at", { withTimezone: true }), // after this: "find the people you met"
   position: integer("position").notNull().default(100), // order on the homepage
   hidden: boolean("hidden").notNull().default(false),
+  // On the homepage list. Events people create themselves start unlisted (their own link still works)
+  // until an admin approves them.
+  listed: boolean("listed").notNull().default(true),
+  // Who created it (null: added by an admin). The owner can edit it and moderate it.
+  ownerId: uuid("owner_id"),
+  brandColor: text("brand_color"), // e.g. "#5b3df5", for events without a built-in theme
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

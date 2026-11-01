@@ -226,3 +226,41 @@ describe("cleanPostText", () => {
     expect(cleanPostText("keep https://moonshot.techcabal.com links")).toBe("keep https://moonshot.techcabal.com links");
   });
 });
+
+describe("events people create", () => {
+  it("writes dates out from the days", async () => {
+    const { formatDates, lagosDay } = await import("@/lib/event-form");
+    expect(formatDates(lagosDay("2026-11-26", false), lagosDay("2026-11-26", true))).toBe("26 November 2026");
+    expect(formatDates(lagosDay("2026-10-28", false), lagosDay("2026-10-29", true))).toBe("28–29 October 2026");
+    expect(formatDates(lagosDay("2026-10-30", false), lagosDay("2026-11-02", true))).toBe("30 October – 2 November 2026");
+    expect(formatDates(lagosDay("2026-12-31", false), lagosDay("2027-01-01", true))).toBe("31 December 2026 – 1 January 2027");
+    expect(formatDates(null, null)).toBeNull();
+  });
+  it("makes an address from the name", async () => {
+    const { slugify } = await import("@/lib/event-form-client");
+    expect(slugify("Lagos Product Meetup 2027!")).toBe("lagos-product-meetup-2027");
+    expect(slugify("  Café — Ọ̀yọ́ Tech  ")).toBe("cafe-oyo-tech");
+  });
+  it("checks the form", async () => {
+    const { parseEventForm } = await import("@/lib/event-form");
+    const form = (o: Record<string, string>) => {
+      const f = new FormData();
+      for (const [k, v] of Object.entries(o)) f.set(k, v);
+      return f;
+    };
+    expect(parseEventForm(form({})).ok).toBe(false);
+    expect(parseEventForm(form({ name: "Admin" })).ok).toBe(false); // /admin belongs to the site
+    expect(parseEventForm(form({ name: "Meetup", brandColor: "pink" })).ok).toBe(false);
+    const ok = parseEventForm(form({ name: "Yaba Builders Night", startDay: "2027-02-10", url: "yababuilders.com", brandColor: "D9467A", hashtag: "YabaBuilds" }));
+    expect(ok.ok && ok.values).toMatchObject({ slug: "yaba-builders-night", short: "Yaba Builders", dates: "10 February 2027", url: "https://yababuilders.com", brandColor: "#d9467a", hashtag: "#YabaBuilds" });
+  });
+  it("tints the neutral look with the event's colour, keeping text readable", async () => {
+    const { eventTheme } = await import("@/lib/theme");
+    const dark = eventTheme({ id: "x", slug: "night", brandColor: "#171834" });
+    expect(dark.primary).toBe("#171834");
+    expect(dark.onPrimary).toBe("#ffffff");
+    expect(dark.heroHighlight).not.toBe("#171834"); // too dark on the dark hero, so it's lightened
+    expect(eventTheme({ id: "x", slug: "sunny", brandColor: "#ffe14d" }).onPrimary).toBe("#1e1f26");
+    expect(eventTheme({ id: "x", slug: "admarp-growth-summit", brandColor: "#ff0000" }).primary).toBe("#171834"); // built-in themes win
+  });
+});

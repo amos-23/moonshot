@@ -120,6 +120,13 @@
       "when": 1793563342433,
       "tag": "0016_email_verified",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793564600223,
+      "tag": "0017_user_events",
+      "breakpoints": true
     }
   ]
 }

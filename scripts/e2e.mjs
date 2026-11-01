@@ -435,9 +435,7 @@ try {
   step("accounts: sign up from the header, cards on this device become yours, sign out and back in anywhere");
   const mail = `Bola.${run}@Example.com`;
   await bola.page.goto(EV);
-  await bola.page.getByRole("link", { name: "Sign in", exact: true }).click();
-  await bola.page.waitForURL(/\/signin\?next=%2Fmoonshot/);
-  await bola.page.getByRole("link", { name: "Create an account" }).click();
+  await bola.page.getByRole("link", { name: "Sign up", exact: true }).click();
   await bola.page.waitForURL(/\/signup\?next=%2Fmoonshot/);
   await bola.page.getByLabel("Name").fill("=Bola");
   await bola.page.getByLabel("Email", { exact: true }).fill("not-an-email");
@@ -478,10 +476,54 @@ try {
   await dup.page.goto(`${BASE}/account`);
   await dup.page.getByRole("button", { name: "Sign out" }).click();
   await dup.page.waitForURL((u) => new URL(u).pathname === "/");
-  await dup.page.getByRole("link", { name: "Sign in", exact: true }).waitFor();
+  await dup.page.getByRole("link", { name: "Sign up", exact: true }).waitFor();
   await dup.page.goto(`${BASE}/account`);
   await dup.page.waitForURL((u) => new URL(u).pathname === "/signin" && new URL(u).searchParams.get("next") === "/account");
   await dup.ctx.close();
+
+  step("organisers: anyone with an account creates an event, shares it, and keeps it tidy");
+  const myEvent = `bola-meetup-${run}`;
+  const stranger = await visitor();
+  await stranger.page.goto(`${BASE}/new-event`);
+  await stranger.page.waitForURL((u) => new URL(u).pathname === "/signup" && new URL(u).searchParams.get("next") === "/new-event"); // needs an account
+  await bola.page.goto(`${BASE}/account`);
+  await bola.page.getByRole("link", { name: "＋ Create an event" }).click();
+  await bola.page.waitForURL(/\/new-event$/);
+  await bola.page.getByRole("button", { name: "Create event" }).click();
+  await bola.page.getByText("Give the event a name.").first().waitFor();
+  await bola.page.getByLabel("Event name").fill(`Bola Meetup ${run}`);
+  assert.equal(await bola.page.getByLabel("Address").inputValue(), myEvent, "address made from the name");
+  await bola.page.getByLabel("First day").fill("2027-02-10");
+  await bola.page.getByLabel("Venue").fill("Yaba Tech Hub, Lagos");
+  await bola.page.getByLabel("Colour code").fill("#d9467a");
+  await bola.page.getByRole("button", { name: "Create event" }).click();
+  await bola.page.waitForURL(new RegExp(`/${myEvent}/manage\\?created=1$`));
+  await bola.page.getByText("Your event is ready").waitFor();
+  await bola.page.getByText("Waiting for approval").waitFor();
+  // Its page works straight away, with her colour and the dates written out; it isn't on the homepage yet.
+  await stranger.page.goto(`${BASE}/${myEvent}`);
+  await stranger.page.getByText("10 February 2027 · Yaba Tech Hub, Lagos").waitFor();
+  assert.equal(await stranger.page.locator('meta[name="robots"]').getAttribute("content"), "noindex, nofollow");
+  assert.equal(await stranger.page.getByRole("link", { name: "Manage event" }).count(), 0, "only the organiser sees Manage");
+  assert.equal((await stranger.page.request.get(`${BASE}/${myEvent}/manage`)).status(), 404, "Manage is the organiser's");
+  await stranger.page.goto(BASE);
+  assert.equal(await stranger.page.getByText(`Bola Meetup ${run}`).count(), 0, "not on the homepage until approved");
+  // A guest adds a card; the organiser hides it, then brings it back.
+  await addCard(stranger.page, { name: `Guest ${run}`, headline: "Designer", contact: `guest_${run}`, event: myEvent });
+  await bola.page.goto(`${BASE}/${myEvent}`);
+  await bola.page.getByRole("link", { name: "Manage event" }).click();
+  await bola.page.waitForURL(new RegExp(`/${myEvent}/manage$`));
+  const guestRow = bola.page.locator("li", { hasText: `Guest ${run}` });
+  await guestRow.getByRole("button", { name: "Hide" }).click();
+  await guestRow.getByRole("button", { name: "Unhide" }).waitFor();
+  await stranger.page.goto(`${BASE}/${myEvent}?q=${encodeURIComponent(`Guest ${run}`)}`);
+  assert.equal(await stranger.page.locator("li", { hasText: `Guest ${run}` }).count(), 0, "hidden card is gone");
+  await guestRow.getByRole("button", { name: "Unhide" }).click();
+  await guestRow.getByRole("button", { name: "Hide" }).waitFor();
+  // She can't moderate someone else's event.
+  const notMine = await stranger.page.request.get(`${BASE}/moonshot/manage`);
+  assert.equal(notMine.status(), 404);
+  await stranger.ctx.close();
 
   step("admin: hidden behind a secret address; wrong key refused; right key hides a card");
   const admin = await visitor({ viewport: { width: 1280, height: 900 } });
@@ -624,7 +666,7 @@ try {
   await hub.page.waitForURL(/\/admarp-growth-summit\/moments$/);
   await hub.page.getByText("Be the first to share a photo or highlight from ADMARP.").waitFor();
   // Every event page links back to all events and out to the event's own site.
-  assert.equal(await hub.page.getByRole("link", { name: "ADMARP official site" }).getAttribute("href"), "https://admarp.com/digital-product-growth-summit-2026/");
+  assert.equal(await hub.page.getByRole("link", { name: /Official site/ }).getAttribute("href"), "https://admarp.com/digital-product-growth-summit-2026/");
   await hub.page.getByRole("link", { name: "All events" }).click();
   await hub.page.waitForURL((u) => new URL(u).pathname === "/");
   await hub.page.goto(`${BASE}/admarp-growth-summit/moments`);
@@ -666,6 +708,15 @@ try {
   await admin.page.getByText(`Nothing matches “nobody-${run}”.`).first().waitFor();
   await admin.page.getByRole("navigation", { name: "Admin sections" }).getByRole("link", { name: "Events" }).click();
   await admin.page.waitForURL(/tab=events/);
+  // Events people created wait here; approving puts them on the homepage.
+  const waiting = admin.page.locator("li", { hasText: `Bola Meetup ${run}` }).first();
+  await waiting.getByText(/by bola\./).waitFor();
+  await waiting.getByRole("button", { name: "Approve" }).click();
+  await waiting.waitFor({ state: "detached" });
+  const home = await visitor();
+  await home.page.goto(BASE);
+  await home.page.getByText(`Bola Meetup ${run}`, { exact: true }).waitFor();
+  await home.ctx.close();
   await admin.page.getByText("＋ Add an event").click();
   const newForm = admin.page.locator("details", { hasText: "＋ Add an event" });
   await newForm.getByLabel("Name", { exact: true }).fill(`Test Fest ${run}`);
