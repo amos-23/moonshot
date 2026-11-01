@@ -1,5 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+// Headline faces for events that use them (ADMARP: Playfair Display; Ogun Digital: Platypi). Browsers only
+// download a face when a page actually uses it.
+import "@fontsource/playfair-display/900.css";
+import "@fontsource/playfair-display/900-italic.css";
+import "@fontsource/platypi/600.css";
+import "@fontsource/platypi/600-italic.css";
 import { Tracker } from "@/components/tracker";
 import { siteOrigin } from "@/lib/site";
 

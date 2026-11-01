@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { EventCover } from "@/components/event-brand";
+import { eventTheme, themeKind } from "@/lib/theme";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { ArrowRight, CalendarDays, MapPin } from "lucide-react";
 import { getDb, schema } from "@/lib/db";
@@ -6,9 +8,6 @@ import { eventPhase, listEvents, type EventSpace, type Phase } from "@/lib/event
 import { Notice, cx } from "@/components/ui";
 import { ConnectMark } from "@/components/chrome";
 
-/** A cover colour for events without photos yet, different per event (picked from its address). */
-const COVERS = ["from-[#2a1d4a] to-[#e8502a]", "from-[#0f3d3e] to-[#f6a821]", "from-[#1e1f26] to-[#7a5cff]", "from-[#3b0d2c] to-[#ff7a45]", "from-[#0b2a4a] to-[#2fb7a6]"];
-const coverTone = (slug: string) => COVERS[[...slug].reduce((a, c) => a + c.charCodeAt(0), 0) % COVERS.length];
 
 /**
  * The hero's backdrop: people as dots, joined where they connect, drifting slowly (still for
@@ -101,6 +100,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ b
             <a href="#events" className="inline-flex h-12 items-center gap-2 rounded-full bg-white px-6 font-semibold text-ink hover:bg-white/90">
               Pick your event <ArrowRight size={18} aria-hidden />
             </a>
+            <Link href="/new-event" data-track="hub_new_event_hero" className="inline-flex h-12 items-center gap-2 rounded-full border border-white/25 px-6 font-semibold text-white hover:bg-white/10">
+              Create your event
+            </Link>
           </div>
         </div>
       </section>
@@ -122,6 +124,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ b
                 <EventCard event={e} phase={eventPhase(e)} stats={stats.get(e.id)!} />
               </li>
             ))}
+            <li>
+              <Link href="/new-event" data-track="hub_new_event" className="flex h-full min-h-64 flex-col items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-line p-6 text-center transition hover:border-ink/30 hover:bg-white">
+                <span className="grid h-12 w-12 place-items-center rounded-full bg-ink text-2xl text-white">＋</span>
+                <span className="text-lg font-extrabold">Running an event?</span>
+                <span className="max-w-xs text-sm text-muted">Create a free page where your guests find each other and share the moments.</span>
+              </Link>
+            </li>
           </ul>
         )}
       </section>
@@ -133,10 +142,11 @@ function EventCard({ event: e, phase, stats }: { event: EventSpace; phase: Phase
   const base = `/${e.slug}`;
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-3xl border border-line bg-surface shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <Link href={base} className={cx("relative block aspect-[16/9] overflow-hidden bg-gradient-to-br", coverTone(e.slug))} data-track="hub_event" aria-label={`${e.name}: Connect`}>
-        {stats.cover && (
+      <Link href={base} className="relative block aspect-[16/9] overflow-hidden" data-track="hub_event" aria-label={`${e.name}: Connect`}>
+        <EventCover event={e} />
+        {stats.cover && !["admarp", "ogun"].includes(themeKind(e)) && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={stats.cover} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-cover object-[center_30%]" />
+          <img src={stats.cover} alt="" loading="lazy" referrerPolicy="no-referrer" className="relative h-full w-full object-cover object-[center_30%]" />
         )}
         <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
         <span className={cx("absolute left-3 top-3 rounded-full px-2.5 py-1 text-xs font-bold", PHASE[phase].className)}>{PHASE[phase].label}</span>
@@ -167,7 +177,7 @@ function EventCard({ event: e, phase, stats }: { event: EventSpace; phase: Phase
           <Link href={base} data-track="hub_connect" className="inline-flex h-11 items-center justify-center gap-1.5 rounded-full bg-ink text-sm font-semibold text-white hover:bg-black">
             {phase === "after" ? "Find people" : "Connect"}
           </Link>
-          <Link href={`${base}/moments`} data-track="hub_moments" className="inline-flex h-11 items-center justify-center gap-1.5 rounded-full bg-flame-700 text-sm font-semibold text-white hover:bg-flame">
+          <Link href={`${base}/moments`} data-track="hub_moments" style={{ background: eventTheme(e).momentsBtn[0], color: eventTheme(e).momentsBtn[1] }} className="inline-flex h-11 items-center justify-center gap-1.5 rounded-full text-sm font-semibold hover:opacity-90">
             📸 Moments
           </Link>
         </div>

@@ -35,6 +35,14 @@ What each event's space has (paths below are inside the event, e.g. `/moonshot/m
 
 This is an independent, community-made tool. It isn't run or endorsed by TechCabal, and it uses no TechCabal logos.
 
+## Each event's look
+
+Every event page wears its own branding, taken from its official site: Moonshot keeps its sunrise; ADMARP uses its navy, blue and gold with Playfair Display and its AD**MARP** wordmark; Ogun Digital Summit uses its greens, circle pattern, Platypi headline and logo. The look covers the header logo, hero, buttons, homepage card and share images (`src/lib/theme.ts`, `src/components/event-brand.tsx`). Each event page links back to **All events** and out to the event's **official site**.
+
+## Events people create
+
+Anyone with an account can create an event at **`/new-event`** (also from the homepage and their account page): a name is enough, plus optional dates, venue, website, hashtag and a brand colour for the page. It works straight away at its own address so the organiser can share it, but it stays off the homepage (and out of search engines) until an admin approves it under **Admin → Events → Waiting for approval**. Organisers manage their event at **`/<event>/manage`**: edit the details and hide or bring back cards, moments, comments and check-ins. Up to 5 events per account.
+
 ## How "no sign-up" works
 
 When you add yourself, your browser keeps a private edit token in a cookie. **My card** gives you a private edit link so you can edit from another device, or you can sign in and your card follows your account.

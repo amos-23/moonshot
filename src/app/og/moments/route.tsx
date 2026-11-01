@@ -3,12 +3,15 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { getEvent } from "@/lib/events";
 import { BRAND, OG_SIZE, fetchAsDataUrl, ogFonts, ogHeaders } from "@/lib/og";
+import { themeKind } from "@/lib/theme";
 
 // The preview image for an event's Moments (?e=<slug>): its latest photos under a big "Moments".
 export async function GET(req: Request) {
   const db = await getDb();
   const event = await getEvent(db, new URL(req.url).searchParams.get("e") ?? "moonshot");
   if (!event) return new Response(null, { status: 404 });
+  // Placeholder tiles and the kicker in the event's own colours.
+  const [c1, c2] = { moonshot: [BRAND.flame, BRAND.sun], admarp: ["#0b8cb0", "#c9a84c"], ogun: ["#178a2d", "#9be29c"], default: [BRAND.flame, BRAND.sun] }[themeKind(event)];
   const rows = await db
     .select({ id: schema.moments.id, uploaded: sql<boolean>`${schema.moments.photoCount} > 0 or ${schema.moments.hasPhoto}`, xMedia: schema.moments.xMedia })
     .from(schema.moments)
@@ -33,7 +36,7 @@ export async function GET(req: Request) {
     (
       <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", position: "relative", fontFamily: "Outfit", color: "white", background: BRAND.ink, overflow: "hidden" }}>
         <div style={{ position: "absolute", top: -420, left: 200, width: 800, height: 800, borderRadius: 800, background: "radial-gradient(circle, rgba(232,80,42,0.6), rgba(232,80,42,0) 70%)", display: "flex" }} />
-        <div style={{ display: "flex", marginTop: 44, fontSize: 24, fontWeight: 800, letterSpacing: 6, color: BRAND.sun }}>{[event.short, event.dates].filter(Boolean).join(" · ").toUpperCase()}</div>
+        <div style={{ display: "flex", marginTop: 44, fontSize: 24, fontWeight: 800, letterSpacing: 6, color: c2 }}>{[event.short, event.dates].filter(Boolean).join(" · ").toUpperCase()}</div>
         <div style={{ display: "flex", fontSize: 120, fontWeight: 800, letterSpacing: -2, lineHeight: 1 }}>MOMENTS</div>
         <div style={{ display: "flex", fontSize: 28, fontWeight: 500, opacity: 0.75, marginTop: 6 }}>Photos and highlights, shared by the people who were there</div>
         <div style={{ display: "flex", gap: 28, marginTop: 34 }}>
@@ -42,7 +45,7 @@ export async function GET(req: Request) {
               // eslint-disable-next-line @next/next/no-img-element
               <img key={i} src={src} alt="" width={320} height={220} style={{ width: 320, height: 220, objectFit: "cover", borderRadius: 24, transform: `rotate(${tilt[i]}deg)`, border: "4px solid rgba(255,255,255,0.15)" }} />
             ) : (
-              <div key={i} style={{ width: 320, height: 220, borderRadius: 24, transform: `rotate(${tilt[i]}deg)`, background: i === 1 ? BRAND.sun : BRAND.flame, display: "flex" }} />
+              <div key={i} style={{ width: 320, height: 220, borderRadius: 24, transform: `rotate(${tilt[i]}deg)`, background: i === 1 ? c2 : c1, display: "flex" }} />
             ),
           )}
         </div>

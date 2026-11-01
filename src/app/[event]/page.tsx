@@ -16,7 +16,9 @@ import { momentImage, momentWho } from "@/components/moment";
 import { ShareButtons, XLogo } from "@/components/share";
 import { cleanPostText, withUtm, xIntent } from "@/lib/share";
 import { ScrollIntoView } from "@/components/client";
-import { Button, Card, Empty, LinkButton, Notice, Sunburst, cx, inputClass } from "@/components/ui";
+import { Button, Card, Empty, LinkButton, Notice, cx, inputClass } from "@/components/ui";
+import { EventHeroBackdrop, displayFont } from "@/components/event-brand";
+import { eventTheme } from "@/lib/theme";
 
 type SP = { q?: string; added?: string; f?: string; sort?: string };
 
@@ -53,6 +55,12 @@ export default async function EventHome({ params, searchParams }: { params: Prom
     const qs = new URLSearchParams(Object.entries(next).filter((e): e is [string, string] => Boolean(e[1]))).toString();
     return `${base}${qs ? `?${qs}` : ""}`;
   };
+  const theme = eventTheme(event);
+  const headline = cx(
+    "mx-auto mt-3 max-w-3xl leading-[0.95] tracking-tight",
+    theme.display === "sans" ? "text-3xl font-black uppercase sm:text-5xl" : theme.display === "playfair" ? "text-4xl font-black sm:text-6xl" : "text-4xl font-semibold sm:text-6xl",
+  );
+  const heroBtn = "inline-flex h-12 items-center justify-center gap-2 rounded-full px-6 text-base font-semibold shadow-sm transition hover:opacity-90";
   const chip = (on: boolean) => cx("shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold", on ? "bg-ink text-white" : "border border-line bg-white hover:border-ink/40");
   const gap = filter && gaps[filter];
   // A search that looks like a person's name: invite them when they're not here.
@@ -61,14 +69,14 @@ export default async function EventHome({ params, searchParams }: { params: Prom
   return (
     <div>
       {!(over && (q || filter)) && (
-      <section className="relative overflow-hidden bg-flame text-white">
-        <Sunburst className="absolute inset-x-0 bottom-0 h-full w-full" />
-        <div className="relative mx-auto max-w-6xl px-4 py-12 text-center sm:py-16">
+      <section className="relative overflow-hidden" style={{ background: theme.heroBg, color: theme.heroText }}>
+        <EventHeroBackdrop event={event} />
+        <div className={cx("relative mx-auto max-w-6xl px-4 pt-8 text-center sm:pt-10", theme.kind === "ogun" ? "pb-14 sm:pb-16" : "pb-8 sm:pb-10")}>
           {over ? (
             <>
-              <p className="text-xs font-bold uppercase tracking-[0.2em]">{event.short} · thanks for coming</p>
-              <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-black uppercase leading-[0.95] tracking-tight sm:text-6xl">Find the people you met</h1>
-              <p className="mx-auto mt-3 max-w-md font-medium">Everyone who added themselves at {event.short} is still here. Search a name and follow up.</p>
+              <p className="text-xs font-bold uppercase tracking-[0.2em]" style={{ color: theme.heroHighlight }}>{event.short} · thanks for coming</p>
+              <h1 className={headline} style={displayFont(theme)}>Find the people you met</h1>
+              <p className="mx-auto mt-3 max-w-md font-medium" style={{ color: theme.heroMuted }}>Everyone who added themselves at {event.short} is still here. Search a name and follow up.</p>
               <form role="search" method="get" className="mx-auto mt-6 flex max-w-xl gap-2">
                 <label className="relative flex-1">
                   <span className="sr-only">Search a name</span>
@@ -94,7 +102,8 @@ export default async function EventHome({ params, searchParams }: { params: Prom
                   target="_blank"
                   rel="noopener noreferrer"
                   data-track="home_share_x"
-                  className="inline-flex items-center gap-1.5 font-semibold text-white/90 underline-offset-4 hover:underline"
+                  className="inline-flex items-center gap-1.5 font-semibold underline-offset-4 hover:underline"
+                  style={{ color: theme.heroHighlight }}
                 >
                   <XLogo size={12} /> Tell people on X
                 </a>
@@ -102,21 +111,24 @@ export default async function EventHome({ params, searchParams }: { params: Prom
             </>
           ) : (
             <>
-            <p className="text-xs font-bold uppercase tracking-[0.2em]">
+            <p className="text-xs font-bold uppercase tracking-[0.2em]" style={{ color: theme.heroHighlight }}>
               {[event.dates, event.venue].filter(Boolean).join(" · ") || event.name}
             </p>
-            <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-black uppercase leading-[0.95] tracking-tight sm:text-6xl">{phase === "before" ? <>Who&apos;s going to {event.short}</> : <>Who&apos;s at {event.short}</>}</h1>
-            <p className="mx-auto mt-3 max-w-md font-medium">Find people worth meeting and reach them directly. No sign-up.</p>
-            <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <h1 className={headline} style={displayFont(theme)}>
+              {phase === "before" ? <>Who&apos;s going to </> : <>Who&apos;s at </>}
+              <span style={theme.kind === "admarp" || theme.kind === "ogun" ? { color: theme.heroHighlight, fontStyle: "italic" } : undefined}>{event.short}</span>
+            </h1>
+            <p className="mx-auto mt-3 max-w-lg font-medium" style={{ color: theme.heroMuted }}>Find people worth meeting and reach them directly. No sign-up.</p>
+            <div className="mt-5 flex flex-col items-center justify-center gap-3 sm:flex-row">
               {live && (
-            <LinkButton href={`${base}/meet`} variant="dark" size="lg" data-track="meet_hero">
-                📍 Meet someone now{checkins.length ? ` · ${checkins.length} around` : ""}
-              </LinkButton>
-            )}
+                <Link href={`${base}/meet`} data-track="meet_hero" className={heroBtn} style={theme.kind === "moonshot" ? { background: "#1e1f26", color: "#fff" } : { background: theme.primary, color: theme.onPrimary }}>
+                  📍 Meet someone now{checkins.length ? ` · ${checkins.length} around` : ""}
+                </Link>
+              )}
               {!me && (
-                <LinkButton href={`${base}/card`} variant="secondary" size="lg" data-track="add_yourself_hero">
+                <Link href={`${base}/card`} data-track="add_yourself_hero" className={cx(heroBtn, "border")} style={live || theme.kind === "moonshot" || theme.kind === "default" ? { background: "#fff", color: "#1e1f26", borderColor: "rgba(0,0,0,0.08)" } : { background: theme.primary, color: theme.onPrimary, borderColor: theme.primary }}>
                   Add yourself
-                </LinkButton>
+                </Link>
               )}
             </div>
             </>

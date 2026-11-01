@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import type { DB } from "@/lib/db";
 import * as s from "@/lib/db/schema";
 import { MOONSHOT_EVENT_ID } from "@/lib/db/schema";
@@ -7,7 +7,7 @@ import type { EventSpace } from "@/lib/db/schema";
 export type { EventSpace };
 
 /** Addresses taken by the site itself, so no event can use them as its slug. */
-export const RESERVED_SLUGS = new Set(["admin", "api", "auth", "signin", "account", "card", "m", "p", "og", "photo", "moment-photo", "moments", "meet", "update", "signup", "events", "icon.svg", "favicon.ico", "robots.txt", "sitemap.xml", "_next"]);
+export const RESERVED_SLUGS = new Set(["admin", "api", "auth", "signin", "account", "card", "m", "p", "og", "photo", "moment-photo", "moments", "meet", "update", "signup", "events", "new-event", "icon.svg", "favicon.ico", "robots.txt", "sitemap.xml", "_next"]);
 
 /** Where an event is in time. EVENT_MODE=before|live|after overrides it for every event (for testing). */
 export type Phase = "before" | "live" | "after";
@@ -28,10 +28,21 @@ export async function getEventById(db: DB, id: string): Promise<EventSpace | nul
   return (await db.query.eventSpaces.findFirst({ where: eq(s.eventSpaces.id, id) })) ?? null;
 }
 
-/** Events for the homepage, in the order chosen in admin (hidden ones only for admins). */
+/** Events for the homepage, in the order chosen in admin. Admins also see hidden and not-yet-approved ones. */
 export async function listEvents(db: DB, opts: { includeHidden?: boolean } = {}): Promise<EventSpace[]> {
   const all = await db.select().from(s.eventSpaces).orderBy(asc(s.eventSpaces.position), asc(s.eventSpaces.createdAt));
-  return opts.includeHidden ? all : all.filter((e) => !e.hidden);
+  return opts.includeHidden ? all : all.filter((e) => !e.hidden && e.listed);
+}
+
+/** Events an account created, newest first. */
+export async function ownedEvents(db: DB, accountId: string): Promise<EventSpace[]> {
+  return db.select().from(s.eventSpaces).where(eq(s.eventSpaces.ownerId, accountId)).orderBy(desc(s.eventSpaces.createdAt));
+}
+
+/** A brand colour as typed: "#5b3df5" or "5B3DF5" → "#5b3df5"; anything else → null. */
+export function cleanColor(v: string | null | undefined): string | null {
+  const m = String(v ?? "").trim().match(/^#?([0-9a-f]{6})$/i);
+  return m ? `#${m[1].toLowerCase()}` : null;
 }
 
 /** "Moonshot" → "#Moonshot" style tag used in ready-made posts: the event's hashtag, else none. */

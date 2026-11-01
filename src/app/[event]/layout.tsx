@@ -5,7 +5,8 @@ import { MOONSHOT_EVENT_ID } from "@/lib/db/schema";
 import { getMe } from "@/lib/me";
 import { eventPhase, getEvent } from "@/lib/events";
 import { getAccount } from "@/lib/auth";
-import { isAdmin } from "@/lib/me";
+import { canManageEvent } from "@/lib/event-access";
+import { themeKind } from "@/lib/theme";
 import { EventFooter, EventHeader } from "@/components/chrome";
 
 type Params = { params: Promise<{ event: string }> };
@@ -25,8 +26,10 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
       phase === "after"
         ? `Find and follow up with the people you met at ${e.name}${where ? ` (${where})` : ""}. No sign-up.`
         : `See who's going to ${e.name}${where ? ` (${where})` : ""} and reach the people worth meeting. No sign-up.`,
-    // Moonshot keeps its sunrise as the tab icon; other events use Event Connect's.
-    ...(e.id === MOONSHOT_EVENT_ID ? { icons: { icon: "/moonshot-icon.svg" } } : {}),
+    // Moonshot keeps its sunrise as the tab icon, Ogun Digital its own logo; others use Event Connect's.
+    ...(e.id === MOONSHOT_EVENT_ID ? { icons: { icon: "/moonshot-icon.svg" } } : themeKind(e) === "ogun" ? { icons: { icon: "/brands/ogun-digital-summit.svg" } } : {}),
+    // Events people created stay out of search engines until an admin approves them.
+    ...(!e.listed || e.hidden ? { robots: { index: false, follow: false } } : {}),
     openGraph: { images: [image], siteName: `${e.short} Connect` },
     twitter: { card: "summary_large_image", images: [image] },
   };
@@ -34,12 +37,14 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 export default async function EventLayout({ children, params }: Params & { children: React.ReactNode }) {
   const event = await getEvent(await getDb(), (await params).event);
-  // Hidden events are drafts: only admins can open them.
-  if (!event || (event.hidden && !(await isAdmin()))) notFound();
+  if (!event) notFound();
+  // Hidden events are drafts: only their organiser and admins can open them.
+  const manage = await canManageEvent(event);
+  if (event.hidden && !manage) notFound();
   const [me, account] = await Promise.all([getMe(event.id).catch(() => null), getAccount()]);
   return (
     <>
-      <EventHeader event={event} phase={eventPhase(event)} hasCard={Boolean(me)} account={account && { email: account.email, name: account.name }} />
+      <EventHeader event={event} phase={eventPhase(event)} hasCard={Boolean(me)} account={account && { email: account.email, name: account.name }} manage={manage} />
       <main id="main" className="pb-12">
         {children}
       </main>

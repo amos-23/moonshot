@@ -1,5 +1,5 @@
 {
-  "id": "ee2813ff-37b7-4ba5-b99b-2bf2f7aba155",
+  "id": "440c431f-daed-4a05-9fe9-1ca8a34ab899",
   "prevId": "c11167c1-a7be-4a7d-9beb-53098fe5f5a2",
   "version": "7",
   "dialect": "postgresql",
@@ -65,10 +65,10 @@
       "uniqueConstraints": {
         "accounts_email_unique": {
           "name": "accounts_email_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "email"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -198,39 +198,39 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {
         "checkins_event_id_event_spaces_id_fk": {
           "name": "checkins_event_id_event_spaces_id_fk",
           "tableFrom": "checkins",
+          "tableTo": "event_spaces",
+          "schemaTo": "connect",
           "columnsFrom": [
             "event_id"
           ],
-          "tableTo": "event_spaces",
-          "schemaTo": "connect",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "checkins_person_id_people_id_fk": {
           "name": "checkins_person_id_people_id_fk",
           "tableFrom": "checkins",
+          "tableTo": "people",
+          "schemaTo": "connect",
           "columnsFrom": [
             "person_id"
           ],
-          "tableTo": "people",
-          "schemaTo": "connect",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -312,39 +312,39 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {
         "comments_post_id_social_posts_id_fk": {
           "name": "comments_post_id_social_posts_id_fk",
           "tableFrom": "comments",
+          "tableTo": "social_posts",
+          "schemaTo": "connect",
           "columnsFrom": [
             "post_id"
           ],
-          "tableTo": "social_posts",
-          "schemaTo": "connect",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "comments_person_id_people_id_fk": {
           "name": "comments_person_id_people_id_fk",
           "tableFrom": "comments",
+          "tableTo": "people",
+          "schemaTo": "connect",
           "columnsFrom": [
             "person_id"
           ],
-          "tableTo": "people",
-          "schemaTo": "connect",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -455,6 +455,25 @@
           "notNull": true,
           "default": false
         },
+        "listed": {
+          "name": "listed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "brand_color": {
+          "name": "brand_color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -469,10 +488,10 @@
       "uniqueConstraints": {
         "event_spaces_slug_unique": {
           "name": "event_spaces_slug_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "slug"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -588,9 +607,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {},
@@ -634,30 +653,30 @@
         "hangout_members_hangout_id_hangouts_id_fk": {
           "name": "hangout_members_hangout_id_hangouts_id_fk",
           "tableFrom": "hangout_members",
+          "tableTo": "hangouts",
+          "schemaTo": "connect",
           "columnsFrom": [
             "hangout_id"
           ],
-          "tableTo": "hangouts",
-          "schemaTo": "connect",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "hangout_members_person_id_people_id_fk": {
           "name": "hangout_members_person_id_people_id_fk",
           "tableFrom": "hangout_members",
+          "tableTo": "people",
+          "schemaTo": "connect",
           "columnsFrom": [
             "person_id"
           ],
-          "tableTo": "people",
-          "schemaTo": "connect",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -750,25 +769,25 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {
         "hangouts_host_id_people_id_fk": {
           "name": "hangouts_host_id_people_id_fk",
           "tableFrom": "hangouts",
+          "tableTo": "people",
+          "schemaTo": "connect",
           "columnsFrom": [
             "host_id"
           ],
-          "tableTo": "people",
-          "schemaTo": "connect",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -817,16 +836,16 @@
         "moment_photos_moment_id_moments_id_fk": {
           "name": "moment_photos_moment_id_moments_id_fk",
           "tableFrom": "moment_photos",
+          "tableTo": "moments",
+          "schemaTo": "connect",
           "columnsFrom": [
             "moment_id"
           ],
-          "tableTo": "moments",
-          "schemaTo": "connect",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -1033,39 +1052,39 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {
         "moments_event_id_event_spaces_id_fk": {
           "name": "moments_event_id_event_spaces_id_fk",
           "tableFrom": "moments",
+          "tableTo": "event_spaces",
+          "schemaTo": "connect",
           "columnsFrom": [
             "event_id"
           ],
-          "tableTo": "event_spaces",
-          "schemaTo": "connect",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "moments_person_id_people_id_fk": {
           "name": "moments_person_id_people_id_fk",
           "tableFrom": "moments",
+          "tableTo": "people",
+          "schemaTo": "connect",
           "columnsFrom": [
             "person_id"
           ],
-          "tableTo": "people",
-          "schemaTo": "connect",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1247,9 +1266,9 @@
             }
           ],
           "isUnique": true,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "people_created_idx": {
           "name": "people_created_idx",
@@ -1262,39 +1281,39 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {
         "people_event_id_event_spaces_id_fk": {
           "name": "people_event_id_event_spaces_id_fk",
           "tableFrom": "people",
+          "tableTo": "event_spaces",
+          "schemaTo": "connect",
           "columnsFrom": [
             "event_id"
           ],
-          "tableTo": "event_spaces",
-          "schemaTo": "connect",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "people_account_id_accounts_id_fk": {
           "name": "people_account_id_accounts_id_fk",
           "tableFrom": "people",
+          "tableTo": "accounts",
+          "schemaTo": "connect",
           "columnsFrom": [
             "account_id"
           ],
-          "tableTo": "accounts",
-          "schemaTo": "connect",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1347,16 +1366,16 @@
         "photos_person_id_people_id_fk": {
           "name": "photos_person_id_people_id_fk",
           "tableFrom": "photos",
+          "tableTo": "people",
+          "schemaTo": "connect",
           "columnsFrom": [
             "person_id"
           ],
-          "tableTo": "people",
-          "schemaTo": "connect",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1408,9 +1427,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {},
@@ -1462,25 +1481,25 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {
         "reactions_moment_id_moments_id_fk": {
           "name": "reactions_moment_id_moments_id_fk",
           "tableFrom": "reactions",
+          "tableTo": "moments",
+          "schemaTo": "connect",
           "columnsFrom": [
             "moment_id"
           ],
-          "tableTo": "moments",
-          "schemaTo": "connect",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -1641,26 +1660,26 @@
         "signups_person_id_people_id_fk": {
           "name": "signups_person_id_people_id_fk",
           "tableFrom": "signups",
+          "tableTo": "people",
+          "schemaTo": "connect",
           "columnsFrom": [
             "person_id"
           ],
-          "tableTo": "people",
-          "schemaTo": "connect",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "signups_email_unique": {
           "name": "signups_email_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "email"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -1785,9 +1804,9 @@
             }
           ],
           "isUnique": true,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "social_posts_posted_idx": {
           "name": "social_posts_posted_idx",
@@ -1800,25 +1819,25 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {
         "social_posts_event_id_event_spaces_id_fk": {
           "name": "social_posts_event_id_event_spaces_id_fk",
           "tableFrom": "social_posts",
+          "tableTo": "event_spaces",
+          "schemaTo": "connect",
           "columnsFrom": [
             "event_id"
           ],
-          "tableTo": "event_spaces",
-          "schemaTo": "connect",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1830,10 +1849,10 @@
   },
   "enums": {},
   "schemas": {},
-  "views": {},
   "sequences": {},
   "roles": {},
   "policies": {},
+  "views": {},
   "_meta": {
     "columns": {},
     "schemas": {},
