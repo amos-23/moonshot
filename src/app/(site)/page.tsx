@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { EventCover } from "@/components/event-brand";
-import { PromoBanner } from "@/components/promo-banner";
+import { PromoCard } from "@/components/promo-banner";
 import { eventTheme, themeKind } from "@/lib/theme";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { ArrowRight, CalendarDays, MapPin } from "lucide-react";
@@ -122,14 +122,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ b
             <Notice tone="danger">That edit link isn&apos;t valid. Pick your event below and add yourself again if you need to.</Notice>
           </div>
         )}
-        {promos.map((p) => (
-          <PromoBanner key={p.id} event={p} />
-        ))}
         <h2 id="events-h" className="mb-5 text-lg font-extrabold uppercase">Events</h2>
-        {sorted.length === 0 ? (
+        {sorted.length + promos.length === 0 ? (
           <p className="text-muted">No events yet.</p>
         ) : (
           <ul className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {promos.map((p) => (
+              <li key={p.id}>
+                <PromoCard event={p} />
+              </li>
+            ))}
             {sorted.map((e) => (
               <li key={e.id}>
                 <EventCard event={e} phase={eventPhase(e)} stats={stats.get(e.id)!} />
