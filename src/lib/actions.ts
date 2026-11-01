@@ -5,16 +5,17 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { and, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import { cardSchema, fieldErrors, parseContact, signupSchema, type Contact } from "@/lib/validation";
+import { cardSchema, fieldErrors, parseContact, type Contact } from "@/lib/validation";
 import { clearCardCookie, getMe, hashToken, isAdmin, isAdminKey, newToken, rateLimit, setCardCookie } from "@/lib/me";
 import { REACTIONS, UserError, attachDetails, importPosts, momentDetailFields, noReactions, parseImport, reactionCounts, type ImportResult, type ReactionCounts } from "@/lib/data";
 import { fetchOEmbed, fetchPostDetails } from "@/lib/social/providers";
 import { parseXPostUrl, snowflakeToDate } from "@/lib/social/x-url";
 import { parsePhoto } from "@/lib/photo";
 import { clientIp, visitorHash } from "@/lib/track";
-import { MAX_MOMENT_PHOTOS, SIGNUP_COOKIE } from "@/lib/constants";
+import { MAX_MOMENT_PHOTOS } from "@/lib/constants";
 import { parseHandles, topAccountsKey } from "@/lib/featured";
 import { RESERVED_SLUGS, checkinCookie, eventPhase, getEvent } from "@/lib/events";
+import { getAccount } from "@/lib/auth";
 
 export type Result = { ok: true; message?: string; data?: unknown } | { ok: false; error: string; fields?: Record<string, string> };
 
@@ -63,7 +64,9 @@ export async function saveCardAction(_: Result | null, form: FormData): Promise<
       return { ok: false, error: "Lots of cards are being made from this network — try again in a few minutes." };
     }
     const token = newToken();
-    await db.insert(schema.people).values({ ...parsed.data, eventId: event.id, editTokenHash: hashToken(token) });
+    // Signed in: the card is yours, on any device.
+    const account = await getAccount();
+    await db.insert(schema.people).values({ ...parsed.data, eventId: event.id, accountId: account?.id ?? null, editTokenHash: hashToken(token) });
     await setCardCookie(event.id, token);
     created = true;
   });
@@ -227,34 +230,6 @@ export async function postMomentAction(_: Result | null, form: FormData): Promis
   // Back to Moments with the new one's id, so the "Posted" note can offer to share it on X.
   if (result.ok) redirect(form.get("from") === "admin" ? `/admin?event=${slug}&moment=1` : `/${slug}/moments?posted=${Date.now()}&m=${newId}`);
   return result;
-}
-
-// ─── Sign up ─────────────────────────────────────────────────────────────────
-
-/** Optional sign-up for future updates. Nothing on the site needs it. Signing up again updates your details. */
-export async function signUpAction(_: Result | null, form: FormData): Promise<Result> {
-  const parsed = signupSchema.safeParse({ email: form.get("email") ?? "", name: form.get("name") ?? "", about: form.get("about") ?? "" });
-  if (!parsed.success) {
-    const fields = fieldErrors(parsed.error);
-    return { ok: false, error: Object.values(fields)[0] ?? "Check the form.", fields };
-  }
-  const { email, name, about } = parsed.data;
-  return guard(async () => {
-    if (!(await rateLimit("signup", 10, 60))) return { ok: false, error: "Too many sign-ups from this network — try again later." };
-    const db = await getDb();
-    // Signing up from an event links the sign-up to your card there, if you have one.
-    const event = form.get("event") ? await getEvent(db, String(form.get("event"))) : null;
-    const me = event ? await getMe(event.id) : null;
-    const now = new Date();
-    // Only fill in what was given, so a repeat sign-up never blanks earlier details.
-    const set = { updatedAt: now, ...(name && { name }), ...(about && { about }), ...(me && { personId: me.id }) };
-    await db
-      .insert(schema.signups)
-      .values({ email, name, about, personId: me?.id ?? null })
-      .onConflictDoUpdate({ target: schema.signups.email, set });
-    (await cookies()).set(SIGNUP_COOKIE, "1", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 365 });
-    return { ok: true, message: "You're signed up. Thanks!" };
-  });
 }
 
 // ─── Meet up ─────────────────────────────────────────────────────────────────

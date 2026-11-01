@@ -430,19 +430,56 @@ try {
   await laptop.page.getByText(/isn.t valid/i).waitFor();
   await shot(ada.page, "03-my-card");
 
-  step("anyone can sign up from the header (optional, nothing needs it)");
-  await anon.page.goto(EV);
-  await anon.page.getByRole("link", { name: "Sign up", exact: true }).click();
-  await anon.page.waitForURL(/\/signup/);
-  await anon.page.getByLabel("Email").fill("not-an-email");
-  await anon.page.getByRole("button", { name: "Sign up" }).click();
-  await anon.page.getByText("That email doesn't look right").first().waitFor();
-  await anon.page.getByLabel("Email").fill(`Fan.${run}@Example.com`);
-  await anon.page.getByLabel(/what do you do/i).fill("=Founder");
-  await anon.page.getByRole("button", { name: "Sign up" }).click();
-  await anon.page.getByText("You're signed up 🎉").waitFor();
-  await anon.page.goto(EV);
-  assert.equal(await anon.page.getByRole("link", { name: "Sign up", exact: true }).count(), 0, "header link goes away after signing up");
+  step("accounts: sign up from the header, cards on this device become yours, sign out and back in anywhere");
+  const mail = `Bola.${run}@Example.com`;
+  await bola.page.goto(EV);
+  await bola.page.getByRole("link", { name: "Sign in", exact: true }).click();
+  await bola.page.waitForURL(/\/signin\?next=%2Fmoonshot/);
+  await bola.page.getByRole("link", { name: "Create an account" }).click();
+  await bola.page.waitForURL(/\/signup\?next=%2Fmoonshot/);
+  await bola.page.getByLabel("Name").fill("=Bola");
+  await bola.page.getByLabel("Email", { exact: true }).fill("not-an-email");
+  await bola.page.getByLabel("Password", { exact: true }).fill("short");
+  await bola.page.getByRole("button", { name: "Create account" }).click();
+  await bola.page.getByText("That email doesn't look right").first().waitFor();
+  await bola.page.getByLabel("Email", { exact: true }).fill(mail);
+  await bola.page.getByRole("button", { name: "Create account" }).click();
+  await bola.page.getByText("Use at least 8 characters").first().waitFor();
+  await bola.page.getByLabel("Password", { exact: true }).fill(`pw-${run}-secret`);
+  await bola.page.getByRole("button", { name: "Create account" }).click();
+  await bola.page.waitForURL((u) => new URL(u).pathname === "/moonshot");
+  // Signed in: the header shows her initial; her Moonshot card (made before signing up) is now on her account.
+  await bola.page.getByRole("link", { name: "Your account" }).click();
+  await bola.page.waitForURL(/\/account$/);
+  await bola.page.getByText(mail.toLowerCase()).waitFor();
+  await bola.page.locator("li", { hasText: "Moonshot by TechCabal" }).getByRole("link", { name: "Edit card" }).waitFor();
+  // The same email can't sign up twice.
+  const dup = await visitor();
+  await dup.page.goto(`${BASE}/signup`);
+  await dup.page.getByLabel("Email", { exact: true }).fill(mail);
+  await dup.page.getByLabel("Password", { exact: true }).fill("whatever-123");
+  await dup.page.getByRole("button", { name: "Create account" }).click();
+  await dup.page.getByText(/already an account with that email/i).first().waitFor();
+  // Another device: wrong password, then right; her card is there without its edit link or cookie.
+  await dup.page.goto(`${BASE}/signin?next=/moonshot/card`);
+  await dup.page.getByLabel("Email", { exact: true }).fill(mail);
+  await dup.page.getByLabel("Password", { exact: true }).fill("wrong-password");
+  await dup.page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await dup.page.getByText("That email and password don't match.").waitFor();
+  await dup.page.getByLabel("Password", { exact: true }).fill(`pw-${run}-secret`);
+  await dup.page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await dup.page.waitForURL(/\/moonshot\/card$/);
+  await dup.page.getByRole("heading", { name: "My card" }).waitFor();
+  assert.equal(await dup.page.getByLabel("Name", { exact: true }).inputValue(), `Bola ${run}`);
+  await dup.page.getByText(/on your account, so you can edit it from any device/).waitFor();
+  // Sign out.
+  await dup.page.goto(`${BASE}/account`);
+  await dup.page.getByRole("button", { name: "Sign out" }).click();
+  await dup.page.waitForURL((u) => new URL(u).pathname === "/");
+  await dup.page.getByRole("link", { name: "Sign in", exact: true }).waitFor();
+  await dup.page.goto(`${BASE}/account`);
+  await dup.page.waitForURL((u) => new URL(u).pathname === "/signin" && new URL(u).searchParams.get("next") === "/account");
+  await dup.ctx.close();
 
   step("admin: wrong key refused; right key hides a card");
   const admin = await visitor({ viewport: { width: 1280, height: 900 } });
@@ -464,11 +501,13 @@ try {
   for (let i = 0; i < 5; i++) await anon.page.goto(`${EV}?q=${nothing}`);
   await anon.page.getByText(/no one matches|isn't here yet/i).waitFor();
 
-  step("admin sees sign-ups and can download them");
+  step("admin sees accounts and the mailing list, and can download it");
   await admin.page.goto(`${BASE}/admin`);
-  await admin.page.getByText(`fan.${run}@example.com`).waitFor();
+  const accountsList = admin.page.locator("section", { has: admin.page.getByRole("heading", { name: /^Accounts/ }) });
+  await accountsList.getByText(mail.toLowerCase()).waitFor();
+  await accountsList.getByText("wants updates").first().waitFor();
   const csv = await (await admin.page.request.get(`${BASE}/admin/signups.csv`)).text();
-  assert.match(csv, new RegExp(`"fan\\.${run}@example\\.com",.*"'=Founder"`), "CSV has the sign-up, formula-safe");
+  assert.match(csv, new RegExp(`"bola\\.${run}@example\\.com","'=Bola"`), "mailing list CSV has her, formula-safe");
   assert.equal((await anon.page.request.get(`${BASE}/admin/signups.csv`)).status(), 404, "CSV is admin-only");
 
   step("admin adds moments from many X links at once, or an update with no credit");

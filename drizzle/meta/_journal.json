@@ -106,6 +106,13 @@
       "when": 1793427305029,
       "tag": "0014_multi_event",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1793556531251,
+      "tag": "0015_accounts",
+      "breakpoints": true
     }
   ]
 }

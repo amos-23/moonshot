@@ -3,7 +3,48 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { ArrowRight, CalendarDays, MapPin } from "lucide-react";
 import { getDb, schema } from "@/lib/db";
 import { eventPhase, listEvents, type EventSpace, type Phase } from "@/lib/events";
-import { Notice, Sunburst, cx } from "@/components/ui";
+import { Notice, cx } from "@/components/ui";
+import { ConnectMark } from "@/components/chrome";
+
+/** A cover colour for events without photos yet, different per event (picked from its address). */
+const COVERS = ["from-[#2a1d4a] to-[#e8502a]", "from-[#0f3d3e] to-[#f6a821]", "from-[#1e1f26] to-[#7a5cff]", "from-[#3b0d2c] to-[#ff7a45]", "from-[#0b2a4a] to-[#2fb7a6]"];
+const coverTone = (slug: string) => COVERS[[...slug].reduce((a, c) => a + c.charCodeAt(0), 0) % COVERS.length];
+
+/**
+ * The hero's backdrop: people as dots, joined where they connect, drifting slowly (still for
+ * people who prefer reduced motion). Fixed positions, so it looks the same on every load.
+ */
+function Constellation() {
+  const pts = [
+    [8, 22], [18, 60], [27, 30], [36, 78], [44, 14], [52, 52], [61, 24], [70, 70], [78, 36], [88, 18], [94, 62], [12, 86], [56, 88], [83, 86], [30, 50], [66, 46],
+  ];
+  const links = [[0, 2], [2, 4], [2, 14], [14, 1], [1, 11], [14, 5], [5, 6], [6, 4], [5, 15], [15, 8], [8, 9], [8, 10], [15, 7], [7, 13], [5, 12], [12, 3], [3, 1], [10, 13], [6, 8]];
+  const tone = (i: number) => (i % 3 === 0 ? "#e8502a" : i % 3 === 1 ? "#f6a821" : "#ffffff");
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0">
+      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <defs>
+          <radialGradient id="ec-glow" cx="50%" cy="0%" r="75%">
+            <stop offset="0%" stopColor="#e8502a" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#121116" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        <rect width="100" height="100" fill="url(#ec-glow)" />
+        {links.map(([a, b], i) => (
+          <line key={i} x1={pts[a][0]} y1={pts[a][1]} x2={pts[b][0]} y2={pts[b][1]} stroke="#ffffff" strokeOpacity="0.12" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+        ))}
+      </svg>
+      {/* Dots as their own elements so they stay round at any width. */}
+      {pts.map(([x, y], i) => (
+        <span
+          key={i}
+          className="constellation-dot absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+          style={{ left: `${x}%`, top: `${y}%`, background: tone(i), opacity: tone(i) === "#ffffff" ? 0.5 : 0.9, boxShadow: `0 0 12px ${tone(i)}`, animationDelay: `${(i % 7) * 0.6}s` }}
+        />
+      ))}
+    </div>
+  );
+}
 
 export const metadata = { title: "Event Connect — meet the right people at events, and relive the moments" };
 
@@ -45,15 +86,22 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ b
 
   return (
     <div>
-      <section className="relative overflow-hidden bg-flame text-white">
-        <Sunburst className="absolute inset-x-0 bottom-0 h-full w-full" />
-        <div className="relative mx-auto max-w-6xl px-4 py-14 text-center sm:py-20">
-          <p className="text-xs font-bold uppercase tracking-[0.25em]">Event Connect</p>
-          <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-black uppercase leading-[0.95] tracking-tight sm:text-6xl">Meet the right people at events</h1>
-          <p className="mx-auto mt-4 max-w-lg font-medium">Find who&apos;s going, reach them directly, and relive the moments afterwards. No sign-up.</p>
-          <a href="#events" className="mt-7 inline-flex h-12 items-center gap-2 rounded-full bg-ink px-6 font-semibold text-white hover:bg-black">
-            Pick your event <ArrowRight size={18} aria-hidden />
-          </a>
+      <section className="relative overflow-hidden bg-[#121116] text-white">
+        <Constellation />
+        <div className="relative mx-auto max-w-6xl px-4 py-16 text-center sm:py-24">
+          <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.25em] text-white/80 ring-1 ring-white/15">
+            <ConnectMark size={18} /> Event Connect
+          </p>
+          <h1 className="mx-auto mt-5 max-w-3xl text-4xl font-black uppercase leading-[0.95] tracking-tight sm:text-6xl">
+            Meet the right people{" "}
+            <span className="bg-gradient-to-r from-[#ff7a45] via-flame to-sun bg-clip-text text-transparent">at events</span>
+          </h1>
+          <p className="mx-auto mt-4 max-w-lg text-white/75">Find who&apos;s going, reach them directly, and relive the moments afterwards.</p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <a href="#events" className="inline-flex h-12 items-center gap-2 rounded-full bg-white px-6 font-semibold text-ink hover:bg-white/90">
+              Pick your event <ArrowRight size={18} aria-hidden />
+            </a>
+          </div>
         </div>
       </section>
 
@@ -85,7 +133,7 @@ function EventCard({ event: e, phase, stats }: { event: EventSpace; phase: Phase
   const base = `/${e.slug}`;
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-3xl border border-line bg-surface shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <Link href={base} className="relative block aspect-[16/9] overflow-hidden bg-gradient-to-br from-flame to-sun" data-track="hub_event" aria-label={`${e.name}: Connect`}>
+      <Link href={base} className={cx("relative block aspect-[16/9] overflow-hidden bg-gradient-to-br", coverTone(e.slug))} data-track="hub_event" aria-label={`${e.name}: Connect`}>
         {stats.cover && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={stats.cover} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-cover object-[center_30%]" />

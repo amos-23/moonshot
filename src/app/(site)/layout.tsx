@@ -1,12 +1,11 @@
-import { cookies } from "next/headers";
-import { SIGNUP_COOKIE } from "@/lib/constants";
+import { getAccount } from "@/lib/auth";
 import { SiteFooter, SiteHeader } from "@/components/chrome";
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
-  const signedUp = (await cookies()).get(SIGNUP_COOKIE)?.value === "1";
+  const account = await getAccount();
   return (
     <>
-      <SiteHeader signedUp={signedUp} />
+      <SiteHeader account={account && { email: account.email, name: account.name }} />
       <main id="main" className="pb-12">
         {children}
       </main>

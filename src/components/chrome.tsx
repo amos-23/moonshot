@@ -38,17 +38,26 @@ export function Wordmark({ label, compact, sunrise }: { label: string; compact?:
 
 const headerClass = "site-header sticky top-0 z-30 border-b border-line bg-canvas/90 backdrop-blur";
 
-function SignUpLink({ signedUp, eventSlug }: { signedUp: boolean; eventSlug?: string }) {
-  if (signedUp) return null;
+/** Signed out: a quiet "Sign in". Signed in: your initial, to your account. */
+function AccountLink({ account, next }: { account: { email: string; name: string | null } | null; next: string }) {
+  if (!account)
+    return (
+      <Link href={`/signin?next=${encodeURIComponent(next)}`} data-track="signin_header" className="px-1.5 text-sm font-semibold text-muted hover:text-ink">
+        Sign in
+      </Link>
+    );
+  const initial = (account.name || account.email).trim()[0]?.toUpperCase() ?? "•";
   return (
-    <Link href={eventSlug ? `/signup?e=${eventSlug}` : "/signup"} data-track="signup_header" className="px-1.5 text-sm font-semibold text-muted hover:text-ink">
-      Sign up
+    <Link href="/account" aria-label="Your account" title={account.email} className="grid h-10 w-10 place-items-center rounded-full bg-sun text-sm font-extrabold text-ink ring-2 ring-white hover:bg-[#ffb93d]">
+      {initial}
     </Link>
   );
 }
 
+export type HeaderAccount = { email: string; name: string | null } | null;
+
 /** Header for the homepage, sign-up and admin: the platform, not one event. */
-export function SiteHeader({ signedUp }: { signedUp: boolean }) {
+export function SiteHeader({ account }: { account: HeaderAccount }) {
   return (
     <header className={headerClass}>
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
@@ -56,7 +65,7 @@ export function SiteHeader({ signedUp }: { signedUp: boolean }) {
           <Wordmark label="Event" />
         </Link>
         <div className="flex items-center gap-2">
-          <SignUpLink signedUp={signedUp} />
+          <AccountLink account={account} next="/" />
           <Link href="/#events" className="inline-flex h-10 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white hover:bg-black">
             Events
           </Link>
@@ -75,7 +84,7 @@ export function SiteFooter() {
 }
 
 /** Header inside an event: that event's Connect (people), Moments, Meet up while it's on, and your card. */
-export function EventHeader({ event, phase, hasCard, signedUp }: { event: EventSpace; phase: Phase; hasCard: boolean; signedUp: boolean }) {
+export function EventHeader({ event, phase, hasCard, account }: { event: EventSpace; phase: Phase; hasCard: boolean; account: HeaderAccount }) {
   const base = `/${event.slug}`;
   return (
     <header className={headerClass}>
@@ -84,7 +93,7 @@ export function EventHeader({ event, phase, hasCard, signedUp }: { event: EventS
           <Wordmark label={event.short} compact sunrise={event.id === MOONSHOT_EVENT_ID} />
         </Link>
         <div className="flex items-center gap-2">
-          <SignUpLink signedUp={signedUp} eventSlug={event.slug} />
+          <AccountLink account={account} next={base} />
           {phase === "live" && (
             <Link href={`${base}/meet`} data-track="meet_header" className="inline-flex h-10 items-center rounded-full bg-sun px-3.5 text-sm font-semibold text-ink hover:bg-[#ffb93d]">
               📍 Meet up

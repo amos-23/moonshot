@@ -7,7 +7,7 @@ import type { EventSpace } from "@/lib/db/schema";
 export type { EventSpace };
 
 /** Addresses taken by the site itself, so no event can use them as its slug. */
-export const RESERVED_SLUGS = new Set(["admin", "api", "card", "m", "p", "og", "photo", "moment-photo", "moments", "meet", "update", "signup", "events", "icon.svg", "favicon.ico", "robots.txt", "sitemap.xml", "_next"]);
+export const RESERVED_SLUGS = new Set(["admin", "api", "auth", "signin", "account", "card", "m", "p", "og", "photo", "moment-photo", "moments", "meet", "update", "signup", "events", "icon.svg", "favicon.ico", "robots.txt", "sitemap.xml", "_next"]);
 
 /** Where an event is in time. EVENT_MODE=before|live|after overrides it for every event (for testing). */
 export type Phase = "before" | "live" | "after";

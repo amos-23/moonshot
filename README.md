@@ -25,7 +25,7 @@ What each event's space has (paths below are inside the event, e.g. `/moonshot/m
 - **X videos play in Moments:** a video or GIF in an X post plays in the full-screen viewer (muted to start, tap for sound; a lighter file on phones), using the MP4s X's own embed uses. If X refuses, the still image and "View on X" show instead.
 - **X posts are used in two places, each added on purpose:** as people ("From X" cards, via "Add yourself" or admin's "Add people from X posts") and as moments (via the Moments form or admin's "Add a moment").
 - **Sharing on X (and WhatsApp):** every moment and card has its own share link (`/m/…`, `/p/…`) with a big preview image made for it (the photo with its caption, or a name card); the site and Moments page have their own previews too. "Post on X" buttons sit in the Moments viewer, right after posting a moment, after making a card, on Moments and on the homepage, with a ready-written post and #Moonshot2026. Shared links carry utm tags, so Stats shows shares and the visitors they bring back.
-- **Sign up (optional):** a quiet "Sign up" link in the header leads to `/signup`: an email, plus a name and what you do if you like, for future updates. Nothing on the site needs it, and the link disappears once you've signed up. Admins see sign-ups on `/admin` and can download them as a CSV.
+- **Accounts (optional):** "Sign in" in the header. Create an account with an email and password (`/signup`), sign in with a password or an emailed link (`/signin`), reset a forgotten password, and manage it at `/account`. An account keeps your cards for every event in one place and on every device: cards already on the phone become yours when you sign in. Nothing else on the site needs one. Ticking "Email me about new events" adds you to the mailing list, which admins see on `/admin` (with the accounts) and can download as a CSV.
 - **Card photo:** card holders can add a photo of themselves from today (resized on the phone before upload) from My card.
 - **Search** checks every word against names, roles, companies and tags (so "hiring" or "investors" work). A name that isn't found gets an "invite them" prompt.
 - **Best fits first,** with a one-line reason, e.g. "You want investors — Val offers investment".
@@ -36,7 +36,15 @@ This is an independent, community-made tool. It isn't run or endorsed by TechCab
 
 ## How "no sign-up" works
 
-When you add yourself, your browser keeps a private edit token in a cookie. **My card** gives you a private edit link so you can edit from another device.
+When you add yourself, your browser keeps a private edit token in a cookie. **My card** gives you a private edit link so you can edit from another device, or you can sign in and your card follows your account.
+
+## Sign-in (Supabase)
+
+Accounts use **Supabase Auth**. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from the Supabase project's API settings. In Supabase, under **Authentication → URL Configuration**, set the Site URL to `https://events.latars.xyz` and add `https://events.latars.xyz/auth/callback` to Redirect URLs (confirmation, sign-in-link and reset emails all come back there). If "Confirm email" is on, new accounts get a confirmation email first.
+
+The site keeps its own `accounts` row for each Supabase user (same id), so cards link to it. People in `ADMIN_EMAILS` get `/admin` when signed in, as well as anyone with the `ADMIN_KEY`.
+
+Without the Supabase settings, sign-in is hidden in production. For local work and tests, `LOCAL_AUTH=true` (or `npm run dev`) turns on a small built-in email + password sign-in instead.
 
 ## Stats
 
@@ -65,7 +73,7 @@ The site lives at **https://events.latars.xyz**. The old domain, **moonshot.lata
 ## Deploy on Railway
 
 1. **+ New → Database → PostgreSQL**
-2. In your app's Variables, set `DATABASE_URL` = `${{Postgres.DATABASE_URL}}` and `ADMIN_KEY` = a long password
+2. In your app's Variables, set `DATABASE_URL` = `${{Postgres.DATABASE_URL}}` and `ADMIN_KEY` = a long password, plus `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and, if you like, `ADMIN_EMAILS` for sign-in (see above)
 3. Deploy. Tables set themselves up in their own `connect` schema.
 4. Check `/api/health`. It should show `"ok":true`.
 

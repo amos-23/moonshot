@@ -188,3 +188,19 @@ body:has([data-dark-page]) .site-footer p {
 .story-progress {
   animation: featured-progress linear both;
 }
+
+/* Event Connect hero: the dots (people) gently pulse. */
+@keyframes constellation-pulse {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.8);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .constellation-dot {
+    animation: constellation-pulse 4.5s ease-in-out infinite;
+  }
+}

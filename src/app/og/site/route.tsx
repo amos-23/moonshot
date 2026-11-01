@@ -18,12 +18,23 @@ export async function GET(req: Request) {
   const sub = event ? "Search a name and follow up. No sign-up." : "Find people worth meeting, reach them directly, and relive the moments.";
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", fontFamily: "Outfit", color: "white", background: BRAND.flame, overflow: "hidden", padding: "0 60px" }}>
-        <div style={{ position: "absolute", bottom: -560, left: 100, width: 1000, height: 1000, borderRadius: 1000, background: BRAND.sun, display: "flex" }} />
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", fontFamily: "Outfit", color: "white", background: event ? BRAND.flame : BRAND.ink, overflow: "hidden", padding: "0 60px" }}>
+        {event ? (
+          <div style={{ position: "absolute", bottom: -560, left: 100, width: 1000, height: 1000, borderRadius: 1000, background: BRAND.sun, display: "flex" }} />
+        ) : (
+          // Event Connect: a warm glow from the top and its linked rings.
+          <div style={{ position: "absolute", top: -500, left: 100, width: 1000, height: 900, borderRadius: 1000, background: "radial-gradient(circle, rgba(232,80,42,0.55), rgba(232,80,42,0) 70%)", display: "flex" }} />
+        )}
+        {!event && (
+          <div style={{ display: "flex", position: "relative", width: 120, height: 70, marginBottom: 26 }}>
+            <div style={{ position: "absolute", left: 0, top: 0, width: 70, height: 70, borderRadius: 70, border: `10px solid ${BRAND.flame}`, display: "flex" }} />
+            <div style={{ position: "absolute", left: 50, top: 0, width: 70, height: 70, borderRadius: 70, border: `10px solid ${BRAND.sun}`, display: "flex" }} />
+          </div>
+        )}
         <div style={{ display: "flex", fontSize: 26, fontWeight: 800, letterSpacing: 6, textAlign: "center" }}>{clip(kicker, 60).toUpperCase()}</div>
         <div style={{ display: "flex", fontSize: title.length > 24 ? 84 : 104, fontWeight: 800, letterSpacing: -2, lineHeight: 1, marginTop: 14, textAlign: "center" }}>{title.toUpperCase()}</div>
         <div style={{ display: "flex", fontSize: 32, fontWeight: 500, marginTop: 20, textAlign: "center" }}>{sub}</div>
-        <div style={{ position: "absolute", bottom: 44, display: "flex", fontSize: 28, fontWeight: 800, color: BRAND.ink }}>
+        <div style={{ position: "absolute", bottom: 44, display: "flex", fontSize: 28, fontWeight: 800, color: event ? BRAND.ink : BRAND.sun }}>
           {`${event ? event.short : "Event"} Connect`.toUpperCase()} · {event ? `${host}/${event.slug}` : host}
         </div>
       </div>

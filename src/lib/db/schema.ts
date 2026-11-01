@@ -33,6 +33,20 @@ export const eventSpaces = mc.table("event_spaces", {
 
 export type EventSpace = typeof eventSpaces.$inferSelect;
 
+// Accounts: optional sign-in (Supabase Auth in production). The id is the auth user's id. Cards,
+// moments and everything else still work without one; signing in keeps your cards across devices.
+export const accounts = mc.table("accounts", {
+  id: uuid("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  name: text("name"),
+  passwordHash: text("password_hash"), // only for the built-in local sign-in used when Supabase isn't set up
+  emailOptIn: boolean("email_opt_in").notNull().default(false), // agreed to hear about new events
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSignInAt: timestamp("last_sign_in_at", { withTimezone: true }),
+});
+
+export type Account = typeof accounts.$inferSelect;
+
 export const people = mc.table(
   "people",
   {
@@ -40,6 +54,7 @@ export const people = mc.table(
     eventId: uuid("event_id")
       .notNull()
       .references(() => eventSpaces.id),
+    accountId: uuid("account_id").references(() => accounts.id, { onDelete: "set null" }), // the signed-in owner, if any
     editTokenHash: text("edit_token_hash").notNull(),
     name: text("name").notNull(),
     headline: text("headline").notNull(), // what you do

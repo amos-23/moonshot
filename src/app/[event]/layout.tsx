@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { cookies } from "next/headers";
 import { getDb } from "@/lib/db";
 import { MOONSHOT_EVENT_ID } from "@/lib/db/schema";
 import { getMe } from "@/lib/me";
 import { eventPhase, getEvent } from "@/lib/events";
-import { SIGNUP_COOKIE } from "@/lib/constants";
+import { getAccount } from "@/lib/auth";
 import { isAdmin } from "@/lib/me";
 import { EventFooter, EventHeader } from "@/components/chrome";
 
@@ -37,10 +36,10 @@ export default async function EventLayout({ children, params }: Params & { child
   const event = await getEvent(await getDb(), (await params).event);
   // Hidden events are drafts: only admins can open them.
   if (!event || (event.hidden && !(await isAdmin()))) notFound();
-  const [me, jar] = await Promise.all([getMe(event.id).catch(() => null), cookies()]);
+  const [me, account] = await Promise.all([getMe(event.id).catch(() => null), getAccount()]);
   return (
     <>
-      <EventHeader event={event} phase={eventPhase(event)} hasCard={Boolean(me)} signedUp={jar.get(SIGNUP_COOKIE)?.value === "1"} />
+      <EventHeader event={event} phase={eventPhase(event)} hasCard={Boolean(me)} account={account && { email: account.email, name: account.name }} />
       <main id="main" className="pb-12">
         {children}
       </main>

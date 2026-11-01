@@ -27,7 +27,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   // Everything below is for one event at a time (pick it at the top); reports and sign-ups are site-wide.
   const events = await listEvents(db, { includeHidden: true });
   const event = events.find((e) => e.slug === slug) ?? events.find((e) => e.slug === "moonshot") ?? events[0];
-  const [reports, people, posts, comments, momentRows, liveCheckins, signups, featured, topAccounts] = await Promise.all([
+  const [reports, people, posts, comments, momentRows, liveCheckins, signups, featured, topAccounts, accountRows] = await Promise.all([
     db.select().from(schema.reports).where(eq(schema.reports.resolved, false)).orderBy(desc(schema.reports.createdAt)).limit(100),
     db.select().from(schema.people).where(eq(schema.people.eventId, event.id)).orderBy(desc(schema.people.createdAt)).limit(500),
     db.select().from(schema.socialPosts).where(eq(schema.socialPosts.eventId, event.id)).orderBy(desc(schema.socialPosts.importedAt)).limit(500),
@@ -44,6 +44,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     db.select().from(schema.signups).orderBy(desc(schema.signups.createdAt)),
     pickFeatured(db, event.id),
     getTopAccounts(db, event.id),
+    db.select().from(schema.accounts).orderBy(desc(schema.accounts.createdAt)).limit(200),
   ]);
   const label = new Map<string, string>([
     ...people.map((p) => [p.id, p.name] as const),
@@ -167,8 +168,26 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         <ImportForm event={event.slug} />
       </Card>
       <section>
+        <h2 className="mb-3 font-bold">Accounts · {accountRows.length}</h2>
+        {accountRows.length === 0 ? (
+          <p className="text-sm text-muted">No accounts yet.</p>
+        ) : (
+          <ul className="divide-y divide-line rounded-2xl border border-line bg-white text-sm">
+            {accountRows.slice(0, 20).map((a) => (
+              <li key={a.id} className="flex flex-wrap items-baseline justify-between gap-x-3 px-4 py-2">
+                <span className="min-w-0 break-all">
+                  <span className="font-semibold">{a.name ?? "—"}</span> · {a.email}
+                  {a.emailOptIn && <span className="text-muted"> · wants updates</span>}
+                </span>
+                <span className="text-xs text-muted">joined {timeAgo(a.createdAt)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <section>
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="font-bold">Sign-ups · {signups.length}</h2>
+          <h2 className="font-bold">Mailing list · {signups.length}</h2>
           {signups.length > 0 && (
             <a href="/admin/signups.csv" className="text-sm font-semibold text-flame-700 underline">
               Download CSV

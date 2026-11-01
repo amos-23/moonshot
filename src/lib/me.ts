@@ -4,8 +4,9 @@ import { cookies, headers } from "next/headers";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { MOONSHOT_EVENT_ID, type Person } from "@/lib/db/schema";
+import { getAccount, isAdminEmail } from "@/lib/auth";
 
-// No accounts. Creating a card issues a random edit token; its hash is stored, the token lives
+// No account needed. Creating a card issues a random edit token; its hash is stored, the token lives
 // in an httpOnly cookie and in a private edit link the person can open on another device.
 // Each event has its own card, so its own cookie (Moonshot keeps the original name).
 export const cardCookieName = (eventId: string) => (eventId === MOONSHOT_EVENT_ID ? "mc_card" : `mc_card_${eventId.slice(0, 8)}`);
@@ -37,11 +38,31 @@ export async function findByToken(token: string): Promise<Person | null> {
   return (await db.query.people.findFirst({ where: eq(schema.people.editTokenHash, hashToken(token)) })) ?? null;
 }
 
-/** Your card for this event, if you've made one. */
+/** Your card for this event: the one on this device, else the one on your account (if signed in). */
 export async function getMe(eventId: string): Promise<Person | null> {
   const token = await myToken(eventId);
   const me = token ? await findByToken(token) : null;
-  return me && me.eventId === eventId ? me : null;
+  if (me && me.eventId === eventId) return me;
+  const account = await getAccount();
+  if (!account) return null;
+  const db = await getDb();
+  return (
+    (await db.query.people.findFirst({
+      where: and(eq(schema.people.eventId, eventId), eq(schema.people.accountId, account.id)),
+      orderBy: (p, { desc }) => [desc(p.updatedAt)],
+    })) ?? null
+  );
+}
+
+/** After signing in: cards made on this device (at any event) become yours, so they follow you. */
+export async function claimDeviceCards(accountId: string) {
+  const jar = await cookies();
+  const db = await getDb();
+  for (const c of jar.getAll()) {
+    if (c.name !== "mc_card" && !c.name.startsWith("mc_card_")) continue;
+    const person = await findByToken(c.value);
+    if (person && !person.accountId) await db.update(schema.people).set({ accountId }).where(eq(schema.people.id, person.id));
+  }
 }
 
 async function clientIp(): Promise<string> {
@@ -72,5 +93,6 @@ export function isAdminKey(key: string | undefined | null): boolean {
 }
 
 export async function isAdmin(): Promise<boolean> {
-  return isAdminKey((await cookies()).get("mc_admin")?.value);
+  if (isAdminKey((await cookies()).get("mc_admin")?.value)) return true;
+  return isAdminEmail((await getAccount())?.email);
 }

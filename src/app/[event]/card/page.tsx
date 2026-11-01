@@ -28,7 +28,8 @@ export default async function CardPage({ params, searchParams }: { params: Promi
     </>
   );
 
-  if (me && token) {
+  // Your card: from this device, or from your account if you're signed in.
+  if (me) {
     return (
       <div className="mx-auto max-w-xl px-4 py-8">
         <PageTitle title="My card" />
@@ -57,11 +58,23 @@ export default async function CardPage({ params, searchParams }: { params: Promi
             <p className="text-sm font-semibold">Share your card</p>
             <ShareButtons track="share_card" campaign="card" text={`I'm on ${event.short} Connect — here's my card from ${tag} 👋`} url={`${await siteOrigin()}/p/${me.id}`} />
           </Card>
-          <Card className="space-y-2 p-5">
-            <p className="text-sm font-semibold">Edit from another device</p>
-            <p className="text-xs text-muted">There&apos;s no password. Keep this private link to edit your card elsewhere.</p>
-            <CopyButton text={`/card/claim/${token}`} label="Copy edit link" />
-          </Card>
+          {me.accountId ? (
+            <p className="text-sm text-muted">This card is on your account, so you can edit it from any device by signing in.</p>
+          ) : (
+            token && (
+              <Card className="space-y-2 p-5">
+                <p className="text-sm font-semibold">Edit from another device</p>
+                <p className="text-xs text-muted">
+                  Keep this private link, or{" "}
+                  <a href={`/signup?next=${encodeURIComponent(`${base}/card`)}`} className="font-semibold text-flame-700 underline">
+                    create an account
+                  </a>{" "}
+                  so your card follows you everywhere.
+                </p>
+                <CopyButton text={`/card/claim/${token}`} label="Copy edit link" />
+              </Card>
+            )
+          )}
           {!live && (
             <p className="text-sm">
               <a href={`${base}/update`} className="font-semibold text-flame-700 underline" data-track="update_mycard">
