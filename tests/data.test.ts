@@ -283,9 +283,10 @@ describe("reactions", () => {
 });
 
 describe("events", () => {
-  it("starts with Moonshot, ADMARP and Ogun Digital Summit, and keeps each event's people and moments apart", async () => {
+  it("starts with Moonshot, ADMARP, Ogun Digital Summit and November's Nigerian events, and keeps each event's people and moments apart", async () => {
     const events = await listEvents(db);
-    expect(events.map((e) => e.slug)).toEqual(["moonshot", "admarp-growth-summit", "ogun-digital-summit"]);
+    expect(events.map((e) => e.slug)).toEqual(["moonshot", "admarp-growth-summit", "ogun-digital-summit", "afriff-film-market", "national-advertising-conference", "neclive", "devfest-lagos", "entertainment-week-africa", "growth-africa-summit"]);
+    expect((await getEvent(db, "devfest-lagos"))!).toMatchObject({ dates: "13–14 November 2026", venue: "Landmark Event Centre, Victoria Island, Lagos", url: "https://devfestlagos.com/", listed: true });
     const ogun = (await getEvent(db, "ogun-digital-summit"))!;
     expect(ogun).toMatchObject({ dates: "26 November 2026", venue: "June 12 Cultural Centre, Kuto, Abeokuta, Ogun State" });
     expect(eventPhase(ogun, new Date("2026-11-26T10:00:00Z"))).toBe("live");

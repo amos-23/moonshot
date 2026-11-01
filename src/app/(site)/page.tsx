@@ -79,9 +79,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ b
   const { bad } = await searchParams;
   const events = await listEvents(await getDb());
   const stats = await eventStats(events.map((e) => e.id));
-  // Happening now first, then what's coming, then past events (each in the order set in admin).
   const rank: Record<Phase, number> = { live: 0, before: 1, after: 2 };
-  const sorted = [...events].sort((a, b) => rank[eventPhase(a)] - rank[eventPhase(b)] || a.position - b.position);
+  // Happening now first, then what's coming up soonest, then past events; the admin's order breaks ties.
+  const day = (e: EventSpace) => e.startsAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
+  const sorted = [...events].sort((a, b) => rank[eventPhase(a)] - rank[eventPhase(b)] || (eventPhase(a) === "after" ? day(b) - day(a) : day(a) - day(b)) || a.position - b.position);
 
   return (
     <div>
