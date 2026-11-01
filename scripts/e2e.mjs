@@ -616,7 +616,7 @@ try {
   const hub = await visitor();
   await hub.page.goto(BASE);
   await hub.page.getByRole("heading", { name: /meet the right people at events/i }).waitFor();
-  for (const name of ["Moonshot by TechCabal", "ADMARP Digital Product Growth Summit 2026", "Ogun Digital Summit 2026"]) await hub.page.getByText(name, { exact: true }).waitFor();
+  for (const name of ["Moonshot by TechCabal", "ADMARP Digital Product Growth Summit 2026", "Ogun Digital Summit 2026", "African Workforce Summit Lagos 2026"]) await hub.page.getByText(name, { exact: true }).waitFor();
   await hub.page.getByText("June 12 Cultural Centre, Kuto, Abeokuta, Ogun State").waitFor();
   const admarpCard = hub.page.locator("article", { hasText: "ADMARP Digital Product Growth Summit 2026" });
   await admarpCard.getByText("27 November 2026").waitFor();

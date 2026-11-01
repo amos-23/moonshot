@@ -120,6 +120,13 @@
       "when": 1793563342433,
       "tag": "0016_email_verified",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793565118234,
+      "tag": "0017_african_workforce_summit",
+      "breakpoints": true
     }
   ]
 }
