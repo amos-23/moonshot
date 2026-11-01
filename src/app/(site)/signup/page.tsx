@@ -14,7 +14,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
   if (await getAccount()) redirect(next);
   return (
     <AuthShell title="Create an account" sub="Free. Your cards follow you across devices and events, and you can hear about new events.">
-      {authMode() === "off" ? <AuthOff /> : <SignUpForm next={next} />}
+      {authMode() === "off" ? <AuthOff /> : <SignUpForm next={next} supabase={authMode() === "supabase"} />}
       <p className="mt-6 text-xs text-muted">We only use your email to sign you in and, if you say yes, to tell you about new events. It&apos;s never shown on the site or shared.</p>
     </AuthShell>
   );

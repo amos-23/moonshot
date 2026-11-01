@@ -73,7 +73,7 @@ export async function signUpAction(_: Result | null, form: FormData): Promise<Re
     if (data.user) await upsertAccount(data.user.id, mail, { name, emailOptIn: optIn });
     if (!data.session) {
       if (optIn) await addToMailingList(mail, name);
-      return { ok: true, message: "Check your email: we sent a link to confirm your account." };
+      return { ok: true, message: "Check your email: tap the link to confirm your account, or enter the code from it below." };
     }
     await claimDeviceCards(data.user!.id);
   }
@@ -114,7 +114,26 @@ export async function magicLinkAction(_: Result | null, form: FormData): Promise
   const next = safeNext(form.get("next"));
   const { error } = await (await supabaseServer()).auth.signInWithOtp({ email: parsed.data, options: { emailRedirectTo: `${await siteOrigin()}/auth/callback?next=${encodeURIComponent(next)}` } });
   if (error) return { ok: false, error: friendly(error.message) };
-  return { ok: true, message: "Check your email for a sign-in link." };
+  return { ok: true, message: "Check your email: tap the link, or enter the code below." };
+}
+
+/**
+ * Supabase only: the code from the email instead of its link. Works on any device and can't be used up by an
+ * email scanner opening the link first. Covers both sign-in emails and "confirm your account" emails.
+ */
+export async function verifyCodeAction(_: Result | null, form: FormData): Promise<Result> {
+  if (authMode() !== "supabase") return { ok: false, error: offMessage };
+  const mail = email.safeParse(form.get("email") ?? "");
+  const token = String(form.get("token") ?? "").replace(/\s/g, "");
+  if (!mail.success) return { ok: false, error: "Enter your email again above." };
+  if (!/^\d{6,10}$/.test(token)) return { ok: false, error: "Enter the code from the email (just the numbers).", fields: { token: "Numbers only" } };
+  if (!(await rateLimit("code", 10, 15))) return { ok: false, error: "Too many tries. Wait a few minutes." };
+  const { data, error } = await (await supabaseServer()).auth.verifyOtp({ email: mail.data, token, type: "email" });
+  if (error || !data.user?.email) return { ok: false, error: /expired|invalid/i.test(error?.message ?? "") ? "That code has expired or isn't right. Send a new one." : friendly(error?.message ?? ""), fields: { token: "Not accepted" } };
+  await upsertAccount(data.user.id, data.user.email, { name: (data.user.user_metadata?.name as string | undefined) ?? null });
+  await claimDeviceCards(data.user.id);
+  revalidatePath("/", "layout");
+  redirect(safeNext(form.get("next")));
 }
 
 /** Supabase only: emails a link to set a new password. */

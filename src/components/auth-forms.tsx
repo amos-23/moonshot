@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { forgotPasswordAction, magicLinkAction, signInAction, signUpAction, updateAccountAction, updatePasswordAction } from "@/lib/auth-actions";
+import { forgotPasswordAction, magicLinkAction, signInAction, signUpAction, updateAccountAction, updatePasswordAction, verifyCodeAction } from "@/lib/auth-actions";
 import { Status, Submit, useForm } from "./client";
 import { Field, cx, inputClass } from "./ui";
 
-function EmailField({ id, err, defaultValue }: { id: string; err?: string; defaultValue?: string }) {
+function EmailField({ id, err, defaultValue, onChange }: { id: string; err?: string; defaultValue?: string; onChange?: (v: string) => void }) {
   return (
     <Field label="Email" htmlFor={id} error={err}>
-      <input id={id} name="email" type="email" inputMode="email" autoComplete="email" required defaultValue={defaultValue} className={inputClass} aria-invalid={!!err} />
+      <input id={id} name="email" type="email" inputMode="email" autoComplete="email" required defaultValue={defaultValue} onChange={onChange && ((e) => onChange(e.target.value))} className={inputClass} aria-invalid={!!err} />
     </Field>
   );
 }
@@ -28,13 +28,39 @@ function PasswordField({ id, err, label = "Password", autoComplete }: { id: stri
   );
 }
 
-export function SignUpForm({ next }: { next: string }) {
+/** After an email goes out: type the code from it, for when the link opens on another device or has stopped working. */
+function CodeForm({ email, next }: { email: string; next: string }) {
+  const { state, pending, onSubmit, err } = useForm(verifyCodeAction);
+  return (
+    <form onSubmit={onSubmit} noValidate className="space-y-3 rounded-2xl border border-line bg-canvas p-4">
+      <input type="hidden" name="email" value={email} />
+      <input type="hidden" name="next" value={next} />
+      <Field label="Code from the email" htmlFor="otp-code" error={err("token")}>
+        <input id="otp-code" name="token" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={10} placeholder="123456" className={cx(inputClass, "tracking-[0.3em]")} aria-invalid={!!err("token")} />
+      </Field>
+      <div className="flex flex-wrap items-center gap-3">
+        <Submit pending={pending} variant="dark" size="sm">
+          Continue
+        </Submit>
+        <div className="min-w-0 text-sm">
+          <Status state={state} />
+        </div>
+      </div>
+    </form>
+  );
+}
+
+export function SignUpForm({ next, supabase = false }: { next: string; supabase?: boolean }) {
   const { state, pending, onSubmit, err } = useForm(signUpAction);
+  const [mail, setMail] = useState("");
   if (state?.ok)
     return (
-      <div className="space-y-2 text-center">
-        <p className="text-lg font-bold">Almost there 📬</p>
-        <p className="text-sm text-muted">{state.message}</p>
+      <div className="space-y-4">
+        <div className="space-y-2 text-center">
+          <p className="text-lg font-bold">Almost there 📬</p>
+          <p className="text-sm text-muted">{state.message}</p>
+        </div>
+        {supabase && <CodeForm email={mail} next={next} />}
       </div>
     );
   return (
@@ -43,7 +69,7 @@ export function SignUpForm({ next }: { next: string }) {
       <Field label="Name" htmlFor="su-name" optional error={err("name")}>
         <input id="su-name" name="name" maxLength={60} autoComplete="name" className={inputClass} />
       </Field>
-      <EmailField id="su-email" err={err("email")} />
+      <EmailField id="su-email" err={err("email")} onChange={setMail} />
       <PasswordField id="su-password" err={err("password")} autoComplete="new-password" />
       <p className="-mt-2 text-xs text-muted">At least 8 characters.</p>
       <label className="flex items-start gap-2 text-sm">
@@ -69,8 +95,9 @@ export function SignUpForm({ next }: { next: string }) {
 }
 
 /** Sign in with a password; with Supabase also by email link, and a "forgot password" link. */
-export function SignInForm({ next, supabase }: { next: string; supabase: boolean }) {
-  const [mode, setMode] = useState<"password" | "link" | "forgot">("password");
+export function SignInForm({ next, supabase, start = "password" }: { next: string; supabase: boolean; start?: "password" | "link" }) {
+  const [mode, setMode] = useState<"password" | "link" | "forgot">(supabase ? start : "password");
+  const [mail, setMail] = useState("");
   const pw = useForm(signInAction);
   const link = useForm(magicLinkAction);
   const forgot = useForm(forgotPasswordAction);
@@ -110,8 +137,8 @@ export function SignInForm({ next, supabase }: { next: string; supabase: boolean
       {mode === "link" && (
         <form onSubmit={link.onSubmit} noValidate className="space-y-4">
           <input type="hidden" name="next" value={next} />
-          <EmailField id="ml-email" err={link.err("email")} />
-          <p className="-mt-2 text-xs text-muted">We&apos;ll email you a one-time link. No password needed.</p>
+          <EmailField id="ml-email" err={link.err("email")} onChange={setMail} />
+          <p className="-mt-2 text-xs text-muted">We&apos;ll email you a one-time link and code. No password needed.</p>
           <div className="flex items-center gap-3">
             <Submit pending={link.pending} variant="dark">
               Send link
@@ -122,6 +149,7 @@ export function SignInForm({ next, supabase }: { next: string; supabase: boolean
           </div>
         </form>
       )}
+      {mode === "link" && link.state?.ok && <CodeForm email={mail} next={next} />}
       {mode === "forgot" && (
         <form onSubmit={forgot.onSubmit} noValidate className="space-y-4">
           <p className="text-sm text-muted">Enter your email and we&apos;ll send a link to set a new password.</p>

@@ -42,6 +42,8 @@ When you add yourself, your browser keeps a private edit token in a cookie. **My
 
 Accounts use **Supabase Auth**. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from the Supabase project's API settings. In Supabase, under **Authentication → URL Configuration**, set the Site URL to `https://events.latars.xyz` and add `https://events.latars.xyz/auth/callback` to Redirect URLs (confirmation, sign-in-link and reset emails all come back there). If "Confirm email" is on, new accounts get a confirmation email first.
 
+Every sign-in or confirmation email can also be finished with its code, typed on the site (this works on any device, and email scanners can't use it up). Supabase's default emails only contain the link, so under **Authentication → Email Templates**, add `Or enter this code: {{ .Token }}` to the **Magic Link** and **Confirm signup** templates. If a link fails, Supabase sends people back with an error; the site catches that on any page and shows a clear message on the sign-in page.
+
 The site keeps its own `accounts` row for each Supabase user (same id), so cards link to it. People in `ADMIN_EMAILS` get `/admin` when signed in, as well as anyone with the `ADMIN_KEY`.
 
 Without the Supabase settings, sign-in is hidden in production. For local work and tests, `LOCAL_AUTH=true` (or `npm run dev`) turns on a small built-in email + password sign-in instead.

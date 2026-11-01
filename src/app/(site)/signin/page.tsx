@@ -16,12 +16,14 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
   const mode = authMode();
   return (
     <AuthShell title="Sign in" sub="Keep your cards across devices and events. Everything else works without an account.">
-      {sp.error === "link" && (
+      {(sp.error === "link" || sp.error === "expired") && (
         <div className="mb-4">
-          <Notice tone="danger">That link didn&apos;t work (it may have expired). Try again below.</Notice>
+          <Notice tone="danger">
+            {sp.error === "expired" ? "That email link has expired or was already used (each link works once, and only the newest one). Send a new one below." : "That link didn't work. Try again below."}
+          </Notice>
         </div>
       )}
-      {mode === "off" ? <AuthOff /> : <SignInForm next={next} supabase={mode === "supabase"} />}
+      {mode === "off" ? <AuthOff /> : <SignInForm next={next} supabase={mode === "supabase"} start={sp.error ? "link" : "password"} />}
       <p className="mt-6 text-xs text-muted">
         No account needed to browse events, add yourself or post moments.{" "}
         <Link href="/" className="underline">
