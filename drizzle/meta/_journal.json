@@ -127,6 +127,13 @@
       "when": 1793564600223,
       "tag": "0017_user_events",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793565489425,
+      "tag": "0018_african_workforce_summit",
+      "breakpoints": true
     }
   ]
 }

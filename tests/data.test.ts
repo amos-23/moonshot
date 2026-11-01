@@ -283,9 +283,12 @@ describe("reactions", () => {
 });
 
 describe("events", () => {
-  it("starts with Moonshot, ADMARP and Ogun Digital Summit, and keeps each event's people and moments apart", async () => {
+  it("starts with Moonshot, ADMARP, Ogun Digital Summit and African Workforce Summit, and keeps each event's people and moments apart", async () => {
     const events = await listEvents(db);
-    expect(events.map((e) => e.slug)).toEqual(["moonshot", "admarp-growth-summit", "ogun-digital-summit"]);
+    expect(events.map((e) => e.slug)).toEqual(["moonshot", "admarp-growth-summit", "ogun-digital-summit", "african-workforce-summit"]);
+    const aws = (await getEvent(db, "african-workforce-summit"))!;
+    expect(aws).toMatchObject({ dates: "21 November 2026", venue: "Lagos" });
+    expect(eventPhase(aws, new Date("2026-11-21T09:00:00Z"))).toBe("live");
     const ogun = (await getEvent(db, "ogun-digital-summit"))!;
     expect(ogun).toMatchObject({ dates: "26 November 2026", venue: "June 12 Cultural Centre, Kuto, Abeokuta, Ogun State" });
     expect(eventPhase(ogun, new Date("2026-11-26T10:00:00Z"))).toBe("live");
