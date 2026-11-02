@@ -162,6 +162,13 @@
       "when": 1793660000000,
       "tag": "0022_ads_api",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793750000000,
+      "tag": "0023_ads_passwords",
+      "breakpoints": true
     }
   ]
 }
