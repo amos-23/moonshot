@@ -110,3 +110,16 @@ npm install && npm run dev           # built-in database, no setup
 npm run lint && npm run typecheck && npm test && npm run build
 BASE_URL=http://localhost:3000 ADMIN_KEY=... npm run test:e2e
 ```
+
+## AdsSim backend (`/api/ads/*`)
+
+This service also hosts the API for AdsSim at `ads.latars.xyz` (a separate static site, repo `ads-sim`). It has **its own users, sessions, saved progress and usage events** in a separate `ads` Postgres schema. Nothing is shared with Event Connect accounts or Supabase sign-in, and cookies are never used.
+
+| Route | What it does |
+| --- | --- |
+| `POST /api/ads/signin` | Email only, no password and no verification. Returns a per-device token and any saved progress. If the email has none yet, the guest progress sent along becomes its saved progress. |
+| `POST /api/ads/signout` | Ends this device's token. |
+| `GET/PUT /api/ads/progress` | Loads or saves the whole progress object (`Authorization: Bearer <token>`, last write wins, up to ~4 MB). |
+| `POST /api/ads/track` | Anonymous usage events from a fixed list (platform started, campaign saved, days advanced…). No cookies or email; visitors are a daily-changing hash of IP + browser. |
+
+Set `ADS_ORIGINS` (default `https://ads.latars.xyz`) to the sites allowed to call it from a browser. Anyone who knows an email can load that email's practice campaigns, by design: it only stores simulator data.
