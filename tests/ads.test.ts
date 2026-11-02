@@ -6,6 +6,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/lib/db/schema";
 import type { DB } from "@/lib/db";
 import { sql } from "drizzle-orm";
+import { adsAdminStats, adsUsersCsv } from "@/lib/ads-admin";
 import { cleanEvent, corsHeaders, getProgress, normaliseEmail, recordEvent, saveProgress, signIn, signOut, userForToken } from "@/lib/ads";
 
 let db: DB;
@@ -65,5 +66,20 @@ describe("ads backend", () => {
     expect(corsHeaders("https://ads.latars.xyz")["Access-Control-Allow-Origin"]).toBe("https://ads.latars.xyz");
     expect(corsHeaders("https://evil.example")["Access-Control-Allow-Origin"]).toBeUndefined();
     expect(corsHeaders(null)["Access-Control-Allow-Origin"]).toBeUndefined();
+  });
+
+  it("summarises sign-ups and activity for the admin page, and exports a safe CSV", async () => {
+    const u = await signIn(db, "=evil@x.io", 'Ev"il');
+    await saveProgress(db, u.user.id, { a: 1 });
+    await recordEvent(db, cleanEvent({ name: "platform_start", platform: "google" })!, "v2", true);
+    const st = await adsAdminStats(db);
+    expect(st.users).toBeGreaterThanOrEqual(3);
+    expect(st.withProgress).toBeGreaterThanOrEqual(1);
+    expect(st.platforms30.find((p) => p.platform === "google")?.n).toBe(1);
+    expect(st.events30.some((e) => e.name === "platform_start")).toBe(true);
+    const csv = await adsUsersCsv(db);
+    expect(csv.split("\r\n")[0]).toBe("email,name,has_progress,signed_up_at,last_seen_at");
+    expect(csv).toContain('"\'=evil@x.io"');
+    expect(csv).toContain('"Ev""il"');
   });
 });

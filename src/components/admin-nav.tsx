@@ -29,6 +29,7 @@ export function AdminNav({ events, current, tab, badges = {} }: { events: EventS
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-sun">Admin</span>
+            <Link href="/adminx" className="text-sm font-semibold text-white/70 hover:text-white">All admin</Link>
             {current && (
               <Link href={`/${current.slug}`} target="_blank" className="hidden items-center gap-1 truncate text-sm text-white/60 hover:text-white sm:inline-flex">
                 events.latars.xyz/{current.slug} <ExternalLink size={13} aria-hidden />

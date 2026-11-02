@@ -123,3 +123,7 @@ This service also hosts the API for AdsSim at `ads.latars.xyz` (a separate stati
 | `POST /api/ads/track` | Anonymous usage events from a fixed list (platform started, campaign saved, days advanced…). No cookies or email; visitors are a daily-changing hash of IP + browser. |
 
 Set `ADS_ORIGINS` (default `https://ads.latars.xyz`) to the sites allowed to call it from a browser. Anyone who knows an email can load that email's practice campaigns, by design: it only stores simulator data.
+
+## One admin home (`/adminx`)
+
+`latars.xyz/adminx` forwards to `events.latars.xyz/adminx`, a single admin home for everything: Event Connect (links to `/admin` and `/admin/stats`) and AdsSim (sign-ups, activity, platforms started, latest sign-ups, and a CSV of emails). The page is public and shows a sign-in to anyone who isn't an admin; nothing else is visible until they are. Sign in with the admin key (`ADMIN_KEY`, rate limited) or an `ADMIN_EMAILS` account: one admin login covers both products. The existing `/admin` pages are unchanged and now link back with "All admin".
