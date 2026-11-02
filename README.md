@@ -117,12 +117,13 @@ This service also hosts the API for AdsSim at `ads.latars.xyz` (a separate stati
 
 | Route | What it does |
 | --- | --- |
-| `POST /api/ads/signin` | Email only, no password and no verification. Returns a per-device token and any saved progress. If the email has none yet, the guest progress sent along becomes its saved progress. |
+| `POST /api/ads/signup` | Email + password (8+ characters, scrypt-hashed). Returns a per-device token. The guest progress sent along becomes the saved progress. An account made before passwords existed is claimed by the first sign-up with its email. |
+| `POST /api/ads/signin` | Email + password. Returns a per-device token and the saved progress. A wrong password and an unknown email give the same answer. Rate limited per network. |
 | `POST /api/ads/signout` | Ends this device's token. |
 | `GET/PUT /api/ads/progress` | Loads or saves the whole progress object (`Authorization: Bearer <token>`, last write wins, up to ~4 MB). |
 | `POST /api/ads/track` | Anonymous usage events from a fixed list (platform started, campaign saved, days advanced…). No cookies or email; visitors are a daily-changing hash of IP + browser. |
 
-Set `ADS_ORIGINS` (default `https://ads.latars.xyz`) to the sites allowed to call it from a browser. Anyone who knows an email can load that email's practice campaigns, by design: it only stores simulator data.
+Set `ADS_ORIGINS` (default `https://ads.latars.xyz`) to the sites allowed to call it from a browser. There is no email verification and no password reset yet (an admin has to clear a forgotten password in the database).
 
 ## One admin home (`/adminx`)
 

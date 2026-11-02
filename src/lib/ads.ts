@@ -1,11 +1,12 @@
 import "server-only";
 import crypto from "crypto";
+import { promisify } from "util";
 import { sql } from "drizzle-orm";
 import type { DB } from "@/lib/db";
 
 // Backend for AdsSim (ads.latars.xyz). Its own users and sessions in the `ads` Postgres schema,
-// separate from the events app's accounts. Sign-in is by email alone, with no verification, on purpose:
-// it only saves practice campaigns, and anyone who knows the email can load them.
+// separate from the events app's accounts. Sign in with an email and a password (scrypt-hashed).
+// There is no email verification and no password reset yet.
 
 export const MAX_STATE_BYTES = 4_000_000;
 
@@ -25,17 +26,60 @@ export interface AdsUser {
   name: string | null;
 }
 
-/** Signs an email in (creating the user the first time) and returns a new session token for this device. */
-export async function signIn(db: DB, email: string, name: string | null) {
-  const [user] = rowsOf<AdsUser>(await db.execute(sql`
-    INSERT INTO "ads"."users" ("email","name") VALUES (${email}, ${name})
-    ON CONFLICT ("email") DO UPDATE SET "last_seen_at" = now(), "name" = COALESCE(${name}, "ads"."users"."name")
-    RETURNING "id","email","name"`));
+const scrypt = promisify(crypto.scrypt) as (pw: string, salt: Buffer, len: number) => Promise<Buffer>;
+
+export const MIN_PASSWORD = 8;
+export const validPassword = (v: unknown): v is string => typeof v === "string" && v.length >= MIN_PASSWORD && v.length <= 200;
+
+/** "scrypt$<salt>$<hash>", both base64url. */
+export async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.randomBytes(16);
+  return `scrypt$${salt.toString("base64url")}$${(await scrypt(password, salt, 64)).toString("base64url")}`;
+}
+
+export async function verifyPassword(password: string, stored: string | null): Promise<boolean> {
+  const [kind, salt, want] = (stored ?? "").split("$");
+  if (kind !== "scrypt" || !salt || !want) return false;
+  const expected = Buffer.from(want, "base64url");
+  const got = await scrypt(password, Buffer.from(salt, "base64url"), expected.length);
+  return got.length === expected.length && crypto.timingSafeEqual(got, expected);
+}
+
+export type AuthFailure = "exists" | "bad_login" | "no_password";
+
+async function startSession(db: DB, user: AdsUser) {
   const token = crypto.randomBytes(32).toString("base64url");
   await db.execute(sql`INSERT INTO "ads"."sessions" ("token_hash","user_id") VALUES (${hash(token)}, ${user.id})`);
-  const state = await getProgress(db, user.id);
-  return { token, user, state };
+  return { token, user, state: await getProgress(db, user.id) };
 }
+
+/**
+ * Creates an account with a password. An account made before passwords existed (no password yet) is claimed
+ * by whoever signs up with its email first. One that already has a password is refused.
+ */
+export async function signUp(db: DB, email: string, password: string, name: string | null) {
+  const passwordHash = await hashPassword(password);
+  const rows = rowsOf<AdsUser>(await db.execute(sql`
+    INSERT INTO "ads"."users" ("email","name","password_hash") VALUES (${email}, ${name}, ${passwordHash})
+    ON CONFLICT ("email") DO UPDATE SET "password_hash" = EXCLUDED."password_hash", "last_seen_at" = now(), "name" = COALESCE(${name}, "ads"."users"."name")
+    WHERE "ads"."users"."password_hash" IS NULL
+    RETURNING "id","email","name"`));
+  if (!rows[0]) return { error: "exists" as AuthFailure };
+  return startSession(db, rows[0]);
+}
+
+/** Checks the email and password and returns a new session token for this device. */
+export async function signIn(db: DB, email: string, password: string) {
+  const rows = rowsOf<AdsUser & { password_hash: string | null }>(await db.execute(sql`SELECT "id","email","name","password_hash" FROM "ads"."users" WHERE "email" = ${email}`));
+  const row = rows[0];
+  // Always run a hash, so a missing account takes as long as a wrong password.
+  const ok = await verifyPassword(password, row?.password_hash ?? DUMMY_HASH);
+  if (!row || !ok) return row && !row.password_hash ? { error: "no_password" as AuthFailure } : { error: "bad_login" as AuthFailure };
+  await db.execute(sql`UPDATE "ads"."users" SET "last_seen_at" = now() WHERE "id" = ${row.id}`);
+  return startSession(db, { id: row.id, email: row.email, name: row.name });
+}
+
+const DUMMY_HASH = `scrypt$${Buffer.alloc(16).toString("base64url")}$${Buffer.alloc(64).toString("base64url")}`;
 
 export async function userForToken(db: DB, token: string | null): Promise<AdsUser | null> {
   if (!token || token.length < 20 || token.length > 100) return null;

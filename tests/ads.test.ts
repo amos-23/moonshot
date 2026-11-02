@@ -7,7 +7,8 @@ import * as schema from "@/lib/db/schema";
 import type { DB } from "@/lib/db";
 import { sql } from "drizzle-orm";
 import { adsAdminStats, adsUsersCsv } from "@/lib/ads-admin";
-import { cleanEvent, corsHeaders, getProgress, normaliseEmail, recordEvent, saveProgress, signIn, signOut, userForToken } from "@/lib/ads";
+
+import { cleanEvent, corsHeaders, getProgress, hashPassword, normaliseEmail, recordEvent, saveProgress, signIn, signOut, signUp, userForToken, validPassword, verifyPassword } from "@/lib/ads";
 
 let db: DB;
 beforeAll(async () => {
@@ -17,6 +18,31 @@ beforeAll(async () => {
 });
 
 describe("ads backend", () => {
+  it("hashes and verifies passwords", async () => {
+    const h = await hashPassword("s3cret-pass");
+    expect(h).not.toContain("s3cret");
+    expect(await verifyPassword("s3cret-pass", h)).toBe(true);
+    expect(await verifyPassword("wrong", h)).toBe(false);
+    expect(await verifyPassword("x", null)).toBe(false);
+    expect(validPassword("short")).toBe(false);
+    expect(validPassword("long enough")).toBe(true);
+  });
+
+  it("checks the password on sign-in, refuses duplicate sign-ups and lets old accounts claim a password", async () => {
+    const made = await signUp(db, "pw@x.io", "first password", null);
+    expect("error" in made).toBe(false);
+    expect(await signUp(db, "pw@x.io", "other password", null)).toEqual({ error: "exists" });
+    expect(await signIn(db, "pw@x.io", "wrong password")).toEqual({ error: "bad_login" });
+    expect(await signIn(db, "nobody@x.io", "first password")).toEqual({ error: "bad_login" });
+    expect("error" in (await signIn(db, "pw@x.io", "first password"))).toBe(false);
+    // An account from before passwords existed has none; signing up with its email claims it.
+    await db.execute(sql`INSERT INTO "ads"."users" ("email") VALUES ('old@x.io')`);
+    expect(await signIn(db, "old@x.io", "anything at all")).toEqual({ error: "no_password" });
+    const claimed = await signUp(db, "old@x.io", "new password", null);
+    expect("error" in claimed).toBe(false);
+    expect("error" in (await signIn(db, "old@x.io", "new password"))).toBe(false);
+  });
+
   it("validates and lowercases emails", () => {
     expect(normaliseEmail("  Me@Example.COM ")).toBe("me@example.com");
     expect(normaliseEmail("nope")).toBeNull();
@@ -24,10 +50,12 @@ describe("ads backend", () => {
   });
 
   it("signs in, saves and restores progress, per device token", async () => {
-    const a = await signIn(db, "amy@x.io", "Amy");
+    const a = await signUp(db, "amy@x.io", "correct horse", "Amy");
+    if ("error" in a) throw new Error(a.error);
     expect(a.state).toBeNull();
     await saveProgress(db, a.user.id, { meta: { day: 3 } });
-    const b = await signIn(db, "AMY@x.io".toLowerCase(), null);
+    const b = await signIn(db, "amy@x.io", "correct horse");
+    if ("error" in b) throw new Error(b.error);
     expect(b.user.id).toBe(a.user.id);
     expect(b.user.name).toBe("Amy");
     expect(b.state?.state).toEqual({ meta: { day: 3 } });
@@ -40,8 +68,9 @@ describe("ads backend", () => {
   });
 
   it("keeps users separate and overwrites progress", async () => {
-    const a = await signIn(db, "one@x.io", null);
-    const b = await signIn(db, "two@x.io", null);
+    const a = await signUp(db, "one@x.io", "password one", null);
+    const b = await signUp(db, "two@x.io", "password two", null);
+    if ("error" in a || "error" in b) throw new Error("signup failed");
     await saveProgress(db, a.user.id, { v: 1 });
     await saveProgress(db, a.user.id, { v: 2 });
     expect((await getProgress(db, a.user.id))?.state).toEqual({ v: 2 });
@@ -69,7 +98,8 @@ describe("ads backend", () => {
   });
 
   it("summarises sign-ups and activity for the admin page, and exports a safe CSV", async () => {
-    const u = await signIn(db, "=evil@x.io", 'Ev"il');
+    const u = await signUp(db, "=evil@x.io", "password evil", 'Ev"il');
+    if ("error" in u) throw new Error(u.error);
     await saveProgress(db, u.user.id, { a: 1 });
     await recordEvent(db, cleanEvent({ name: "platform_start", platform: "google" })!, "v2", true);
     const st = await adsAdminStats(db);
