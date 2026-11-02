@@ -16,7 +16,9 @@ const legacyDomain = [{ source: "/:path*", has: [{ type: "host" as const, value:
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@electric-sql/pglite"],
   images: { remotePatterns: [{ protocol: "https", hostname: "**" }] },
-  experimental: { serverActions: { bodySizeLimit: "4mb" } },
+  // latars.xyz forwards its admin (/adminx and /admin) to this app. Those pages post forms from latars.xyz, while this
+  // app sees its own host, so Next would reject them ("Invalid Server Actions request") without this allow-list.
+  experimental: { serverActions: { bodySizeLimit: "4mb", allowedOrigins: ["latars.xyz", "www.latars.xyz"] } },
   async redirects() {
     // The old domain goes first, so it's a single hop.
     return [...legacyDomain, ...moved, ...oldHome];
