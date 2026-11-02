@@ -409,12 +409,13 @@ export async function adminLoginAction(_: Result | null, form: FormData): Promis
   if (!(await rateLimit("admin_key", 10, 15))) return { ok: false, error: "Too many tries. Wait a few minutes." };
   if (!isAdminKey(key)) return { ok: false, error: "That key isn't right." };
   (await cookies()).set("mc_admin", key, { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 14 });
-  redirect("/admin");
+  // The combined admin home (/adminx) signs in here too and lands back on itself; everything else goes to /admin.
+  redirect(form.get("next") === "/adminx" ? "/adminx" : "/admin");
 }
 
-export async function adminLogoutAction() {
+export async function adminLogoutAction(form?: FormData) {
   (await cookies()).delete("mc_admin");
-  redirect("/");
+  redirect(form?.get("next") === "/adminx" ? "/adminx" : "/");
 }
 
 export async function importPostsAction(_: Result | null, form: FormData): Promise<Result> {

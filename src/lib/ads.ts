@@ -15,7 +15,7 @@ export const cleanName = (v: unknown) => (typeof v === "string" ? v.trim().slice
 const hash = (t: string) => crypto.createHash("sha256").update(t).digest("hex");
 
 /** Rows from db.execute: an array with postgres-js (production), `{ rows }` with the embedded PGlite. */
-function rowsOf<T>(res: unknown): T[] {
+export function rowsOf<T>(res: unknown): T[] {
   return (Array.isArray(res) ? res : (res as { rows?: T[] }).rows ?? []) as T[];
 }
 

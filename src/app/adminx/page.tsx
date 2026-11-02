@@ -1,0 +1,157 @@
+import Link from "next/link";
+import { sql } from "drizzle-orm";
+import { ArrowUpRight, BarChart3, CalendarDays, Download, LogOut } from "lucide-react";
+import { getDb, schema } from "@/lib/db";
+import { isAdmin } from "@/lib/me";
+import { AdminLogin } from "@/components/forms";
+import { adminLogoutAction } from "@/lib/actions";
+import { adsAdminStats } from "@/lib/ads-admin";
+import { Card, PageTitle } from "@/components/ui";
+import { timeAgo } from "@/lib/time";
+
+export const metadata = { title: "Admin", robots: { index: false, follow: false } };
+export const dynamic = "force-dynamic";
+
+const PLATFORM_NAMES: Record<string, string> = { meta: "Meta", tiktok: "TikTok", google: "Google", x: "X", chatgpt: "ChatGPT Ads" };
+const EVENT_NAMES: Record<string, string> = {
+  view: "Visits",
+  signup: "New sign-ups",
+  signin: "Returning sign-ins",
+  platform_start: "Started a platform",
+  campaign_saved: "Saved a campaign",
+  days_advanced: "Advanced days",
+  reset: "Reset an account",
+};
+
+function Stat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <Card className="p-4">
+      <div className="text-2xl font-extrabold tabular-nums">{value}</div>
+      <div className="text-sm text-muted">{label}</div>
+    </Card>
+  );
+}
+
+function SignIn() {
+  return (
+    <div className="mx-auto max-w-xl px-4 py-12">
+      <PageTitle title="Admin" sub="Sign in to manage Event Connect and AdsSim." />
+      {process.env.ADMIN_KEY ? (
+        <AdminLogin next="/adminx" />
+      ) : (
+        <p className="text-sm text-muted">Admin key sign-in isn&apos;t set up (ADMIN_KEY).</p>
+      )}
+      <p className="mt-4 text-sm text-muted">
+        Have an admin account? <Link className="underline" href="/signin">Sign in with email</Link>, then come back here.
+      </p>
+    </div>
+  );
+}
+
+// One admin home for everything on latars.xyz: Event Connect and AdsSim, behind the same admin sign-in.
+export default async function AdminHub() {
+  // Not hidden: anyone can open this page and sign in. Only admins see anything else.
+  if (!(await isAdmin())) return <SignIn />;
+  const db = await getDb();
+  const [{ n: eventCount }] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.eventSpaces);
+  const [{ n: peopleCount }] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.people);
+  const ads = await adsAdminStats(db);
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-8">
+      <PageTitle
+        title="Admin"
+        sub="Everything on latars.xyz, in one place."
+        action={
+          <form action={adminLogoutAction}>
+            <input type="hidden" name="next" value="/adminx" />
+            <button type="submit" className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-muted hover:bg-black/5">
+              <LogOut size={15} aria-hidden /> Log out
+            </button>
+          </form>
+        }
+      />
+
+      <section aria-labelledby="events-h" className="mb-10">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 id="events-h" className="text-xl font-extrabold">Event Connect <span className="text-sm font-normal text-muted">events.latars.xyz</span></h2>
+          <div className="flex gap-2 text-sm font-semibold">
+            <Link href="/admin" className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-3 py-1.5 hover:border-ink/30"><CalendarDays size={14} aria-hidden /> Manage events</Link>
+            <Link href="/admin/stats" className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-3 py-1.5 hover:border-ink/30"><BarChart3 size={14} aria-hidden /> Stats</Link>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Stat label="Events" value={eventCount} />
+          <Stat label="People with cards" value={peopleCount} />
+        </div>
+        <p className="mt-3 text-sm text-muted">Moderation, moments, people, accounts and the mailing list are under <Link className="underline" href="/admin">Manage events</Link>.</p>
+      </section>
+
+      <section aria-labelledby="ads-h">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 id="ads-h" className="text-xl font-extrabold">AdsSim <span className="text-sm font-normal text-muted">ads.latars.xyz</span></h2>
+          <div className="flex gap-2 text-sm font-semibold">
+            <a href="https://ads.latars.xyz" target="_blank" rel="noopener" className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-3 py-1.5 hover:border-ink/30">Open site <ArrowUpRight size={14} aria-hidden /></a>
+            <a href="/adminx/ads-users.csv" className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-3 py-1.5 hover:border-ink/30"><Download size={14} aria-hidden /> Download emails (CSV)</a>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <Stat label="Sign-ups" value={ads.users} />
+          <Stat label="New in 7 days" value={ads.newUsers7} />
+          <Stat label="New in 30 days" value={ads.newUsers30} />
+          <Stat label="With saved progress" value={ads.withProgress} />
+          <Stat label="Visitors, 30 days" value={ads.visitors30} />
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <Card className="p-5">
+            <h3 className="font-extrabold">Activity, last 30 days</h3>
+            {ads.events30.length === 0 ? (
+              <p className="mt-2 text-sm text-muted">No events yet.</p>
+            ) : (
+              <ul className="mt-2 divide-y divide-line text-sm">
+                {ads.events30.map((e) => (
+                  <li key={e.name} className="flex justify-between py-1.5"><span>{EVENT_NAMES[e.name] ?? e.name}</span><span className="font-semibold tabular-nums">{e.n}</span></li>
+                ))}
+              </ul>
+            )}
+          </Card>
+          <Card className="p-5">
+            <h3 className="font-extrabold">Platforms started, last 30 days</h3>
+            {ads.platforms30.length === 0 ? (
+              <p className="mt-2 text-sm text-muted">No platforms started yet.</p>
+            ) : (
+              <ul className="mt-2 divide-y divide-line text-sm">
+                {ads.platforms30.map((p) => (
+                  <li key={p.platform} className="flex justify-between py-1.5"><span>{PLATFORM_NAMES[p.platform] ?? p.platform}</span><span className="font-semibold tabular-nums">{p.n}</span></li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
+
+        <Card className="mt-4 overflow-x-auto p-5">
+          <h3 className="font-extrabold">Latest sign-ups</h3>
+          {ads.recent.length === 0 ? (
+            <p className="mt-2 text-sm text-muted">Nobody has signed up yet.</p>
+          ) : (
+            <table className="mt-2 w-full text-left text-sm">
+              <thead className="text-muted"><tr><th className="py-1.5 pr-3 font-semibold">Email</th><th className="pr-3 font-semibold">Name</th><th className="pr-3 font-semibold">Signed up</th><th className="pr-3 font-semibold">Last seen</th><th className="font-semibold">Progress</th></tr></thead>
+              <tbody className="divide-y divide-line">
+                {ads.recent.map((u) => (
+                  <tr key={u.id}>
+                    <td className="py-1.5 pr-3">{u.email}</td>
+                    <td className="pr-3">{u.name ?? ""}</td>
+                    <td className="pr-3 whitespace-nowrap">{timeAgo(new Date(u.created_at))}</td>
+                    <td className="pr-3 whitespace-nowrap">{timeAgo(new Date(u.last_seen_at))}</td>
+                    <td>{u.has_progress ? "Saved" : "None"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Card>
+      </section>
+    </div>
+  );
+}
