@@ -317,8 +317,8 @@ describe("events", () => {
 
   it("starts with Moonshot, ADMARP, Ogun Digital Summit, African Workforce Summit and November's Nigerian events, and keeps each event's people and moments apart", async () => {
     const events = await listEvents(db);
-    expect(events.map((e) => e.slug)).toEqual(["growth-workshop", "moonshot", "admarp-growth-summit", "ogun-digital-summit", "african-workforce-summit", "afriff-film-market", "national-advertising-conference", "neclive", "devfest-lagos", "entertainment-week-africa", "growth-africa-summit"]);
-    expect((await getEvent(db, "growth-workshop"))!).toMatchObject({ promo: true, url: "https://www.growthworkshop.xyz/", endsAt: new Date("2026-11-07T23:00:00Z") });
+    expect(events.map((e) => e.slug)).toEqual(["moonshot", "admarp-growth-summit", "ogun-digital-summit", "african-workforce-summit", "afriff-film-market", "national-advertising-conference", "neclive", "devfest-lagos", "entertainment-week-africa", "growth-africa-summit"]);
+    expect(await getEvent(db, "growth-workshop")).toBeNull(); // the workshop was taken off the site
     expect((await getEvent(db, "devfest-lagos"))!).toMatchObject({ dates: "13–14 November 2026", venue: "Landmark Event Centre, Victoria Island, Lagos", url: "https://devfestlagos.com/", listed: true });
     const aws = (await getEvent(db, "african-workforce-summit"))!;
     expect(aws).toMatchObject({ dates: "21 November 2026", venue: "Lagos" });

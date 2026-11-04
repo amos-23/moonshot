@@ -169,6 +169,13 @@
       "when": 1793750000000,
       "tag": "0023_ads_passwords",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793786274789,
+      "tag": "0024_remove_growth_workshop",
+      "breakpoints": true
     }
   ]
 }
