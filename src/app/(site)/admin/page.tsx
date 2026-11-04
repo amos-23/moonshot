@@ -4,7 +4,7 @@ import { getDb, schema } from "@/lib/db";
 import { adminGate } from "@/components/admin-gate";
 import { approveEventAction, removePhotoAction, resolveReportAction, setFeaturedAction, setHiddenAction } from "@/lib/actions";
 import { formatTime, timeAgo } from "@/lib/time";
-import { AdminMomentForm, EventForm, ImportForm, TopAccountsForm } from "@/components/forms";
+import { AdminMomentForm, EventForm, ImportSiteForm, ImportForm, TopAccountsForm } from "@/components/forms";
 import { listEvents } from "@/lib/events";
 import { momentWho } from "@/components/moment";
 import { getTopAccounts, pickFeatured } from "@/lib/featured";
@@ -296,6 +296,11 @@ export default async function AdminPage({
                 </Link>
               ))}
             </div>
+            <Card className="p-5 sm:p-6">
+              <h2 className="text-lg font-bold">＋ Add an event from its website</h2>
+              <p className="mb-3 text-sm text-muted">Paste the event&apos;s site: its name, dates, venue, logo and colour are read from the page. It waits under Events → Waiting for approval so you can check it first.</p>
+              <ImportSiteForm id="site-home" />
+            </Card>
             <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
               <Card className="p-5 sm:p-6">
                 <h2 className="text-lg font-bold">📸 Add moments</h2>
@@ -495,6 +500,11 @@ export default async function AdminPage({
             title="Events"
             note={<>Each event has its own Connect (people) and Moments at its own address. Dates set what the event page shows: before (“Who&apos;s going”), during (Meet up) and after (“Find the people you met”).</>}
           >
+            <Card className="mb-6 p-5 sm:p-6">
+              <h3 className="font-bold">＋ Add an event from its website</h3>
+              <p className="mb-3 text-sm text-muted">Paste the event&apos;s site and the details are filled in from it. Check them below, then approve.</p>
+              <ImportSiteForm id="site-events" />
+            </Card>
             {pending.length > 0 && (
               <div className="mb-6">
                 <h3 className="mb-2 font-bold">Waiting for approval · {pending.length}</h3>
@@ -509,7 +519,7 @@ export default async function AdminPage({
                           {" "}
                           · /{e.slug}
                           {e.dates ? ` · ${e.dates}` : ""}
-                          {e.venue ? ` · ${e.venue}` : ""} · by {ownerEmail.get(e.ownerId ?? "") ?? "an account"} · {timeAgo(e.createdAt)}
+                          {e.venue ? ` · ${e.venue}` : ""} · {e.ownerId ? `by ${ownerEmail.get(e.ownerId) ?? "an account"}` : "added by an admin"} · {timeAgo(e.createdAt)}
                         </span>
                       </span>
                       <ActionButton action={approveEventAction.bind(null, e.id)} variant="secondary">
@@ -539,7 +549,7 @@ export default async function AdminPage({
                 </details>
               ))}
               <details className="rounded-3xl border border-dashed border-line p-4">
-                <summary className="cursor-pointer font-semibold text-flame-700">＋ Add an event</summary>
+                <summary className="cursor-pointer font-semibold text-flame-700">＋ Add an event by hand</summary>
                 <div className="mt-4">
                   <EventForm event={null} />
                 </div>

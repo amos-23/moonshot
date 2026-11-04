@@ -1,6 +1,7 @@
 "use server";
 
 import { parseEventForm } from "@/lib/event-form";
+import { ImportError, fetchPublicPage, readEventPage } from "@/lib/site-import";
 
 import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
@@ -16,7 +17,7 @@ import { parsePhoto } from "@/lib/photo";
 import { clientIp, visitorHash } from "@/lib/track";
 import { MAX_MOMENT_PHOTOS } from "@/lib/constants";
 import { parseHandles, topAccountsKey } from "@/lib/featured";
-import { checkinCookie, cleanColor, eventPhase, getEvent } from "@/lib/events";
+import { checkinCookie, cleanColor, eventPhase, getEvent, listEvents } from "@/lib/events";
 import { getAccount } from "@/lib/auth";
 
 export type Result = { ok: true; message?: string; data?: unknown } | { ok: false; error: string; fields?: Record<string, string> };
@@ -471,6 +472,62 @@ export async function saveEventAction(_: Result | null, form: FormData): Promise
     else await db.insert(schema.eventSpaces).values(values);
     refresh();
     return { ok: true, message: id ? "Saved." : `Added. It lives at /${values.slug}.` };
+  });
+}
+
+/**
+ * Admin: add an event from just its website. Reads the page for the name, dates, venue, logo and colour, and adds
+ * it to "Waiting for approval" so the details can be checked (and fixed) before it goes on the homepage.
+ */
+export async function importEventFromSiteAction(_: Result | null, form: FormData): Promise<Result> {
+  return guard(async (): Promise<Result> => {
+    const db = await requireAdmin();
+    const site = String(form.get("site") ?? "").trim().slice(0, 500);
+    if (!site) return { ok: false, error: "Paste the event's website.", fields: { site: "Required" } };
+    if (!(await rateLimit("import_event", 30, 60))) return { ok: false, error: "Too many imports. Try again in a while." };
+    let page: { html: string; url: string };
+    try {
+      page = await fetchPublicPage(site);
+    } catch (err) {
+      return { ok: false, error: err instanceof ImportError ? err.message : "Couldn't read that website.", fields: { site: "Couldn't read it" } };
+    }
+    const found = readEventPage(page.html, page.url);
+    if (!found.name) return { ok: false, error: "Couldn't find the event's name on that page. Add it with the form below instead." };
+    const url = page.url.replace(/[?#].*$/, "");
+    const host = new URL(url).host.replace(/^www\./, "");
+    const existing = (await listEvents(db, { includeHidden: true })).find((e) => e.url && new URL(e.url).host.replace(/^www\./, "") === host && new URL(e.url).pathname.replace(/\/$/, "") === new URL(url).pathname.replace(/\/$/, ""));
+    if (existing) return { ok: false, error: `That event is already here: /${existing.slug}.` };
+    const fd = new FormData();
+    const set = (k: string, v: string | null) => v && fd.set(k, v);
+    set("name", found.name);
+    set("organiser", found.organiser);
+    set("tagline", found.tagline);
+    set("venue", found.venue);
+    set("url", url);
+    set("xHandle", found.xHandle);
+    set("brandColor", found.brandColor);
+    set("startDay", found.startDay);
+    set("endDay", found.endDay);
+    let parsed = parseEventForm(fd);
+    if (!parsed.ok) {
+      // Dates that don't make sense: keep the rest and let the admin add them.
+      fd.delete("startDay");
+      fd.delete("endDay");
+      parsed = parseEventForm(fd);
+    }
+    if (!parsed.ok) return { ok: false, error: parsed.error };
+    const values = parsed.values;
+    // A free address: "name", else "name-2", "name-3"…
+    const base = values.slug;
+    for (let n = 2; await db.query.eventSpaces.findFirst({ where: eq(schema.eventSpaces.slug, values.slug) }); n++) values.slug = `${base.slice(0, 56)}-${n}`;
+    await db.insert(schema.eventSpaces).values({ ...values, logo: found.logo, listed: false, position: 100 });
+    refresh();
+    const missing = [!values.startsAt && "dates", !values.venue && "venue", !found.logo && "logo"].filter(Boolean);
+    return {
+      ok: true,
+      message: `Added ${values.name}${values.dates ? `, ${values.dates}` : ""}${values.venue ? ` at ${values.venue}` : ""} as /${values.slug}. It's waiting for approval below${missing.length ? `: add the ${missing.join(" and ")} first (not on the page)` : ""}.`,
+      data: { slug: values.slug },
+    };
   });
 }
 

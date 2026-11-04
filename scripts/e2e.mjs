@@ -44,7 +44,7 @@ const momentTiles = (page, text) => page.getByRole("link", { name: new RegExp(`O
 async function visitor(opts = mobile) {
   const ctx = await browser.newContext({ userAgent: UA, ...opts });
   const page = await ctx.newPage();
-  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("pageerror", (e) => errors.push(`${e.message} (on ${page.url()})`));
   return { ctx, page };
 }
 const shot = (page, name) => SHOTS && page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: true });
@@ -708,6 +708,22 @@ try {
   await admin.page.getByText(`Nothing matches “nobody-${run}”.`).first().waitFor();
   await admin.page.getByRole("navigation", { name: "Admin sections" }).getByRole("link", { name: "Events" }).click();
   await admin.page.waitForURL(/tab=events/);
+  // Adding an event from just its website: internal addresses are refused, one that's already here is caught,
+  // and a real page is read and added to "Waiting for approval".
+  const siteBox = admin.page.locator("#site-events");
+  const siteForm = admin.page.locator("form", { has: siteBox });
+  await siteBox.fill("http://localhost:3000/");
+  await siteForm.getByRole("button", { name: "Add event" }).click();
+  await siteForm.getByText("That isn't a public website.").waitFor();
+  if (process.env.E2E_NETWORK !== "0") {
+    await siteBox.fill("https://fashionweekend.gtcoplc.com/");
+    await siteForm.getByRole("button", { name: "Add event" }).click();
+    await siteForm.getByText("That event is already here: /gtco-fashion-weekend.").waitFor({ timeout: 30000 });
+    await siteBox.fill("https://example.com/");
+    await siteForm.getByRole("button", { name: "Add event" }).click();
+    await siteForm.getByText(/^Added Example Domain as \/example-domain\. It's waiting for approval below: add the dates and venue/).waitFor({ timeout: 30000 });
+    await admin.page.locator("li", { hasText: "Example Domain" }).getByText("added by an admin").waitFor();
+  }
   // Events people created wait here; approving puts them on the homepage.
   const waiting = admin.page.locator("li", { hasText: `Bola Meetup ${run}` }).first();
   await waiting.getByText(/by bola\./).waitFor();
@@ -717,8 +733,8 @@ try {
   await home.page.goto(BASE);
   await home.page.getByText(`Bola Meetup ${run}`, { exact: true }).waitFor();
   await home.ctx.close();
-  await admin.page.getByText("＋ Add an event").click();
-  const newForm = admin.page.locator("details", { hasText: "＋ Add an event" });
+  await admin.page.getByText("＋ Add an event by hand").click();
+  const newForm = admin.page.locator("details", { hasText: "＋ Add an event by hand" });
   await newForm.getByLabel("Name", { exact: true }).fill(`Test Fest ${run}`);
   await newForm.getByLabel("Address").fill("admin");
   await newForm.getByRole("button", { name: "Add event" }).click();

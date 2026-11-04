@@ -43,6 +43,10 @@ Every event page wears its own branding, taken from its official site: Moonshot 
 
 The homepage lists the most active events first (people count ten times a visit), then the rest by date. A card shows its people and visits once it has some.
 
+## Adding an event from its website (admin)
+
+On **Admin → Overview** (and **Events**), paste an event's website and press **Add event**. The server reads the page (public sites only, a few seconds at most) and fills in what it finds: the name, dates (schema.org Event data, or dates in the page text like "7th & 8th November 2026"), venue, tagline, organiser, logo and theme colour. The event lands under **Events → Waiting for approval**, and the message says what it couldn't find, so you can fill that in and approve it. Sites that only build their page in the browser give less to read.
+
 ## Events people create
 
 Anyone with an account can create an event at **`/new-event`** (also from the homepage and their account page): a name is enough, plus optional dates, venue, website, hashtag and a brand colour for the page. It works straight away at its own address so the organiser can share it, but it stays off the homepage (and out of search engines) until an admin approves it under **Admin → Events → Waiting for approval**. Organisers manage their event at **`/<event>/manage`**: edit the details and hide or bring back cards, moments, comments and check-ins. Up to 5 events per account.

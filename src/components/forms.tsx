@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { addCommentAction, addXPostAction, adminLoginAction, checkInAction, importMomentsAction, importPostsAction, postMomentAction, saveEventAction, saveTopAccountsAction, saveCardAction, saveUpdateAction } from "@/lib/actions";
+import { addCommentAction, addXPostAction, adminLoginAction, checkInAction, importMomentsAction, importPostsAction, postMomentAction, saveEventAction, saveTopAccountsAction, saveCardAction, saveUpdateAction, importEventFromSiteAction } from "@/lib/actions";
 import type { EventSpace, Person } from "@/lib/db/schema";
 import { MAX_MOMENT_PHOTOS, OFFERS, WANTS } from "@/lib/constants";
 import type { ImportResult } from "@/lib/data";
@@ -383,6 +383,29 @@ export function TopAccountsForm({ current, event }: { current: string; event: st
 function lagosDate(d: Date | null, end = false): string {
   if (!d) return "";
   return new Date(d.getTime() + 3600_000 - (end ? 1 : 0)).toISOString().slice(0, 10);
+}
+
+/** Admin: add an event by pasting its website; the details are read from the page. */
+export function ImportSiteForm({ id = "site" }: { id?: string }) {
+  const { state, pending, onSubmit, err } = useForm(importEventFromSiteAction, { refresh: true });
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (state?.ok) formRef.current?.reset();
+  }, [state]);
+  return (
+    <form ref={formRef} onSubmit={onSubmit} noValidate className="space-y-2">
+      <label htmlFor={id} className="sr-only">
+        Event website
+      </label>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <input id={id} name="site" type="url" inputMode="url" placeholder="https://the-event-website.com" className={cx(inputClass, "flex-1")} aria-invalid={!!err("site")} />
+        <Submit pending={pending} variant="dark" data-track="admin_import_site">
+          {pending ? "Reading the site…" : "Add event"}
+        </Submit>
+      </div>
+      <Status state={state} />
+    </form>
+  );
 }
 
 /** Admin: one event's details (or a blank form to add one). */

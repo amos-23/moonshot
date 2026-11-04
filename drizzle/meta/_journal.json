@@ -176,6 +176,13 @@
       "when": 1793786274789,
       "tag": "0024_remove_growth_workshop",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793787599351,
+      "tag": "0025_gtco_fashion_weekend",
+      "breakpoints": true
     }
   ]
 }
