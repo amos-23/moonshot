@@ -30,7 +30,7 @@ export default async function AccountPage() {
         action={
           <div className="flex items-center gap-2">
             {isAdminAccount(account) && (
-              <Link href="/admin" className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white">
+              <Link href="/adminx" className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white">
                 Admin
               </Link>
             )}

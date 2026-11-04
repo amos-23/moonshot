@@ -231,7 +231,7 @@ export async function postMomentAction(_: Result | null, form: FormData): Promis
   });
   refresh();
   // Back to Moments with the new one's id, so the "Posted" note can offer to share it on X.
-  if (result.ok) redirect(form.get("from") === "admin" ? `/admin?event=${slug}&moment=1` : `/${slug}/moments?posted=${Date.now()}&m=${newId}`);
+  if (result.ok) redirect(form.get("from") === "admin" ? `/adminx/connect/events/${slug}?tab=moments&added=1` : `/${slug}/moments?posted=${Date.now()}&m=${newId}`);
   return result;
 }
 
@@ -410,13 +410,12 @@ export async function adminLoginAction(_: Result | null, form: FormData): Promis
   if (!(await rateLimit("admin_key", 10, 15))) return { ok: false, error: "Too many tries. Wait a few minutes." };
   if (!isAdminKey(key)) return { ok: false, error: "That key isn't right." };
   (await cookies()).set("mc_admin", key, { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 14 });
-  // The combined admin home (/adminx) signs in here too and lands back on itself; everything else goes to /admin.
-  redirect(form.get("next") === "/adminx" ? "/adminx" : "/admin");
+  redirect("/adminx");
 }
 
-export async function adminLogoutAction(form?: FormData) {
+export async function adminLogoutAction() {
   (await cookies()).delete("mc_admin");
-  redirect(form?.get("next") === "/adminx" ? "/adminx" : "/");
+  redirect("/");
 }
 
 export async function importPostsAction(_: Result | null, form: FormData): Promise<Result> {
@@ -525,7 +524,7 @@ export async function importEventFromSiteAction(_: Result | null, form: FormData
     const missing = [!values.startsAt && "dates", !values.venue && "venue", !found.logo && "logo"].filter(Boolean);
     return {
       ok: true,
-      message: `Added ${values.name}${values.dates ? `, ${values.dates}` : ""}${values.venue ? ` at ${values.venue}` : ""} as /${values.slug}. It's waiting for approval below${missing.length ? `: add the ${missing.join(" and ")} first (not on the page)` : ""}.`,
+      message: `Added ${values.name}${values.dates ? `, ${values.dates}` : ""}${values.venue ? ` at ${values.venue}` : ""} as /${values.slug}. It's waiting for approval${missing.length ? `: add the ${missing.join(" and ")} first (not on the page)` : ""}.`,
       data: { slug: values.slug },
     };
   });
@@ -590,9 +589,27 @@ export async function removePhotoAction(personId: string): Promise<Result> {
   });
 }
 
+/** Admin: decide on something that was reported: hide it (or keep it hidden), or show it again. Closes its reports. */
+export async function decideReportAction(reportId: string, hide: boolean): Promise<Result> {
+  return guard(async () => {
+    const db = await requireAdmin();
+    const [r] = await db.select().from(schema.reports).where(eq(schema.reports.id, reportId)).limit(1);
+    if (!r) return { ok: false, error: "That report isn't here any more." };
+    const kind = (["post", "comment", "moment", "checkin"].includes(r.targetType) ? r.targetType : "person") as "post" | "comment" | "moment" | "checkin" | "person";
+    const table = { person: schema.people, moment: schema.moments, checkin: schema.checkins, post: schema.socialPosts, comment: schema.comments }[kind];
+    await db.update(table).set({ hidden: hide }).where(eq(table.id, r.targetId));
+    await db.update(schema.reports).set({ resolved: true }).where(eq(schema.reports.targetId, r.targetId));
+    refresh();
+    return { ok: true, message: hide ? "Hidden." : "Shown again." };
+  });
+}
+
 export async function resolveReportAction(id: string): Promise<Result> {
   return guard(async () => {
-    await (await requireAdmin()).update(schema.reports).set({ resolved: true }).where(eq(schema.reports.id, id));
+    const db = await requireAdmin();
+    // Reports on the same thing show as one, so dismissing closes them all.
+    const [r] = await db.select({ targetId: schema.reports.targetId }).from(schema.reports).where(eq(schema.reports.id, id)).limit(1);
+    if (r) await db.update(schema.reports).set({ resolved: true }).where(eq(schema.reports.targetId, r.targetId));
     refresh();
   });
 }

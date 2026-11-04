@@ -70,11 +70,10 @@ export function XPostForm({ event }: { event: string }) {
   );
 }
 
-export function AdminLogin({ next }: { next?: "/adminx" }) {
+export function AdminLogin() {
   const { state, pending, onSubmit } = useForm(adminLoginAction);
   return (
     <form onSubmit={onSubmit} className="flex max-w-md flex-wrap gap-2">
-      {next && <input type="hidden" name="next" value={next} />}
       <label htmlFor="key" className="sr-only">
         Admin key
       </label>

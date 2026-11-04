@@ -45,11 +45,11 @@ The homepage lists the most active events first (people count ten times a visit)
 
 ## Adding an event from its website (admin)
 
-On **Admin → Overview** (and **Events**), paste an event's website and press **Add event**. The server reads the page (public sites only, a few seconds at most) and fills in what it finds: the name, dates (schema.org Event data, or dates in the page text like "7th & 8th November 2026"), venue, tagline, organiser, logo and theme colour. The event lands under **Events → Waiting for approval**, and the message says what it couldn't find, so you can fill that in and approve it. Sites that only build their page in the browser give less to read.
+On **Admin → Event Connect → Inbox** (or **Events**), paste an event's website and press **Add event**. The server reads the page (public sites only, a few seconds at most) and fills in what it finds: the name, dates (schema.org Event data, or dates in the page text like "7th & 8th November 2026"), venue, tagline, organiser, logo and theme colour. The event lands under **Events → Waiting for approval**, and the message says what it couldn't find, so you can fill that in and approve it. Sites that only build their page in the browser give less to read.
 
 ## Events people create
 
-Anyone with an account can create an event at **`/new-event`** (also from the homepage and their account page): a name is enough, plus optional dates, venue, website, hashtag and a brand colour for the page. It works straight away at its own address so the organiser can share it, but it stays off the homepage (and out of search engines) until an admin approves it under **Admin → Events → Waiting for approval**. Organisers manage their event at **`/<event>/manage`**: edit the details and hide or bring back cards, moments, comments and check-ins. Up to 5 events per account.
+Anyone with an account can create an event at **`/new-event`** (also from the homepage and their account page): a name is enough, plus optional dates, venue, website, hashtag and a brand colour for the page. It works straight away at its own address so the organiser can share it, but it stays off the homepage (and out of search engines) until an admin approves it in the **Inbox** under *Waiting for approval*. Organisers manage their event at **`/<event>/manage`**: edit the details and hide or bring back cards, moments, comments and check-ins. Up to 5 events per account.
 
 ## How "no sign-up" works
 
@@ -65,16 +65,17 @@ The site keeps its own `accounts` row for each Supabase user (same id), so cards
 
 ## Admin
 
-`/admin` has tabs for one event at a time: **Overview** (totals, add moments, latest activity, reports), **Moments** (Featured, pin, hide), **People** (check-ins, cards, X posts, comments), **Accounts** (accounts and the mailing list CSV), **Events** (edit or add events) and **Stats**.
+One admin for everything on latars.xyz, at **`/adminx`** (also reached through latars.xyz). It has two projects, switched in the sidebar:
 
-To everyone who isn't an admin, `/admin` and everything under it is a plain 404, so there's nothing to find or guess at. Admins get in two ways:
+- **Event Connect** (events.latars.xyz)
+  - **Inbox:** what needs you first (reports, events waiting for approval, live or upcoming events missing details), then quick adds (an event from its website), the numbers and the latest activity across events.
+  - **Events:** every event with its logo, status (happening now, upcoming, waiting, past, featured ad, hidden), people, visits and moments, with filters and search. Each event has its own page: **Overview**, **Details** (the full form), **Moments** (add from X links, Featured, pin, hide) and **People** (check-ins, cards, X cards, comments).
+  - **Moderation:** every open report (several on one thing show as one), with Hide or Dismiss, or Keep hidden / Unhide when it already hid itself; and what's hidden lately, to undo a wrong call.
+  - **People:** accounts and the mailing list (CSV).
+  - **Stats.**
+- **AdsSim** (ads.latars.xyz): sign-ups, saved progress, activity and the emails CSV.
 
-- **Sign in** with an email listed in `ADMIN_EMAILS` (the best option: a real login, per person, and nothing to share).
-- **The admin key** at a secret address: set `ADMIN_ENTRY` (e.g. `k7q2-front-door`) and the key form lives at `/admin/k7q2-front-door`. Key attempts are rate-limited.
-
-Until `ADMIN_ENTRY` is set, the key form stays on `/admin` so nobody is locked out.
-
-Without the Supabase settings, sign-in is hidden in production. For local work and tests, `LOCAL_AUTH=true` (or `npm run dev`) turns on a small built-in email + password sign-in instead.
+To everyone who isn't an admin, `/adminx` (and the old `/admin`) is a plain 404. Admins get in by signing in with an email in `ADMIN_EMAILS`, or with the admin key at the secret address `/adminx/<ADMIN_ENTRY>`. Until `ADMIN_ENTRY` is set, the key form shows on `/adminx` so nobody is locked out. Key attempts are rate-limited. Old `/admin` links redirect to their place in `/adminx`.
 
 ## Stats
 

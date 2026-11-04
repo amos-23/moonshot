@@ -15,7 +15,7 @@ const BASE = process.env.BASE_URL ?? "http://localhost:3000";
 const EV = `${BASE}/moonshot`;
 const SHOTS = process.env.SCREENSHOTS;
 const ADMIN_KEY = process.env.ADMIN_KEY ?? "test-admin-key-123";
-// The secret address of the admin key form (the server's ADMIN_ENTRY). Without it, the form is on /admin.
+// The secret address of the admin key form (the server's ADMIN_ENTRY): /adminx/<it>. Without it, the form is on /adminx.
 const ADMIN_ENTRY = process.env.ADMIN_ENTRY;
 const SAMPLE_POST = process.env.SAMPLE_POST ?? "https://x.com/Thedanieloreofe/status/2114706863631572995";
 const run = Date.now().toString(36);
@@ -525,25 +525,40 @@ try {
   assert.equal(notMine.status(), 404);
   await stranger.ctx.close();
 
-  step("admin: hidden behind a secret address; wrong key refused; right key hides a card");
+  step("admin (/adminx): hidden behind a secret address; wrong key refused; one admin for Event Connect and AdsSim");
   const admin = await visitor({ viewport: { width: 1280, height: 900 } });
   if (ADMIN_ENTRY) {
-    for (const path of ["/admin", "/admin/stats", "/admin/adminx", `/admin/${ADMIN_ENTRY}x`]) assert.equal((await anon.page.request.get(`${BASE}${path}`)).status(), 404, `${path} looks like nothing's there`);
-    await admin.page.goto(`${BASE}/admin/${ADMIN_ENTRY}`);
-  } else await admin.page.goto(`${BASE}/admin`);
+    for (const path of ["/adminx", "/adminx/connect", "/adminx/connect/events", "/adminx/connect/stats", "/adminx/ads", "/admin", "/admin/stats", `/adminx/${ADMIN_ENTRY}x`]) assert.equal((await anon.page.request.get(`${BASE}${path}`)).status(), 404, `${path} looks like nothing's there`);
+    await admin.page.goto(`${BASE}/adminx/${ADMIN_ENTRY}`);
+  } else await admin.page.goto(`${BASE}/adminx`);
   await admin.page.getByPlaceholder("Admin key").fill("definitely-wrong-key");
   await admin.page.getByRole("button", { name: "Enter" }).click();
   await admin.page.getByText("That key isn't right.").waitFor();
   await admin.page.getByPlaceholder("Admin key").fill(ADMIN_KEY);
   await admin.page.getByRole("button", { name: "Enter" }).click();
-  await admin.page.waitForURL((u) => new URL(u).pathname === "/admin");
-  await admin.page.getByRole("heading", { name: "Admin · Moonshot" }).waitFor();
-  await admin.page.getByText("Latest activity").waitFor();
+  await admin.page.waitForURL((u) => new URL(u).pathname === "/adminx");
+  await admin.page.getByRole("heading", { name: "Admin", exact: true }).waitFor();
+  await admin.page.getByRole("heading", { name: "AdsSim" }).waitFor();
   if (ADMIN_ENTRY) {
+    // The old secret address still works, and already signed in goes straight through.
     await admin.page.goto(`${BASE}/admin/${ADMIN_ENTRY}`);
-    await admin.page.waitForURL((u) => new URL(u).pathname === "/admin"); // already in: straight through
+    await admin.page.waitForURL((u) => new URL(u).pathname === "/adminx");
   }
-  await admin.page.getByRole("navigation", { name: "Admin sections" }).getByRole("link", { name: "People" }).click();
+  // Old admin links land in the right place.
+  await admin.page.goto(`${BASE}/admin?tab=accounts`);
+  await admin.page.waitForURL((u) => new URL(u).pathname === "/adminx/connect/people");
+  await admin.page.getByRole("navigation", { name: "Projects" }).getByRole("link", { name: "AdsSim" }).click();
+  await admin.page.waitForURL((u) => new URL(u).pathname === "/adminx/ads");
+  await admin.page.getByRole("navigation", { name: "Projects" }).getByRole("link", { name: "Event Connect" }).click();
+  await admin.page.waitForURL((u) => new URL(u).pathname === "/adminx/connect");
+  await admin.page.getByRole("heading", { name: /^Needs you/ }).waitFor();
+  await admin.page.getByText("Latest activity").waitFor();
+  // Each event has its own page: open Moonshot from the list, then its People.
+  await admin.page.getByRole("navigation", { name: "Event Connect sections" }).getByRole("link", { name: "Events" }).click();
+  await admin.page.waitForURL((u) => new URL(u).pathname === "/adminx/connect/events");
+  await admin.page.getByRole("link", { name: /^Moonshot by TechCabal/ }).click();
+  await admin.page.waitForURL((u) => new URL(u).pathname === "/adminx/connect/events/moonshot");
+  await admin.page.getByRole("navigation", { name: "Event sections" }).getByRole("link", { name: "People" }).click();
   await admin.page.waitForURL(/tab=people/);
   await card(admin.page, `Bola ${run}`).getByRole("button", { name: "Hide" }).click();
   await card(admin.page, `Bola ${run}`).getByRole("button", { name: "Unhide" }).waitFor();
@@ -557,7 +572,7 @@ try {
   await anon.page.getByText(/no one matches|isn't here yet/i).waitFor();
 
   step("admin sees accounts and the mailing list, and can download it");
-  await admin.page.goto(`${BASE}/admin?tab=accounts`);
+  await admin.page.goto(`${BASE}/adminx/connect/people`);
   const accountsList = admin.page.locator("section", { has: admin.page.getByRole("heading", { name: /^Accounts/ }) });
   await accountsList.getByText(mail.toLowerCase()).waitFor();
   await accountsList.getByText("wants updates").first().waitFor();
@@ -566,7 +581,7 @@ try {
   assert.equal((await anon.page.request.get(`${BASE}/admin/signups.csv`)).status(), 404, "CSV is admin-only");
 
   step("admin adds moments from many X links at once, or an update with no credit");
-  await admin.page.goto(`${BASE}/admin`);
+  await admin.page.goto(`${BASE}/adminx/connect/events/moonshot?tab=moments`);
   await admin.page.getByLabel("X post links for Moments").fill(`https://example.com/nope\n${SAMPLE_POST}`);
   await admin.page.getByRole("button", { name: "Add", exact: true }).click();
   await admin.page.getByText(/couldn't be added\./).waitFor();
@@ -589,14 +604,14 @@ try {
   await admin.page.getByText("Or add a photo or update instead").click();
   await adminMoment.getByLabel(/what's happening/i).fill(`Doors open for day 2 ${run}`);
   await adminMoment.getByRole("button", { name: "Post", exact: true }).click();
-  await admin.page.waitForURL(/moment=1/);
+  await admin.page.waitForURL(/added=1/);
   await anon.page.goto(`${EV}/moments`);
   const am = await openMoment(anon.page, `Doors open for day 2 ${run}`);
   await am.getByText("Someone at the event").waitFor();
   assert.equal(await am.getByText("Moonshot Connect").count(), 0, "no default credit");
 
   step("admin pins a moment as Featured, sets top accounts, then unpins");
-  await admin.page.goto(`${BASE}/admin?tab=moments&q=${encodeURIComponent("Doors open")}`);
+  await admin.page.goto(`${BASE}/adminx/connect/events/moonshot?tab=moments&q=${encodeURIComponent("Doors open")}`);
   const pinRow = admin.page.locator("li", { hasText: `Doors open for day 2 ${run}` });
   await pinRow.getByRole("button", { name: "Feature this" }).click();
   await pinRow.getByRole("button", { name: "Unpin" }).waitFor();
@@ -611,7 +626,7 @@ try {
   await admin.page.getByText("Saved 2 accounts.").waitFor();
   await pinRow.getByRole("button", { name: "Unpin" }).click();
   await pinRow.getByRole("button", { name: "Feature this" }).waitFor();
-  await admin.page.goto(`${BASE}/admin?tab=moments`);
+  await admin.page.goto(`${BASE}/adminx/connect/events/moonshot?tab=moments`);
   assert.equal(await admin.page.getByLabel("Top accounts").inputValue(), "@techcabal @someone_else");
   await admin.page.getByText(/auto: rotates every 30 minutes/).waitFor();
 
@@ -623,7 +638,7 @@ try {
   await anon.page.waitForTimeout(300);
 
   step("admin Stats: visits, clicks, searches, devices, Moments, time on site, CSV");
-  await admin.page.goto(`${BASE}/admin/stats?days=1`);
+  await admin.page.goto(`${BASE}/adminx/connect/stats?days=1`);
   const tile = async (label) => Number((await admin.page.getByText(label, { exact: true }).locator("xpath=preceding-sibling::div[1]/p[1]").innerText()).replace(/,/g, ""));
   assert.ok((await tile("Visits")) > 0, "visits recorded");
   assert.ok((await tile("Visitors")) > 0, "visitors recorded");
@@ -647,10 +662,10 @@ try {
   assert.match(statsCsv, /^day,visits,visitors,returning_visitors,clicks,contact_clicks,moment_opens,video_plays,searches,minutes_on_site\r\n\d{4}-\d{2}-\d{2},\d+/);
   assert.equal((await anon.page.request.get(`${BASE}/admin/stats.csv`)).status(), 404, "stats CSV is admin-only");
   for (const days of [7, 30, 90, 0]) {
-    await admin.page.goto(`${BASE}/admin/stats?days=${days}`);
+    await admin.page.goto(`${BASE}/adminx/connect/stats?days=${days}`);
     await admin.page.getByText("From visit to connection").waitFor();
   }
-  await admin.page.goto(`${BASE}/admin/stats?days=7`);
+  await admin.page.goto(`${BASE}/adminx/connect/stats?days=7`);
   await admin.page.getByText("Visits per day").waitFor();
   await shot(admin.page, "06-stats");
 
@@ -698,16 +713,15 @@ try {
   assert.equal((await hub.page.request.get(`${BASE}/no-such-event`)).status(), 404);
   await hub.ctx.close();
 
-  step("admin: switch events and add a new one");
-  await admin.page.goto(`${BASE}/admin?event=admarp-growth-summit&tab=people`);
-  await admin.page.getByRole("heading", { name: "Admin · ADMARP" }).waitFor();
+  step("admin: each event's own page; add events from a website, approve, or by hand");
+  await admin.page.goto(`${BASE}/adminx/connect/events/admarp-growth-summit?tab=people`);
+  await admin.page.getByRole("heading", { name: /^ADMARP Digital Product Growth Summit 2026/ }).waitFor();
   await admin.page.locator("li", { hasText: `Gina ${run}` }).first().waitFor();
   assert.equal(await admin.page.locator("li", { hasText: `Bola ${run}` }).count(), 0, "only ADMARP's cards");
   await admin.page.getByLabel("Search").fill(`nobody-${run}`);
   await admin.page.getByLabel("Search").press("Enter");
   await admin.page.getByText(`Nothing matches “nobody-${run}”.`).first().waitFor();
-  await admin.page.getByRole("navigation", { name: "Admin sections" }).getByRole("link", { name: "Events" }).click();
-  await admin.page.waitForURL(/tab=events/);
+  await admin.page.goto(`${BASE}/adminx/connect/events`);
   // Adding an event from just its website: internal addresses are refused, one that's already here is caught,
   // and a real page is read and added to "Waiting for approval".
   const siteBox = admin.page.locator("#site-events");
@@ -721,18 +735,22 @@ try {
     await siteForm.getByText("That event is already here: /gtco-fashion-weekend.").waitFor({ timeout: 30000 });
     await siteBox.fill("https://example.com/");
     await siteForm.getByRole("button", { name: "Add event" }).click();
-    await siteForm.getByText(/^Added Example Domain as \/example-domain\. It's waiting for approval below: add the dates and venue/).waitFor({ timeout: 30000 });
-    await admin.page.locator("li", { hasText: "Example Domain" }).getByText("added by an admin").waitFor();
+    await siteForm.getByText(/^Added Example Domain as \/example-domain\. It's waiting for approval: add the dates and venue/).waitFor({ timeout: 30000 });
+    await admin.page.locator("li", { hasText: "Example Domain" }).getByText("Waiting for approval").waitFor();
   }
+  await admin.page.goto(`${BASE}/adminx/connect`);
+  if (process.env.E2E_NETWORK !== "0") await admin.page.locator("li", { hasText: "Example Domain" }).getByText(/added by an admin/).waitFor();
   // Events people created wait here; approving puts them on the homepage.
   const waiting = admin.page.locator("li", { hasText: `Bola Meetup ${run}` }).first();
   await waiting.getByText(/by bola\./).waitFor();
   await waiting.getByRole("button", { name: "Approve" }).click();
-  await waiting.waitFor({ state: "detached" });
+  // It leaves "Waiting for approval" (it may still be listed under "Missing details", without an Approve button).
+  await admin.page.locator("li", { hasText: `Bola Meetup ${run}` }).getByRole("button", { name: "Approve" }).waitFor({ state: "detached" });
   const home = await visitor();
   await home.page.goto(BASE);
   await home.page.getByText(`Bola Meetup ${run}`, { exact: true }).waitFor();
   await home.ctx.close();
+  await admin.page.goto(`${BASE}/adminx/connect/events`);
   await admin.page.getByText("＋ Add an event by hand").click();
   const newForm = admin.page.locator("details", { hasText: "＋ Add an event by hand" });
   await newForm.getByLabel("Name", { exact: true }).fill(`Test Fest ${run}`);
