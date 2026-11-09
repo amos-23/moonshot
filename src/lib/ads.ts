@@ -79,6 +79,67 @@ export async function signIn(db: DB, email: string, password: string) {
   return startSession(db, { id: row.id, email: row.email, name: row.name });
 }
 
+// ─── Password reset ──────────────────────────────────────────────────────────
+
+export const RESET_TTL_MINUTES = 60;
+const RESET_REQUESTS_PER_HOUR = 3;
+const RESET_TOKEN = /^[\w-]{20,100}$/;
+
+/**
+ * Starts a password reset for an email: returns a one-time token to put in the emailed link, or null when there's
+ * nothing to send (no such account, or it asked too often). Callers answer the same either way, so the response
+ * never says whether an email has an account. Earlier unused links stop working.
+ */
+export async function requestPasswordReset(db: DB, email: string): Promise<{ token: string; email: string; name: string | null } | null> {
+  const user = rowsOf<AdsUser>(await db.execute(sql`SELECT "id","email","name" FROM "ads"."users" WHERE "email" = ${email}`))[0];
+  if (!user) return null;
+  await db.execute(sql`DELETE FROM "ads"."password_resets" WHERE "created_at" < now() - interval '1 day'`);
+  const recent = rowsOf<{ n: number }>(await db.execute(sql`SELECT count(*)::int AS n FROM "ads"."password_resets" WHERE "user_id" = ${user.id} AND "created_at" > now() - interval '1 hour'`))[0]?.n ?? 0;
+  if (recent >= RESET_REQUESTS_PER_HOUR) return null;
+  await db.execute(sql`UPDATE "ads"."password_resets" SET "used_at" = now() WHERE "user_id" = ${user.id} AND "used_at" IS NULL`);
+  const token = crypto.randomBytes(32).toString("base64url");
+  await db.execute(sql`INSERT INTO "ads"."password_resets" ("token_hash","user_id","expires_at") VALUES (${hash(token)}, ${user.id}, now() + ${sql.raw(`interval '${RESET_TTL_MINUTES} minutes'`)})`);
+  return { token, email: user.email, name: user.name };
+}
+
+/**
+ * Sets a new password with a reset token (once, within the hour). Every device is signed out, then this one is
+ * signed in so the person lands back in their account. Returns "bad_token" for an unknown, used or expired link.
+ */
+export async function resetPassword(db: DB, token: string, password: string) {
+  if (!RESET_TOKEN.test(token)) return { error: "bad_token" as const };
+  const passwordHash = await hashPassword(password);
+  // Claim the token first: of two people using the same link at once, only one gets through.
+  const claimed = rowsOf<{ user_id: string }>(await db.execute(sql`
+    UPDATE "ads"."password_resets" SET "used_at" = now()
+    WHERE "token_hash" = ${hash(token)} AND "used_at" IS NULL AND "expires_at" > now()
+    RETURNING "user_id"`))[0];
+  if (!claimed) return { error: "bad_token" as const };
+  const user = rowsOf<AdsUser>(await db.execute(sql`
+    UPDATE "ads"."users" SET "password_hash" = ${passwordHash}, "last_seen_at" = now() WHERE "id" = ${claimed.user_id}
+    RETURNING "id","email","name"`))[0];
+  if (!user) return { error: "bad_token" as const };
+  await db.execute(sql`DELETE FROM "ads"."sessions" WHERE "user_id" = ${user.id}`);
+  return startSession(db, user);
+}
+
+/** The AdsSim page a reset link points to: the page that made the request if it's an allowed origin, else the main site. */
+export function adsSiteUrl(origin: string | null): string {
+  const allowed = allowedOrigins();
+  return (origin && allowed.includes(origin) ? origin : allowed[0]).replace(/\/$/, "");
+}
+
+export function resetEmail(link: string, name: string | null) {
+  const minutes = RESET_TTL_MINUTES;
+  const hi = name ? `Hi ${name},` : "Hi,";
+  const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  return {
+    subject: "Reset your AdsSim password",
+    text: `${hi}\n\nSomeone asked to reset the password for your AdsSim account. To choose a new one, open this link (it works once, for the next ${minutes} minutes):\n\n${link}\n\nIf that wasn't you, ignore this email: your password stays the same.\n\nAdsSim`,
+    html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#1a1a2e"><p>${esc(hi)}</p><p>Someone asked to reset the password for your AdsSim account. Choose a new one here (the link works once, for the next ${minutes} minutes):</p><p style="margin:24px 0"><a href="${esc(link)}" style="background:#4f46e5;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:bold">Choose a new password</a></p><p style="color:#666;font-size:13px">If the button doesn't work, paste this into your browser:<br>${esc(link)}</p><p style="color:#666;font-size:13px">If that wasn't you, ignore this email: your password stays the same.</p></div>`,
+  };
+}
+
 const DUMMY_HASH = `scrypt$${Buffer.alloc(16).toString("base64url")}$${Buffer.alloc(64).toString("base64url")}`;
 
 export async function userForToken(db: DB, token: string | null): Promise<AdsUser | null> {
@@ -106,7 +167,7 @@ export async function saveProgress(db: DB, userId: string, state: unknown) {
 }
 
 /** The events AdsSim reports. Anything else is dropped. */
-export const EVENT_NAMES = new Set(["view", "signup", "signin", "platform_start", "campaign_saved", "days_advanced", "ad_rejected", "scenario_started", "reset"]);
+export const EVENT_NAMES = new Set(["view", "signup", "signin", "platform_start", "campaign_saved", "days_advanced", "ad_rejected", "scenario_started", "reset", "password_reset"]);
 const PLATFORMS = new Set(["meta", "tiktok", "google", "x", "chatgpt"]);
 
 export function cleanEvent(body: unknown): { name: string; platform: string | null; props: Record<string, string | number | boolean> | null } | null {

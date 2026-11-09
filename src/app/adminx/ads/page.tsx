@@ -18,6 +18,7 @@ const EVENT_NAMES: Record<string, string> = {
   campaign_saved: "Saved a campaign",
   days_advanced: "Advanced days",
   reset: "Reset an account",
+  password_reset: "Reset a password",
 };
 
 function Stat({ label, value }: { label: string; value: number | string }) {

@@ -124,11 +124,15 @@ This service also hosts the API for AdsSim at `ads.latars.xyz` (a separate stati
 | --- | --- |
 | `POST /api/ads/signup` | Email + password (8+ characters, scrypt-hashed). Returns a per-device token. The guest progress sent along becomes the saved progress. An account made before passwords existed is claimed by the first sign-up with its email. |
 | `POST /api/ads/signin` | Email + password. Returns a per-device token and the saved progress. A wrong password and an unknown email give the same answer. Rate limited per network. |
+| `POST /api/ads/forgot` | "Forgot password": emails a one-time reset link (`<site>/#/reset/<token>`) if the email has an account. The answer is always the same, so it can't be used to find out who has an account; the email goes out after replying. At most 3 links an hour per account and 5 requests an hour per network. A new request cancels the earlier link. |
+| `POST /api/ads/reset` | `{ token, password }`: sets a new password with the emailed token (works once, for an hour; only a hash of it is stored). Signs every device out, then signs this one in and returns the saved progress. An account made before passwords existed can set its first password this way too. |
 | `POST /api/ads/signout` | Ends this device's token. |
 | `GET/PUT /api/ads/progress` | Loads or saves the whole progress object (`Authorization: Bearer <token>`, last write wins, up to ~4 MB). |
 | `POST /api/ads/track` | Anonymous usage events from a fixed list (platform started, campaign saved, days advanced…). No cookies or email; visitors are a daily-changing hash of IP + browser. |
 
-Set `ADS_ORIGINS` (default `https://ads.latars.xyz`) to the sites allowed to call it from a browser. There is no email verification and no password reset yet (an admin has to clear a forgotten password in the database).
+Set `ADS_ORIGINS` (default `https://ads.latars.xyz`) to the sites allowed to call it from a browser. There is no email verification.
+
+**Email.** Reset links are sent with [Resend](https://resend.com): set `RESEND_API_KEY`, and `ADS_MAIL_FROM` (default `AdsSim <noreply@latars.xyz>`) to an address on a domain you've verified in Resend. Without a key, production logs "Email not sent" and nobody gets a link; locally the email is printed to the server log (or set `MAIL_TO_LOG=true` to do that in a production build, for trying things out). The link points at the page that asked, if it's in `ADS_ORIGINS`, otherwise at the first `ADS_ORIGINS` entry.
 
 ## One admin home (`/adminx`)
 

@@ -183,6 +183,13 @@
       "when": 1793787599351,
       "tag": "0025_gtco_fashion_weekend",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794203724180,
+      "tag": "0026_ads_password_resets",
+      "breakpoints": true
     }
   ]
 }
