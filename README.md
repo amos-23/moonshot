@@ -118,7 +118,7 @@ BASE_URL=http://localhost:3000 ADMIN_KEY=... npm run test:e2e
 
 ## AdsSim backend (`/api/ads/*`)
 
-This service also hosts the API for AdsSim at `ads.latars.xyz` (a separate static site, repo `ads-sim`). It has **its own users, sessions, saved progress and usage events** in a separate `ads` Postgres schema. Nothing is shared with Event Connect accounts or Supabase sign-in, and cookies are never used.
+This service also hosts the API for AdsSim at `ads.latars.xyz` (a separate static site, repo `ads-sim`, where an account is required before using it). It has **its own users, sessions, saved progress and usage events** in a separate `ads` Postgres schema. Nothing is shared with Event Connect accounts or Supabase sign-in, and cookies are never used.
 
 | Route | What it does |
 | --- | --- |
@@ -132,4 +132,4 @@ Set `ADS_ORIGINS` (default `https://ads.latars.xyz`) to the sites allowed to cal
 
 ## One admin home (`/adminx`)
 
-`latars.xyz/adminx` forwards to `events.latars.xyz/adminx`, a single admin home for everything: Event Connect (links to `/admin` and `/admin/stats`) and AdsSim (sign-ups, activity, platforms started, latest sign-ups, and a CSV of emails). The page is public and shows a sign-in to anyone who isn't an admin; nothing else is visible until they are. Sign in with the admin key (`ADMIN_KEY`, rate limited) or an `ADMIN_EMAILS` account: one admin login covers both products. The existing `/admin` pages are unchanged and now link back with "All admin".
+`latars.xyz/adminx` forwards to `events.latars.xyz/adminx`, the one admin for everything (see **Admin** above): Event Connect and AdsSim are its two projects, behind the same admin sign-in.
