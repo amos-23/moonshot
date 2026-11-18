@@ -1,5 +1,6 @@
 import { getAccount } from "@/lib/auth";
 import { SiteFooter, SiteHeader } from "@/components/chrome";
+import { SupportWidget } from "@/components/support-widget";
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const account = await getAccount();
@@ -10,6 +11,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
         {children}
       </main>
       <SiteFooter />
+      <SupportWidget account={account && { email: account.email, name: account.name }} />
     </>
   );
 }

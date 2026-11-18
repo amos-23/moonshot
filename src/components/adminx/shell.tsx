@@ -1,18 +1,27 @@
 import Link from "next/link";
-import { ArrowUpRight, BarChart3, CalendarDays, Home, Inbox, LogOut, Megaphone, ShieldAlert, Sparkles, Users } from "lucide-react";
+import { ArrowUpRight, BarChart3, CalendarDays, Home, Inbox, LogOut, Megaphone, MessageCircle, ShieldAlert, Sparkles, Users } from "lucide-react";
+import { getDb } from "@/lib/db";
+import { unreadCount } from "@/lib/support";
 import { adminLogoutAction } from "@/lib/actions";
 import { cx } from "@/components/ui";
 
 // The one admin (/adminx) for everything on latars.xyz. Two projects live in it: Event Connect (events.latars.xyz)
 // and AdsSim (ads.latars.xyz). The sidebar switches project; each project has its own sections.
 
-export type Project = "home" | "connect" | "ads";
-export type Section = "home" | "inbox" | "events" | "moderation" | "people" | "stats" | "ads";
+export type Project = "home" | "connect" | "ads" | "support";
+export type Section = "home" | "inbox" | "events" | "moderation" | "people" | "stats" | "ads" | "support";
 
 const PROJECTS: { id: Exclude<Project, "home">; label: string; site: string; href: string; icon: typeof Sparkles }[] = [
   { id: "connect", label: "Event Connect", site: "https://events.latars.xyz", href: "/adminx/connect", icon: Sparkles },
   { id: "ads", label: "AdsSim", site: "https://ads.latars.xyz", href: "/adminx/ads", icon: Megaphone },
+  { id: "support", label: "Support", site: "https://events.latars.xyz", href: "/adminx/support", icon: MessageCircle },
 ];
+
+/** Unread support chats, shown next to "Support" in every admin page. */
+async function SupportBadge() {
+  const n = await unreadCount(await getDb()).catch(() => 0);
+  return n ? <span aria-label={`${n} unread`} className="ml-auto rounded-full bg-flame px-1.5 text-[11px] font-bold leading-5 text-white">{n}</span> : null;
+}
 
 const SECTIONS: Record<Exclude<Project, "home">, { id: Section; label: string; href: string; icon: typeof Inbox }[]> = {
   connect: [
@@ -23,6 +32,7 @@ const SECTIONS: Record<Exclude<Project, "home">, { id: Section; label: string; h
     { id: "stats", label: "Stats", href: "/adminx/connect/stats", icon: BarChart3 },
   ],
   ads: [{ id: "ads", label: "Overview", href: "/adminx/ads", icon: BarChart3 }],
+  support: [],
 };
 
 export function AdminShell({ project, section, badges = {}, children }: { project: Project; section: Section; badges?: Partial<Record<Section, number>>; children: React.ReactNode }) {
@@ -59,6 +69,7 @@ export function AdminShell({ project, section, badges = {}, children }: { projec
               className={cx("flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold", p.id === project ? "bg-white text-ink" : "bg-white/5 text-white/80 hover:bg-white/10 lg:bg-transparent")}
             >
               <p.icon size={16} aria-hidden /> {p.label}
+              {p.id === "support" && <SupportBadge />}
             </Link>
           ))}
         </nav>

@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { ArrowRight, Megaphone, Sparkles } from "lucide-react";
+import { ArrowRight, Megaphone, MessageCircle, Sparkles } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { adminGate } from "@/components/admin-gate";
 import { AdminShell, AdminTitle, StatTile } from "@/components/adminx/shell";
 import { adsAdminStats } from "@/lib/ads-admin";
 import { connectTotals, eventRows, openReports } from "@/lib/admin-data";
+import { listThreads, unreadCount } from "@/lib/support";
 
 export const metadata = { title: "Admin", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export default async function AdminHome() {
   const gate = await adminGate();
   if (gate) return gate;
   const db = await getDb();
-  const [events, reports, totals, ads] = await Promise.all([eventRows(db), openReports(db), connectTotals(db), adsAdminStats(db)]);
+  const [events, reports, totals, ads, unreadChats, openChats] = await Promise.all([eventRows(db), openReports(db), connectTotals(db), adsAdminStats(db), unreadCount(db), listThreads(db, { status: "open" })]);
   const waiting = events.filter((e) => e.status === "waiting").length;
   const needs = reports.length + waiting;
   const live = events.filter((e) => e.status === "live").length;
@@ -73,6 +74,10 @@ export default async function AdminHome() {
           <StatTile label="New this week" value={ads.newUsers7} />
           <StatTile label="With saved progress" value={ads.withProgress} />
           <StatTile label="Visitors" value={ads.visitors30} hint="last 30 days" />
+        </Project>
+        <Project href="/adminx/support" icon={MessageCircle} name="Support" site="chat with visitors from both sites" note={null}>
+          <StatTile label="Unread" value={unreadChats} href="/adminx/support" alert={unreadChats > 0} />
+          <StatTile label="Open chats" value={openChats.length} href="/adminx/support" />
         </Project>
       </div>
     </AdminShell>

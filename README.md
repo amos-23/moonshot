@@ -134,6 +134,20 @@ Set `ADS_ORIGINS` (default `https://ads.latars.xyz`) to the sites allowed to cal
 
 **Email.** Reset links are sent with [Resend](https://resend.com): set `RESEND_API_KEY`, and `ADS_MAIL_FROM` (default `AdsSim <noreply@latars.xyz>`) to an address on a domain you've verified in Resend. Without a key, production logs "Email not sent" and nobody gets a link; locally the email is printed to the server log (or set `MAIL_TO_LOG=true` to do that in a production build, for trying things out). The link points at the page that asked, if it's in `ADS_ORIGINS`, otherwise at the first `ADS_ORIGINS` entry.
 
+## Support chat (`/adminx/support`)
+
+Visitors on **AdsSim** and **Event Connect** get a **Help** button with three ways to reach you: **chat**, **WhatsApp** and **email**. Chats land in **Admin → Support** (one inbox for both projects, with unread dots, a project filter, "Mark as done", and a reply box). The page refreshes by itself every few seconds, shows the unread count in the browser tab and as a badge next to Support in every admin page.
+
+- **No account needed.** A visitor's browser keeps a random token; only its hash is stored. One chat per visitor per project. They can leave a name and an email (both optional).
+- **How you're told about a new message:**
+  - an **email** to `SUPPORT_NOTIFY_EMAIL` (falls back to the first `ADMIN_EMAILS` address), at most once per 15 minutes per chat and again right after you reply; it needs the same `RESEND_API_KEY` as the password-reset emails;
+  - an optional **phone push** through [ntfy](https://ntfy.sh): install the ntfy app, subscribe to a hard-to-guess topic, and set `NTFY_TOPIC` to it. Only "X wrote to support" and a link are sent to ntfy, never the message;
+  - the **badge** and the tab title in the admin.
+- **How visitors hear back:** they see your reply in the chat (it checks every few seconds while open). If they left an email and aren't in the chat, they also get your reply by email (at most one email per 30 minutes per chat).
+- **Limits:** 2,000 characters per message, 300 messages per chat, `RATE_LIMIT_SUPPORT_PER_HOUR` (default 30) messages per network per hour. Messages are shown as text only.
+- **Contact details** shown in the Help panel are in `src/lib/support-contact.ts`.
+- **API** (browsers on `ADS_ORIGINS` and this site): `POST /api/support/message` and `POST /api/support/thread`, both with `{ project: "ads" | "connect", token, … }`.
+
 ## One admin home (`/adminx`)
 
 `latars.xyz/adminx` forwards to `events.latars.xyz/adminx`, the one admin for everything (see **Admin** above): Event Connect and AdsSim are its two projects, behind the same admin sign-in.
