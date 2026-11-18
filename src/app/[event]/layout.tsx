@@ -8,6 +8,7 @@ import { getAccount } from "@/lib/auth";
 import { canManageEvent } from "@/lib/event-access";
 import { themeKind } from "@/lib/theme";
 import { EventFooter, EventHeader } from "@/components/chrome";
+import { SupportWidget } from "@/components/support-widget";
 
 type Params = { params: Promise<{ event: string }> };
 
@@ -51,6 +52,7 @@ export default async function EventLayout({ children, params }: Params & { child
         {children}
       </main>
       <EventFooter event={event} />
+      <SupportWidget account={account && { email: account.email, name: account.name }} />
     </>
   );
 }
